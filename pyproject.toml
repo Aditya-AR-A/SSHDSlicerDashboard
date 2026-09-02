@@ -1,0 +1,61 @@
+[project]
+name = "slicing-dashboard"
+version = "0.1.0"
+description = "Video Slicing Dashboard - Scraping, Data Processing & Reporting System"
+readme = "README.md"
+authors = [
+    { name = "adityasshd", email = "aditya.sshd@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "pandas>=2.2",
+    "numpy>=2.0",
+    "requests>=2.32",
+    "httpx>=0.28",
+    "beautifulsoup4>=4.13",
+    "lxml>=5.3",
+    "openpyxl>=3.1",
+    "python-dotenv>=1.1",
+    "pydantic>=2.11",
+    "pydantic-settings>=2.9",
+    "click>=8.1",
+    "rich>=14.0",
+    "dash>=2.17",
+    "dash-bootstrap-components>=1.6",
+    "sqlalchemy>=2.0.52",
+    "psycopg2-binary>=2.9.12",
+]
+
+[project.optional-dependencies]
+browser = [
+    "selenium>=4.30",
+]
+analysis = [
+    "jupyter>=1.1",
+    "matplotlib>=3.10",
+    "plotly>=6.1",
+]
+test = [
+    "pytest>=8.3",
+    "pytest-cov>=6.1",
+]
+dev = [
+    "slicing-dashboard[browser,analysis,test]",
+    "ruff>=0.11",
+]
+
+[project.scripts]
+slicing-dashboard = "slicing_dashboard.cli:cli"
+
+[build-system]
+requires = ["uv_build>=0.11.24,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+targekt-version = "py312"
+line-length = 100
+src = ["src", "tests"]

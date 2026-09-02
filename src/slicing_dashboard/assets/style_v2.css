@@ -1,0 +1,298 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Base Theme Variables */
+:root, [data-bs-theme="light"] {
+    --bg-gradient-start: #f5f7fa;
+    --bg-gradient-end: #e4e8f0;
+    --text-primary: #333333;
+    --glass-bg: rgba(255, 255, 255, 0.6);
+    --glass-card-bg: rgba(255, 255, 255, 0.8);
+    --glass-card-hover: rgba(255, 255, 255, 0.95);
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --glass-shadow: rgba(0, 0, 0, 0.05);
+    --glass-hover-shadow: rgba(0, 0, 0, 0.1);
+    --dropdown-bg: rgba(255, 255, 255, 0.9);
+    color-scheme: light;
+}
+
+[data-bs-theme="dark"] {
+    --bg-gradient-start: #121212;
+    --bg-gradient-end: #1a1a2e;
+    --text-primary: #e0e0e0;
+    --glass-bg: rgba(30, 30, 40, 0.4);
+    --glass-card-bg: rgba(25, 25, 35, 0.6);
+    --glass-card-hover: rgba(35, 35, 45, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-shadow: rgba(0, 0, 0, 0.2);
+    --glass-hover-shadow: rgba(0, 0, 0, 0.3);
+    --dropdown-bg: rgba(30, 30, 40, 0.9);
+    color-scheme: dark;
+}
+
+body {
+    background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    background-attachment: fixed;
+    color: var(--text-primary);
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+}
+
+.glass-card {
+    background: var(--glass-card-bg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: 10px;
+    box-shadow: 0 4px 6px var(--glass-shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
+}
+
+.glass-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px var(--glass-hover-shadow);
+    background: var(--glass-card-hover);
+}
+
+/* Date Filter Separated Container & Inputs */
+.date-filter-group {
+    background: var(--glass-card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 3px 8px;
+    transition: all 0.2s ease;
+}
+
+.date-filter-label {
+    color: var(--text-primary);
+    opacity: 0.75;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    user-select: none;
+}
+
+.date-input-custom {
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    border-radius: 6px !important;
+    padding: 3px 8px !important;
+    width: 135px !important;
+    transition: all 0.2s ease !important;
+}
+
+[data-bs-theme="dark"] .date-input-custom,
+.theme-dark .date-input-custom {
+    background-color: rgba(20, 20, 30, 0.75) !important;
+    color: #f1f5f9 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    color-scheme: dark;
+}
+
+[data-bs-theme="dark"] .date-input-custom:focus,
+.theme-dark .date-input-custom:focus {
+    background-color: rgba(30, 30, 45, 0.95) !important;
+    border-color: #3b82f6 !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3) !important;
+    color: #ffffff !important;
+}
+
+[data-bs-theme="light"] .date-input-custom,
+.theme-light .date-input-custom {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    border: 1px solid rgba(0, 0, 0, 0.12) !important;
+    color-scheme: light;
+}
+
+[data-bs-theme="light"] .date-input-custom:focus,
+.theme-light .date-input-custom:focus {
+    background-color: #ffffff !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+    color: #0f172a !important;
+}
+
+/* Native Calendar Icon Styling */
+[data-bs-theme="dark"] .date-input-custom::-webkit-calendar-picker-indicator,
+.theme-dark .date-input-custom::-webkit-calendar-picker-indicator {
+    filter: invert(0.9) brightness(1.2);
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+[data-bs-theme="dark"] .date-input-custom::-webkit-calendar-picker-indicator:hover,
+.theme-dark .date-input-custom::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+[data-bs-theme="light"] .date-input-custom::-webkit-calendar-picker-indicator,
+.theme-light .date-input-custom::-webkit-calendar-picker-indicator {
+    filter: invert(0.2);
+    cursor: pointer;
+    opacity: 0.7;
+}
+
+[data-bs-theme="light"] .date-input-custom::-webkit-calendar-picker-indicator:hover,
+.theme-light .date-input-custom::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+/* Date Picker fixes */
+.DateInput {
+    background-color: transparent !important;
+}
+
+.DateInput_input {
+    background-color: var(--glass-card-bg) !important;
+    color: var(--text-primary) !important;
+    border: 1px solid var(--glass-border) !important;
+    border-radius: 6px;
+    font-family: 'Inter', sans-serif;
+}
+
+.DateRangePickerInput,
+.SingleDatePickerInput {
+    background-color: transparent;
+    border: none;
+}
+
+/* Dropdown fixes for glassmorphism */
+.dropdown-glass .Select-control {
+    background-color: var(--glass-card-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 6px;
+    color: var(--text-primary);
+}
+
+.dropdown-glass .Select-menu-outer {
+    background-color: var(--dropdown-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    z-index: 1050; /* Ensure dropdown menu is always on top */
+}
+
+/* Make dropdown text visible in dark mode */
+[data-bs-theme="dark"] .dropdown-glass .Select-value-label,
+[data-bs-theme="dark"] .dropdown-glass .Select-placeholder,
+[data-bs-theme="dark"] .dropdown-glass .VirtualizedSelectOption {
+    color: #e0e0e0 !important;
+}
+[data-bs-theme="dark"] .dropdown-glass .VirtualizedSelectFocusedOption {
+    background-color: rgba(255,255,255,0.1) !important;
+}
+
+[data-bs-theme="light"] .dropdown-glass .Select-value-label,
+[data-bs-theme="light"] .dropdown-glass .Select-placeholder,
+[data-bs-theme="light"] .dropdown-glass .VirtualizedSelectOption {
+    color: #333333 !important;
+}
+
+/* Fix for dark mode dropdown when class is theme-dark */
+.theme-dark .dropdown-glass .Select-value-label,
+.theme-dark .dropdown-glass .Select-placeholder,
+.theme-dark .dropdown-glass .VirtualizedSelectOption {
+    color: #e0e0e0 !important;
+}
+.theme-dark .dropdown-glass .VirtualizedSelectFocusedOption {
+    background-color: rgba(255,255,255,0.1) !important;
+}
+.theme-dark .dropdown-glass .Select-menu-outer {
+    background-color: #2a2a35 !important;
+}
+
+/* Date Picker Dark Mode overrides */
+[data-bs-theme="dark"] .DateRangePickerInput, 
+[data-bs-theme="dark"] .SingleDatePickerInput {
+  background-color: #212529 !important;
+  border: 1px solid #495057 !important;
+}
+[data-bs-theme="dark"] .DateInput_input, 
+[data-bs-theme="dark"] .DateInput_input_1 {
+  color: #ffffff !important;
+  background-color: transparent !important;
+}
+[data-bs-theme="dark"] .DateRangePickerInput_arrow_svg {
+  fill: #ffffff !important;
+}
+[data-bs-theme="dark"] .CalendarMonth, 
+[data-bs-theme="dark"] .CalendarMonthGrid, 
+[data-bs-theme="dark"] .CalendarMonthGrid_1 {
+  background-color: #212529 !important;
+}
+[data-bs-theme="dark"] .CalendarMonth_caption {
+  color: #ffffff !important;
+}
+[data-bs-theme="dark"] .DayPicker_weekHeader {
+  color: #adb5bd !important;
+}
+[data-bs-theme="dark"] .CalendarDay__default {
+  background: #2b3035 !important;
+  color: #ffffff !important;
+  border: 1px solid #495057 !important;
+}
+[data-bs-theme="dark"] .CalendarDay__default:hover {
+  background: #0d6efd !important;
+  color: #ffffff !important;
+}
+[data-bs-theme="dark"] .CalendarDay__selected_start, 
+[data-bs-theme="dark"] .CalendarDay__selected_end, 
+[data-bs-theme="dark"] .CalendarDay__selected {
+  background: #0d6efd !important;
+  color: #ffffff !important;
+}
+[data-bs-theme="dark"] .CalendarDay__selected_span {
+  background: #0a58ca !important;
+  color: #ffffff !important;
+}
+[data-bs-theme="dark"] .CalendarDay__blocked_out_of_range {
+  color: #6c757d !important;
+  background: #212529 !important;
+}
+[data-bs-theme="dark"] .DayPicker_weekHeader_li small {
+    color: #a0a0a0 !important;
+}
+
+/* Light mode DatePicker fixes */
+[data-bs-theme="light"] .DateInput_input {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+}
+[data-bs-theme="light"] .DateRangePickerInput {
+    background-color: #ffffff !important;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+    border-radius: 6px;
+}
+[data-bs-theme="light"] .DayPicker_picker, 
+[data-bs-theme="light"] .DayPicker {
+    background-color: #ffffff !important;
+}
+[data-bs-theme="light"] .CalendarMonth_table,
+[data-bs-theme="light"] .CalendarMonth,
+[data-bs-theme="light"] .CalendarMonthGrid {
+    background-color: #ffffff !important;
+}
+[data-bs-theme="light"] .CalendarDay__default {
+    background-color: #ffffff !important;
+    border-color: rgba(0, 0, 0, 0.05) !important;
+    color: #333333 !important;
+}
+[data-bs-theme="light"] .DayPickerNavigation_button__default {
+    background-color: #ffffff !important;
+    border: none !important;
+}
+[data-bs-theme="light"] .CalendarMonth_caption {
+    color: #333333 !important;
+}
