@@ -5,10 +5,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 from datetime import datetime, timedelta
-import subprocess
 from pathlib import Path
 from slicing_dashboard.data_manager import DataManager
-from slicing_dashboard.config import PROJECT_ROOT
 
 USER_COLORS = {
     "Aditya": "#636EFA",
@@ -367,23 +365,9 @@ def update_dashboard(
     if triggered_id in ["refresh-btn", "auto-refresh-interval"]:
         force_refresh = True
         try:
-            import subprocess
-
-            subprocess.run(
-                [
-                    "uv",
-                    "run",
-                    "python",
-                    "-m",
-                    "slicing_dashboard.cli",
-                    "run",
-                    "--daily",
-                ],
-                cwd=str(PROJECT_ROOT),
-                check=True,
-            )
+            dm.run_sync_pipeline()
         except Exception as e:
-            print("Fast sync error:", e)
+            print("Sync pipeline error:", e)
     current_selection = (
         list(stored_users) if stored_users is not None else list(available_users)
     )

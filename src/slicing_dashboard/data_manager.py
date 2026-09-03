@@ -344,6 +344,115 @@ class DataManager:
             'Duration'}, inplace=True)
         return grouped
 
+    def run_sync_pipeline(self) -> bool:
+        """Run the full extract → process → push-to-DB pipeline in-process.
+
+        This replaces the subprocess call to `cli run --daily` so it works
+        on Vercel serverless (no `uv`, no writable filesystem for CSVs).
+
+        Returns True on success, False on failure.
+        """
+        try:
+            from slicing_dashboard.extraction.dashboard import DashboardExtractor
+            from slicing_dashboard.processing.cleaning import clean_dataframe
+            from slicing_dashboard.processing.deduplication import deduplicate
+            from slicing_dashboard.processing.normalization import normalize_dataframe
+            from slicing_dashboard.processing.validation import validate_extraction
+            from slicing_dashboard.processing.transitions import build_transitions
+            from slicing_dashboard.db import DatabaseManager
+
+            settings = self.settings
+
+            # Step 1: Extract
+            extractor = DashboardExtractor(settings)
+            scraper = extractor._get_scraper()
+            if not scraper.login():
+                print("Sync pipeline: login failed")
+                return False
+            result = scraper.extract()
+            if not result.success or not result.records:
+                print(f"Sync pipeline: extraction failed — {result.errors}")
+                return False
+
+            # Save raw snapshot to disk if possible (local), ignore errors (Vercel)
+            try:
+                extractor._save_raw_snapshot(result)
+            except Exception:
+                pass
+
+            # Step 2: Process
+            raw_data = [record.raw_data for record in result.records]
+            df = pd.DataFrame(raw_data)
+
+            ext_validation = validate_extraction(df)
+            if not ext_validation.is_valid:
+                print(f"Sync pipeline: validation failed — {ext_validation.errors}")
+                return False
+
+            df, _ = clean_dataframe(df)
+
+            # Load requests for normalization (best-effort from raw dir)
+            requests_list = []
+            try:
+                from slicing_dashboard.config import RAW_DIR
+                for requests_file in sorted(RAW_DIR.rglob('requests_*.json')):
+                    import json as _json
+                    with open(requests_file) as rf:
+                        req_data = _json.load(rf)
+                    requests_list.extend(req_data.get('records', []))
+                if requests_list:
+                    requests_dict = {r.get('id'): r for r in requests_list if r.get('id') is not None}
+                    requests_list = list(requests_dict.values())
+            except Exception:
+                pass
+
+            df, _ = normalize_dataframe(df, timezone=settings.timezone, requests=requests_list)
+            df, _, _ = deduplicate(df)
+
+            # Build transitions from reviewed tasks (best-effort)
+            reviewed_tasks_list = []
+            try:
+                from slicing_dashboard.config import RAW_DIR as _RAW_DIR
+                for reviewed_file in sorted(_RAW_DIR.rglob('reviewed_tasks_*.json')):
+                    import json as _json
+                    with open(reviewed_file) as rvf:
+                        rev_data = _json.load(rvf)
+                    reviewed_tasks_list.extend(rev_data.get('records', []))
+                if reviewed_tasks_list:
+                    import json as _json
+                    unique_revs = {_json.dumps(r, sort_keys=True): r for r in reviewed_tasks_list}
+                    reviewed_tasks_list = list(unique_revs.values())
+            except Exception:
+                pass
+
+            transitions_df = build_transitions(df, reviewed_tasks_list)
+
+            # Step 3: Push to database
+            db_manager = DatabaseManager()
+            if db_manager.is_connected():
+                db_manager.upsert_slicing_master(df)
+                db_manager.upsert_slicing_history_snapshot(df)
+                db_manager.upsert_transitions_master(transitions_df)
+                print("Sync pipeline: database updated successfully")
+            else:
+                print("Sync pipeline: no database connection, skipping DB push")
+
+            # Step 4: Clear in-memory caches so next reads pick up fresh data
+            self._cache.clear()
+            self._data = None
+            self._transitions_data = None
+            self._last_loaded = None
+
+            scraper.close()
+            return True
+
+        except Exception as e:
+            print(f"Sync pipeline error: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+
     def get_slice_data_overview_df(self, start_date: str, end_date: str, use_raw_names: bool=False) ->pd.DataFrame:
         """Calculate detailed metrics matching the original Slicing Dashboard.
         
