@@ -22,8 +22,7 @@ USER_COLORS = {
 }
 dm = DataManager()
 end_dt = datetime.now()
-start_dt = end_dt - timedelta(days=30)
-default_start = start_dt.strftime("%Y-%m-%d")
+default_start = f"{end_dt.year}-09-01"
 default_end = end_dt.strftime("%Y-%m-%d")
 
 
@@ -167,7 +166,7 @@ app.layout = html.Div(
                 dbc.Row(id="kpi-cards", className="mb-4"),
                 dcc.Store(id="selected-users-store", data=available_users),
                 dcc.Interval(
-                    id="auto-refresh-interval", interval=5 * 60 * 1000, n_intervals=0
+                    id="auto-refresh-interval", interval=30 * 1000, n_intervals=0
                 ),
                 dbc.Row(
                     [
@@ -361,13 +360,12 @@ def update_dashboard(
         raise dash.exceptions.PreventUpdate
     ctx = dash.callback_context
     force_refresh = False
-    triggered_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx.triggered else None
+    try:
+        triggered_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx and ctx.triggered else None
+    except Exception:
+        triggered_id = None
     if triggered_id in ["refresh-btn", "auto-refresh-interval"]:
         force_refresh = True
-        try:
-            dm.run_sync_pipeline()
-        except Exception as e:
-            print("Sync pipeline error:", e)
     current_selection = (
         list(stored_users) if stored_users is not None else list(available_users)
     )
@@ -440,12 +438,20 @@ def update_dashboard(
 
     raw_data = dm.fetch_dashboard_data(start_date, end_date, force_refresh)
     kpis = dm.get_summary_kpis(start_date, end_date, force_refresh)
-    total_pending_dur = raw_data.get("metrics", {}).get(
-        "review_pending_duration_seconds", 0
-    )
-    total_assigned_dur = raw_data.get("metrics", {}).get(
-        "slice_backlog_duration_seconds", 0
-    )
+    breakdowns = raw_data.get("breakdowns", {})
+    funnel_list = breakdowns.get("slice_funnel", [])
+    funnel_map = {f.get("key"): f for f in funnel_list}
+    rev_pressure = breakdowns.get("review_pressure", {})
+
+    assigned_val = float(funnel_map.get("assigned", {}).get("duration_seconds", 0) or 0)
+    rework_val = float(funnel_map.get("rework", {}).get("duration_seconds", 0) or 0)
+    total_assigned_dur = assigned_val + rework_val
+    pool_dur = float(funnel_map.get("pending_assign", {}).get("duration_seconds", 0) or kpis.get("assignable_duration", 0) or 0)
+
+    total_pending_dur = float(raw_data.get("metrics", {}).get("review_pending_duration_seconds", 0) or 0)
+    leader_dur = float(rev_pressure.get("slice_submitted_duration_seconds", 0) or 0)
+    auditor_dur = float(rev_pressure.get("slice_auditor_review_duration_seconds", 0) or 0)
+    admin_dur = float(rev_pressure.get("slice_admin_review_duration_seconds", 0) or 0)
 
     def make_kpi_card(
         title,
@@ -581,7 +587,7 @@ def update_dashboard(
             "Assigned (Now)",
             format_seconds(total_assigned_dur),
             "bi bi-people",
-            "Current Backlog",
+            f"Assigned: {format_seconds(assigned_val)} | Rework: {format_seconds(rework_val)}",
             "#10B981",
             is_dark,
             assigned_trend,
@@ -590,7 +596,7 @@ def update_dashboard(
             "Pending Review (Now)",
             format_seconds(total_pending_dur),
             "bi bi-clock",
-            "Current Backlog",
+            f"Leader: {format_seconds(leader_dur)} | Auditor: {format_seconds(auditor_dur)} | Admin: {format_seconds(admin_dur)}",
             "#F43F5E",
             is_dark,
             pending_trend,
@@ -658,7 +664,7 @@ def update_dashboard(
     breakdown_df = dm.get_user_breakdown_df(start_date, end_date, force_refresh)
     if effective_users:
         breakdown_df = breakdown_df[breakdown_df["User"].isin(effective_users)]
-    cumulative_df = dm.get_cumulative_df("2026-08-07", end_date, force_refresh)
+    cumulative_df = dm.get_cumulative_df(start_date, end_date, force_refresh)
     fig_cum = go.Figure()
     if not cumulative_df.empty:
         for col in cumulative_df.columns:
@@ -680,7 +686,7 @@ def update_dashboard(
                     )
                 )
     fig_cum.update_layout(
-        title="Cumulative Completed Hours (From Aug 7)",
+        title=f"Cumulative Completed Hours (From {start_date})",
         template=theme_template,
         plot_bgcolor=bg_color,
         paper_bgcolor=bg_color,
@@ -772,10 +778,19 @@ def update_dashboard(
             font=dict(family="Inter, sans-serif", color=font_color),
             hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
         )
-    detailed_df = dm.get_detailed_pending_assigned_df(force_refresh=force_refresh)
+    detailed_df = dm.get_detailed_pending_assigned_df(
+        start_date=start_date, end_date=end_date, force_refresh=force_refresh
+    )
     if effective_users and not detailed_df.empty:
-        detailed_df = detailed_df[detailed_df["User"].isin(effective_users)]
-    pending_stages = ["Pending Leader", "Pending Auditor", "Pending Admin"]
+        detailed_df = detailed_df[
+            (detailed_df["User"].isin(effective_users))
+            | (detailed_df["User"] == "Assignable Pool")
+        ]
+    pending_stages = [
+        "Pending Leader",
+        "Pending Auditor",
+        "Pending Admin",
+    ]
     pending_df = (
         detailed_df[detailed_df["Stage"].isin(pending_stages)]
         if not detailed_df.empty
@@ -783,12 +798,14 @@ def update_dashboard(
     )
     if not pending_df.empty:
         pending_df["Formatted Duration"] = pending_df["Duration"].apply(format_seconds)
+        if "Count" not in pending_df.columns:
+            pending_df["Count"] = 0
         fig_pending = px.bar(
             pending_df,
             x="User",
             y=pending_df["Duration"] / 3600,
             color="Stage",
-            title="Pending Reviews (Hours)",
+            title="Pending Reviews by Stage (Hours)",
             color_discrete_map={
                 "Pending Leader": "#F59E0B",
                 "Pending Auditor": "#8B5CF6",
@@ -796,7 +813,7 @@ def update_dashboard(
             },
             text="Formatted Duration",
             barmode="stack",
-            custom_data=["Formatted Duration"],
+            custom_data=["Formatted Duration", "Stage", "Count"],
         )
         fig_pending.update_layout(
             template=theme_template,
@@ -820,7 +837,7 @@ def update_dashboard(
         )
         fig_pending.update_traces(
             textposition="inside",
-            hovertemplate="Stage: %{data.name}<br>User: %{x}<br>Duration: %{customdata[0]}<extra></extra>",
+            hovertemplate="<b>%{x}</b><br>Stage: %{customdata[1]}<br>Duration: %{customdata[0]}<br>Tasks: %{customdata[2]}<extra></extra>",
         )
     else:
         fig_pending = go.Figure().update_layout(
@@ -830,7 +847,11 @@ def update_dashboard(
             font=dict(family="Inter, sans-serif", color=font_color),
             hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
         )
-    assigned_stages = ["New Assigned", "Rework Assigned"]
+    assigned_stages = [
+        "New Assigned",
+        "Rework Assigned",
+        "Assignable (Pool)",
+    ]
     assigned_df = (
         detailed_df[detailed_df["Stage"].isin(assigned_stages)]
         if not detailed_df.empty
@@ -840,19 +861,22 @@ def update_dashboard(
         assigned_df["Formatted Duration"] = assigned_df["Duration"].apply(
             format_seconds
         )
+        if "Count" not in assigned_df.columns:
+            assigned_df["Count"] = 0
         fig_assigned = px.bar(
             assigned_df,
             x="User",
             y=assigned_df["Duration"] / 3600,
             color="Stage",
-            title="Assigned Videos (Hours)",
+            title="Assigned & Assignable Videos (Hours)",
             color_discrete_map={
                 "New Assigned": "#10B981",
                 "Rework Assigned": "#F43F5E",
+                "Assignable (Pool)": "#06B6D4",
             },
             text="Formatted Duration",
             barmode="stack",
-            custom_data=["Formatted Duration"],
+            custom_data=["Formatted Duration", "Stage", "Count"],
         )
         fig_assigned.update_layout(
             template=theme_template,
@@ -876,7 +900,7 @@ def update_dashboard(
         )
         fig_assigned.update_traces(
             textposition="inside",
-            hovertemplate="Stage: %{data.name}<br>User: %{x}<br>Duration: %{customdata[0]}<extra></extra>",
+            hovertemplate="<b>%{x}</b><br>Stage: %{customdata[1]}<br>Duration: %{customdata[0]}<br>Tasks: %{customdata[2]}<extra></extra>",
         )
     else:
         fig_assigned = go.Figure().update_layout(
@@ -958,7 +982,7 @@ def update_dashboard(
             for col in ["Paid Duration", "Remaining Duration", "Total Duration"]:
                 settlement_df[col] = settlement_df[col].apply(format_seconds)
         tab_content = create_table(settlement_df)
-    status_msg = f"Updated: {datetime.now().strftime('%H:%M:%S')}"
+    status_msg = f"Updated: {datetime.now().strftime('%H:%M:%S')} (Real-time)"
     return (
         kpi_layout,
         fig_legend,

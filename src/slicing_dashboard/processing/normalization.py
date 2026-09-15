@@ -163,6 +163,7 @@ def normalize_status(df: pd.DataFrame, column: str, requests: (list[dict[
         df['rework_by'] = df['id'].map(rework_by_map).fillna('')
     else:
         df['rework_by'] = ''
+    df.loc[(df['status_normalized'] == 'slice_rework') & (df['rework_by'] == ''), 'rework_by'] = 'leader'
     unknown_count = (df['status_normalized'] == 'unknown').sum()
     if unknown_count > 0:
         unknown_values = df.loc[df['status_normalized'] == 'unknown', column

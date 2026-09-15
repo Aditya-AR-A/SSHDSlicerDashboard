@@ -245,16 +245,19 @@ def process(input_path: (str | None), output_path: (str | None)) ->None:
             console.print(f'  ⚠️ {w}')
     out_path = Path(output_path
         ) if output_path else PROCESSED_DIR / 'slicing_master.csv'
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    console.print(
-        '[yellow]Processed data CSV writing disabled in serverless mode.[/yellow]'
-        )
+    try:
+        df.to_csv(out_path, index=False)
+        console.print(f'[green]✅ Saved processed data to {out_path} ({len(df)} records)[/green]')
+    except Exception as e:
+        console.print(f'[yellow]CSV writing skipped/disabled: {e}[/yellow]')
     from slicing_dashboard.processing.transitions import build_transitions
     transitions_df = build_transitions(df, reviewed_tasks_list)
     transitions_out_path = out_path.parent / 'transitions_master.csv'
-    console.print(
-        '[yellow]Transitions master CSV writing disabled in serverless mode.[/yellow]'
-        )
+    try:
+        transitions_df.to_csv(transitions_out_path, index=False)
+        console.print(f'[green]✅ Saved transitions master to {transitions_out_path} ({len(transitions_df)} records)[/green]')
+    except Exception as e:
+        console.print(f'[yellow]Transitions CSV writing skipped/disabled: {e}[/yellow]')
     from slicing_dashboard.db import DatabaseManager
     db_manager = DatabaseManager()
     if db_manager.is_connected():
@@ -324,27 +327,37 @@ def process(input_path: (str | None), output_path: (str | None)) ->None:
 @click.option('--daily', is_flag=True, help='Generate daily report')
 @click.option('--weekly', is_flag=True, help='Generate weekly report')
 @click.option('--monthly', is_flag=True, help='Generate monthly report')
+@click.option('--individual', type=str, help='Generate individual performance report for a user')
+@click.option('--all-individuals', is_flag=True, help='Generate individual reports for all active users')
 @click.option('--date', type=str, help='Target date (YYYY-MM-DD)')
 @click.option('--week', type=str, help='Target week (YYYY-Www)')
 @click.option('--month', type=str, help='Target month (YYYY-MM)')
-@click.option('--start-date', type=str, help=
-    'Start date for range generation (YYYY-MM-DD)')
-@click.option('--end-date', type=str, help=
-    'End date for range generation (YYYY-MM-DD)')
-@click.option('--input', '-i', 'input_path', type=click.Path(exists=True),
-    help='Path to processed data file')
-def report(daily: bool, weekly: bool, monthly: bool, date: (str | None),
-    week: (str | None), month: (str | None), start_date: (str | None),
-    end_date: (str | None), input_path: (str | None)) ->None:
+@click.option('--start-date', type=str, help='Start date for range generation (YYYY-MM-DD)')
+@click.option('--end-date', type=str, help='End date for range generation (YYYY-MM-DD)')
+@click.option('--input', '-i', 'input_path', type=click.Path(exists=True), help='Path to processed data file')
+def report(
+    daily: bool,
+    weekly: bool,
+    monthly: bool,
+    individual: (str | None),
+    all_individuals: bool,
+    date: (str | None),
+    week: (str | None),
+    month: (str | None),
+    start_date: (str | None),
+    end_date: (str | None),
+    input_path: (str | None),
+) -> None:
     """Generate Excel reports from processed data."""
     from slicing_dashboard.reporting.daily import generate_daily_report
     from slicing_dashboard.reporting.excel import write_daily_report, write_monthly_report, write_weekly_report
     from slicing_dashboard.reporting.monthly import generate_monthly_report
     from slicing_dashboard.reporting.weekly import generate_weekly_report
-    if not any([daily, weekly, monthly]):
+
+    if not any([daily, weekly, monthly, individual, all_individuals]):
         console.print(
-            '[yellow]No report type specified. Use --daily, --weekly, or --monthly.[/yellow]'
-            )
+            '[yellow]No report type specified. Use --daily, --weekly, --monthly, --individual <user>, or --all-individuals.[/yellow]'
+        )
         sys.exit(1)
     if input_path:
         data_path = Path(input_path)
@@ -357,12 +370,35 @@ def report(daily: bool, weekly: bool, monthly: bool, date: (str | None),
     df = pd.read_csv(data_path)
     console.print(f'\n[bold blue]Report Generation[/bold blue]')
     console.print(f'Data: {data_path} ({len(df)} records)\n')
+
+    if individual or all_individuals:
+        from slicing_dashboard.reporting.individual import generate_individual_report_data, _load_user_mapping
+        from slicing_dashboard.reporting.excel import write_individual_report
+        from datetime import datetime
+
+        transitions_path = PROCESSED_DIR / 'transitions_master.csv'
+        tdf = pd.read_csv(transitions_path) if transitions_path.exists() else pd.DataFrame()
+        user_map = _load_user_mapping()
+
+        target_d = date if date else datetime.now().strftime('%Y-%m-%d')
+        target_m = month if month else target_d[:7]
+
+        if all_individuals:
+            canon_users = sorted(list(set(c for c in user_map.values() if c not in ['Admin', 'Test', 'Dep'])))
+            for u in canon_users:
+                rep_data = generate_individual_report_data(df, tdf, u, target_date=target_d, target_month=target_m, user_mapping=user_map)
+                out_fp = write_individual_report(rep_data)
+                console.print(f'[green]✅ Individual report generated for {u}: {out_fp}[/green]')
+        else:
+            rep_data = generate_individual_report_data(df, tdf, individual, target_date=target_d, target_month=target_m, user_mapping=user_map)
+            out_fp = write_individual_report(rep_data)
+            console.print(f'[green]✅ Individual report generated for {individual}: {out_fp}[/green]')
+
     if daily:
         if start_date:
             from datetime import timedelta
             start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-            end_val = end_date if end_date else datetime.now().strftime(
-                '%Y-%m-%d')
+            end_val = end_date if end_date else datetime.now().strftime('%Y-%m-%d')
             end_dt = datetime.strptime(end_val, '%Y-%m-%d')
             curr_dt = start_dt
             generated_count = 0
@@ -370,15 +406,10 @@ def report(daily: bool, weekly: bool, monthly: bool, date: (str | None),
                 curr_str = curr_dt.strftime('%Y-%m-%d')
                 report_data = generate_daily_report(df, date=curr_str)
                 filepath = write_daily_report(report_data)
-                console.print(
-                    f'[green]✅ Daily report generated for {curr_str}: {filepath}[/green]'
-                    )
+                console.print(f'[green]✅ Daily report generated for {curr_str}: {filepath}[/green]')
                 curr_dt += timedelta(days=1)
                 generated_count += 1
-            console.print(
-                f"""
-[green]Generated {generated_count} daily reports from {start_date} to {end_val}.[/green]"""
-                )
+            console.print(f'\n[green]Generated {generated_count} daily reports from {start_date} to {end_val}.[/green]')
         else:
             report_data = generate_daily_report(df, date=date)
             filepath = write_daily_report(report_data)

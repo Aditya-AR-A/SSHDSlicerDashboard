@@ -113,7 +113,13 @@ def format_duration(seconds: float) ->str:
     Returns:
         Formatted string like "05:08:00" or "01:45:20".
     """
-    if seconds < 0:
+    if seconds is None:
+        return '00:00:00'
+    try:
+        import math
+        if math.isnan(seconds) or seconds < 0:
+            return '00:00:00'
+    except (TypeError, ValueError):
         return '00:00:00'
     total_seconds = int(seconds)
     hours = total_seconds // 3600

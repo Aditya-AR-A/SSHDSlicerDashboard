@@ -122,7 +122,13 @@ class HTTPScraper(BaseScraper):
                 url = f'{self._base_url}/api/slice/tasks'
                 params = {'page_size': 200, 'page': page}
                 response = self._client.get(url, params=params)
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 400 and page > 1:
+                        warnings.append(f'Pagination limit reached for {url} at page {page}')
+                        break
+                    raise
                 res_data = response.json()
                 page_tasks = res_data.get('data', [])
                 if not page_tasks:
@@ -139,7 +145,13 @@ class HTTPScraper(BaseScraper):
                 params = {'workflow_type': 'slice', 'page_size': 200,
                     'page': req_page}
                 response = self._client.get(url, params=params)
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 400 and req_page > 1:
+                        warnings.append(f'Pagination limit reached for {url} at page {req_page}')
+                        break
+                    raise
                 res_data = response.json()
                 page_reqs = res_data.get('data', [])
                 if not page_reqs:
@@ -155,7 +167,13 @@ class HTTPScraper(BaseScraper):
                 url = f'{self._base_url}/api/review/reviewed-tasks'
                 params = {'page_size': 200, 'page': rev_page}
                 response = self._client.get(url, params=params)
-                response.raise_for_status()
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 400 and rev_page > 1:
+                        warnings.append(f'Pagination limit reached for {url} at page {rev_page}')
+                        break
+                    raise
                 res_data = response.json()
                 page_revs = res_data.get('data', [])
                 if not page_revs:
@@ -204,10 +222,12 @@ class HTTPScraper(BaseScraper):
         """Close the HTTP client."""
         self._client.close()
 
-    def _fetch_users(self) ->None:
+    def _fetch_users(self, force: bool = False) -> None:
         """Fetch all users from /api/users and build ID → user mapping."""
+        if self._users and not force:
+            return
         try:
-            response = self._client.get(f'{self._base_url}/api/users')
+            response = self._client.get(f'{self._base_url}/api/users', timeout=10.0)
             response.raise_for_status()
             data = response.json()
             items = data.get('items', data) if isinstance(data, dict) else data
@@ -216,8 +236,10 @@ class HTTPScraper(BaseScraper):
         except Exception as e:
             pass
 
-    def _get_username(self, user_id: int) ->str:
+    def _get_username(self, user_id: int | None) -> str:
         """Look up username by user ID."""
+        if user_id is None:
+            return "(unassigned)"
         user = self._users.get(user_id)
         if user:
             return user.get('username', f'user-{user_id}')

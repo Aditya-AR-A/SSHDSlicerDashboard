@@ -16,15 +16,32 @@ class DatabaseManager:
     def __init__(self):
         self.settings = get_settings()
         self.engine: Optional[Engine] = None
+        self._connected: Optional[bool] = None
         if self.settings.database_url:
             url = self.settings.database_url
             if url.startswith('postgres://'):
                 url = url.replace('postgres://', 'postgresql://', 1)
-            self.engine = create_engine(url)
+            connect_args = {}
+            if 'postgresql' in url:
+                connect_args = {'connect_timeout': 3}
+            try:
+                self.engine = create_engine(url, connect_args=connect_args, pool_pre_ping=True)
+            except Exception:
+                self.engine = None
 
-    def is_connected(self) ->bool:
-        """Check if the database engine is available."""
-        return self.engine is not None
+    def is_connected(self) -> bool:
+        """Check if the database engine is available and responsive."""
+        if self.engine is None:
+            return False
+        if self._connected is not None:
+            return self._connected
+        try:
+            with self.engine.connect() as conn:
+                conn.execute(pd.io.sql.text("SELECT 1"))
+            self._connected = True
+        except Exception:
+            self._connected = False
+        return self._connected
 
     def upsert_slicing_master(self, df: pd.DataFrame) ->None:
         """Upsert the slicing master table."""
