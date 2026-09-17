@@ -1,0 +1,45 @@
+{
+  "settlement_date": "2026-08-31",
+  "users": {
+    "Aditya": {
+      "batch_jul1_aug7": { "complete_hours": 5.32, "error_hours": 0.02, "total_hours": 5.34 },
+      "batch_aug8_aug31": { "complete_hours": 27.17, "error_hours": 1.15, "total_hours": 28.32 },
+      "total_settled": { "complete_hours": 53.33, "error_hours": 1.28, "total_hours": 54.61 }
+    },
+    "Komal": {
+      "batch_jul1_aug7": { "complete_hours": 3.25, "error_hours": 0.00, "total_hours": 3.25 },
+      "batch_aug8_aug31": { "complete_hours": 23.36, "error_hours": 0.41, "total_hours": 23.77 },
+      "total_settled": { "complete_hours": 62.08, "error_hours": 0.65, "total_hours": 62.73 }
+    },
+    "Priya": {
+      "batch_jul1_aug7": { "complete_hours": 1.81, "error_hours": 0.00, "total_hours": 1.81 },
+      "batch_aug8_aug31": { "complete_hours": 31.34, "error_hours": 0.41, "total_hours": 31.75 },
+      "total_settled": { "complete_hours": 67.40, "error_hours": 0.74, "total_hours": 68.14 }
+    },
+    "Rajni": {
+      "batch_jul1_aug7": { "complete_hours": 0.00, "error_hours": 0.00, "total_hours": 0.00 },
+      "batch_aug8_aug31": { "complete_hours": 18.62, "error_hours": 0.00, "total_hours": 18.62 },
+      "total_settled": { "complete_hours": 65.78, "error_hours": 0.28, "total_hours": 66.06 }
+    },
+    "Ranjeeta": {
+      "batch_jul1_aug7": { "complete_hours": 0.00, "error_hours": 0.00, "total_hours": 0.00 },
+      "batch_aug8_aug31": { "complete_hours": 21.94, "error_hours": 0.21, "total_hours": 22.15 },
+      "total_settled": { "complete_hours": 73.23, "error_hours": 1.02, "total_hours": 74.25 }
+    },
+    "Riya": {
+      "batch_jul1_aug7": { "complete_hours": 0.00, "error_hours": 0.00, "total_hours": 0.00 },
+      "batch_aug8_aug31": { "complete_hours": 6.31, "error_hours": 0.79, "total_hours": 7.10 },
+      "total_settled": { "complete_hours": 55.53, "error_hours": 1.45, "total_hours": 56.98 }
+    },
+    "Sanddep": {
+      "batch_jul1_aug7": { "complete_hours": 0.00, "error_hours": 0.00, "total_hours": 0.00 },
+      "batch_aug8_aug31": { "complete_hours": 0.21, "error_hours": 0.00, "total_hours": 0.21 },
+      "total_settled": { "complete_hours": 3.67, "error_hours": 0.26, "total_hours": 3.93 }
+    }
+  },
+  "totals": {
+    "batch_jul1_aug7": { "complete_hours": 10.38, "error_hours": 0.02, "total_hours": 10.40 },
+    "batch_aug8_aug31": { "complete_hours": 128.95, "error_hours": 2.97, "total_hours": 131.92 },
+    "total_settled": { "complete_hours": 381.02, "error_hours": 5.68, "total_hours": 386.70 }
+  }
+}

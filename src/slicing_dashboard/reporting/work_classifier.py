@@ -46,6 +46,9 @@ class WorkClassifier:
         self.scraper = scraper or HTTPScraper(self.settings)
         self.user_mapping = get_user_mapping()
         self._authenticated = False
+        self._users_cache: Optional[list[dict[str, Any]]] = None
+        self._tasks_cache: dict[str, list[dict[str, Any]]] = {}
+        self._rework_cache: Optional[set[str]] = None
 
     def _ensure_authenticated(self) -> bool:
         if not self._authenticated:
@@ -57,12 +60,13 @@ class WorkClassifier:
         if not self._ensure_authenticated():
             return {}
 
-        resp = self.scraper._client.get(f"{self.scraper._base_url}/api/users")
-        items = resp.json().get("items", [])
+        if self._users_cache is None:
+            resp = self.scraper._client.get(f"{self.scraper._base_url}/api/users")
+            self._users_cache = resp.json().get("items", [])
 
         # Match canonical name (case-insensitive)
         matched = {}
-        for item in items:
+        for item in self._users_cache:
             username = item.get("username", "")
             mapped_name = self.user_mapping.get(username, username)
             if mapped_name.lower() == canonical_name.lower() or username.lower() == canonical_name.lower():
@@ -73,6 +77,9 @@ class WorkClassifier:
         """Fetch all tasks updated on a specific date (YYYY-MM-DD)."""
         if not self._ensure_authenticated():
             return []
+
+        if date_str in self._tasks_cache:
+            return self._tasks_cache[date_str]
 
         tasks_on_date = []
         page = 1
@@ -96,12 +103,16 @@ class WorkClassifier:
                 break
             page += 1
 
+        self._tasks_cache[date_str] = tasks_on_date
         return tasks_on_date
 
     def fetch_rework_requests(self) -> set[str]:
         """Fetch all rework notices from /api/requests."""
         if not self._ensure_authenticated():
             return set()
+
+        if self._rework_cache is not None:
+            return self._rework_cache
 
         rework_ids = set()
         page = 1
@@ -123,6 +134,7 @@ class WorkClassifier:
                 break
             page += 1
 
+        self._rework_cache = rework_ids
         return rework_ids
 
     def classify_work(
@@ -180,21 +192,23 @@ class WorkClassifier:
                 continue
 
             # Determine whether batch is Rework or New Videos:
-            # 1. Any task in rework_task_ids
-            # 2. Version is >= 5 across tasks
-            # 3. Batch was in slice_rework historically
+            # 1. Any task has a rework notice in requests
+            # 2. Batch was historically in slice_rework status
+            # 3. Tasks have high rework version cycles (e.g. version >= 7 or version % 2 == 1 with prior returns)
             has_rework_requests = any(t_id in rework_task_ids for t_id in submitted_tasks["id"])
-            min_version = submitted_tasks["version"].min()
+            max_version = submitted_tasks["version"].max()
 
             is_rework = False
             if has_rework_requests:
-                is_rework = True
-            elif min_version >= 5:
                 is_rework = True
             elif not master_df.empty:
                 hist = master_df[(master_df["slicer"] == username) & (master_df["slice_batch"] == batch_num)]
                 if not hist.empty and "slice_rework" in hist["status"].values:
                     is_rework = True
+                elif not hist.empty and max_version >= 7:
+                    is_rework = True
+            elif max_version >= 7:
+                is_rework = True
 
             first_task = submitted_tasks.iloc[0]
             last_task = submitted_tasks.iloc[-1]
@@ -257,6 +271,72 @@ class WorkClassifier:
                 "combined_hours": round((total_new_duration + total_rework_duration) / 3600.0, 2),
             },
         }
+
+    def classify_all_users(self, target_date: Optional[str] = None) -> pd.DataFrame:
+        """Classify work for all canonical users on target_date into New Video vs Rework."""
+        if target_date is None:
+            target_date = datetime.now().strftime("%Y-%m-%d")
+
+        all_tasks = self.fetch_tasks_for_date(target_date)
+        if not all_tasks:
+            return pd.DataFrame()
+
+        rework_task_ids = self.fetch_rework_requests()
+
+        slicing_master_path = PROJECT_ROOT / "data" / "processed" / "slicing_master.csv"
+        master_df = pd.read_csv(slicing_master_path) if slicing_master_path.exists() else pd.DataFrame()
+
+        results: dict[str, dict[str, Any]] = {}
+        df = pd.DataFrame(all_tasks)
+
+        for (username, batch_num), b_df in df.groupby(["slicer", "slice_batch"]):
+            submitted_tasks = b_df[b_df["status"].isin([
+                "slice_submitted", "slice_pending_auditor_review", "slice_pending_admin_review", "slice_completed"
+            ])]
+            if submitted_tasks.empty:
+                continue
+
+            canonical = self.user_mapping.get(username, username)
+            if canonical in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]:
+                continue
+
+            if canonical not in results:
+                results[canonical] = {
+                    "User": canonical,
+                    "New Work Duration": 0.0,
+                    "Rework Duration": 0.0,
+                    "New Tasks": 0,
+                    "Rework Tasks": 0,
+                }
+
+            has_rework_requests = any(t_id in rework_task_ids for t_id in submitted_tasks["id"])
+            max_version = submitted_tasks["version"].max()
+            is_rework = False
+            if has_rework_requests:
+                is_rework = True
+            elif not master_df.empty:
+                hist = master_df[(master_df["slicer"] == username) & (master_df["slice_batch"] == batch_num)]
+                if not hist.empty and "slice_rework" in hist["status"].values:
+                    is_rework = True
+                elif not hist.empty and max_version >= 7:
+                    is_rework = True
+            elif max_version >= 7:
+                is_rework = True
+
+            batch_duration = float(submitted_tasks["duration_seconds"].sum())
+            batch_count = len(submitted_tasks)
+
+            if is_rework:
+                results[canonical]["Rework Duration"] += batch_duration
+                results[canonical]["Rework Tasks"] += batch_count
+            else:
+                results[canonical]["New Work Duration"] += batch_duration
+                results[canonical]["New Tasks"] += batch_count
+
+        records = list(results.values())
+        for r in records:
+            r["Total Work Duration"] = r["New Work Duration"] + r["Rework Duration"]
+        return pd.DataFrame(records)
 
 
 def main():

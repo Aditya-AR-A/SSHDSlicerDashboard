@@ -30,6 +30,15 @@ class DataManager:
                 self.user_mapping = json.load(f)
         else:
             self.user_mapping = {}
+
+        from slicing_dashboard.config import PROJECT_ROOT
+        settlement_path = PROJECT_ROOT / 'config' / 'settlement_history.json'
+        if settlement_path.exists():
+            with open(settlement_path) as f:
+                self.settlement_history = json.load(f)
+        else:
+            self.settlement_history = {}
+
         self._data = None
         self._transitions_data = None
         self._last_loaded = None
@@ -78,46 +87,207 @@ class DataManager:
         return data
 
     def get_summary_kpis(self, start_date: str, end_date: str,
-        force_refresh: bool=False) -> dict:
-        data = self.fetch_dashboard_data(start_date, end_date, force_refresh)
-        metrics = data.get('metrics', {})
-        from datetime import datetime, timedelta
-        fmt = '%Y-%m-%d'
-        dt_start = datetime.strptime(start_date, fmt)
-        dt_end = datetime.strptime(end_date, fmt)
-        diff = dt_end - dt_start
-        prev_end = dt_start - timedelta(days=1)
-        prev_start = prev_end - diff
-        prev_data = self.fetch_dashboard_data(prev_start.strftime(fmt),
-            prev_end.strftime(fmt), force_refresh)
-        prev_metrics = prev_data.get('metrics', {})
+        selected_users: (list[str] | None) = None,
+        force_refresh: bool = False) -> dict:
+        """Fetch summary KPIs matching the official Slice Data Overview platform."""
+        try:
+            curr_summary, curr_items = self.fetch_annotator_efficiency(
+                start_date=start_date, end_date=end_date, role=2, force_refresh=force_refresh
+            )
+            from datetime import datetime, timedelta
+            fmt = '%Y-%m-%d'
+            dt_start = datetime.strptime(start_date, fmt)
+            dt_end = datetime.strptime(end_date, fmt)
+            diff = dt_end - dt_start
+            prev_end = dt_start - timedelta(days=1)
+            prev_start = prev_end - diff
+            prev_summary, prev_items = self.fetch_annotator_efficiency(
+                start_date=prev_start.strftime(fmt), end_date=prev_end.strftime(fmt), role=2, force_refresh=force_refresh
+            )
 
-        def calc_pct(curr, prev):
-            if not prev:
-                return 0.0
-            return (curr - prev) / prev * 100.0
+            def calc_pct(curr, prev):
+                if not prev:
+                    return 0.0
+                return (curr - prev) / prev * 100.0
 
-        return {
-            'total_approved_duration': metrics.get('slice_completed_duration_seconds', 0),
-            'prev_approved_duration': prev_metrics.get('slice_completed_duration_seconds', 0),
-            'approved_pct': calc_pct(metrics.get('slice_completed_duration_seconds', 0), prev_metrics.get('slice_completed_duration_seconds', 0)),
-            'total_error_duration': metrics.get('error_video_output_duration_seconds', 0),
-            'prev_error_duration': prev_metrics.get('error_video_output_duration_seconds', 0),
-            'error_pct': calc_pct(metrics.get('error_video_output_duration_seconds', 0), prev_metrics.get('error_video_output_duration_seconds', 0)),
-            'rework_duration': metrics.get('overview_slice_rework_submitted_duration_seconds', 0),
-            'prev_rework_duration': prev_metrics.get('overview_slice_rework_submitted_duration_seconds', 0),
-            'rework_pct': calc_pct(metrics.get('overview_slice_rework_submitted_duration_seconds', 0), prev_metrics.get('overview_slice_rework_submitted_duration_seconds', 0)),
-            'total_tasks': metrics.get('total_tasks', 0),
-            'completed_tasks': metrics.get('slice_completed_count', 0),
-            'prev_completed_tasks': prev_metrics.get('slice_completed_count', 0),
-            'completed_pct': calc_pct(metrics.get('slice_completed_count', 0), prev_metrics.get('slice_completed_count', 0)),
-            'assignable_duration': metrics.get('overview_slice_assignable_remaining_duration_seconds', 0),
-            'total_backlog_duration': metrics.get('slice_backlog_duration_seconds', 0),
-            'total_pending_duration': metrics.get('review_pending_duration_seconds', 0),
-        }
+            raw_data = self.fetch_dashboard_data(start_date, end_date, force_refresh)
+            metrics = raw_data.get('metrics', {})
+
+            if selected_users:
+                c_dur = 0.0
+                c_cnt = 0
+                t_cnt = 0
+                rew_dur = 0.0
+                err_dur = 0.0
+                lead_dur = 0.0
+                aud_dur = 0.0
+                adm_dur = 0.0
+                for it in curr_items:
+                    raw_u = it.get('username', '')
+                    canonical = self._get_canonical_name(it.get('user_id'), raw_u)
+                    if canonical in selected_users:
+                        c_dur += float(it.get('completed_duration_seconds', 0) or 0)
+                        c_cnt += int(it.get('completed_count', 0) or 0)
+                        t_cnt += int(it.get('total_count', 0) or 0)
+                        rew_dur += float(it.get('rework_duration_seconds', 0) or 0)
+                        err_dur += float(it.get('error_review_duration_seconds', 0) or 0)
+                        lead_dur += float(it.get('leader_review_duration_seconds', 0) or 0)
+                        aud_dur += float(it.get('auditor_review_duration_seconds', 0) or 0)
+                        adm_dur += float(it.get('admin_review_duration_seconds', 0) or 0)
+
+                p_dur = 0.0
+                p_cnt = 0
+                p_rew_dur = 0.0
+                p_err_dur = 0.0
+                for it in prev_items:
+                    raw_u = it.get('username', '')
+                    canonical = self._get_canonical_name(it.get('user_id'), raw_u)
+                    if canonical in selected_users:
+                        p_dur += float(it.get('completed_duration_seconds', 0) or 0)
+                        p_cnt += int(it.get('completed_count', 0) or 0)
+                        p_rew_dur += float(it.get('rework_duration_seconds', 0) or 0)
+                        p_err_dur += float(it.get('error_review_duration_seconds', 0) or 0)
+
+                return {
+                    'total_approved_duration': c_dur,
+                    'prev_approved_duration': p_dur,
+                    'approved_pct': calc_pct(c_dur, p_dur),
+                    'total_error_duration': err_dur,
+                    'prev_error_duration': p_err_dur,
+                    'error_pct': calc_pct(err_dur, p_err_dur),
+                    'rework_duration': rew_dur,
+                    'prev_rework_duration': p_rew_dur,
+                    'rework_pct': calc_pct(rew_dur, p_rew_dur),
+                    'total_tasks': t_cnt,
+                    'completed_tasks': c_cnt,
+                    'prev_completed_tasks': p_cnt,
+                    'completed_pct': calc_pct(c_cnt, p_cnt),
+                    'assignable_duration': metrics.get('overview_slice_assignable_remaining_duration_seconds', 0),
+                    'total_backlog_duration': metrics.get('slice_backlog_duration_seconds', 0),
+                    'total_pending_duration': lead_dur + aud_dur + adm_dur,
+                    'leader_review_duration': lead_dur,
+                    'auditor_review_duration': aud_dur,
+                    'admin_review_duration': adm_dur,
+                }
+
+            lead_dur = float(curr_summary.get('leader_review_duration_seconds', 0) or 0)
+            aud_dur = float(curr_summary.get('auditor_review_duration_seconds', 0) or 0)
+            adm_dur = float(curr_summary.get('admin_review_duration_seconds', 0) or 0)
+            curr_comp_dur = float(curr_summary.get('completed_duration_seconds', 0) or 0)
+            prev_comp_dur = float(prev_summary.get('completed_duration_seconds', 0) or 0)
+            curr_err_dur = float(curr_summary.get('error_review_duration_seconds', 0) or 0)
+            prev_err_dur = float(prev_summary.get('error_review_duration_seconds', 0) or 0)
+            curr_rew_dur = float(curr_summary.get('rework_duration_seconds', 0) or 0)
+            prev_rew_dur = float(prev_summary.get('rework_duration_seconds', 0) or 0)
+            curr_comp_cnt = int(curr_summary.get('completed_count', 0) or 0)
+            prev_comp_cnt = int(prev_summary.get('completed_count', 0) or 0)
+
+            return {
+                'total_approved_duration': curr_comp_dur,
+                'prev_approved_duration': prev_comp_dur,
+                'approved_pct': calc_pct(curr_comp_dur, prev_comp_dur),
+                'total_error_duration': curr_err_dur,
+                'prev_error_duration': prev_err_dur,
+                'error_pct': calc_pct(curr_err_dur, prev_err_dur),
+                'rework_duration': curr_rew_dur,
+                'prev_rework_duration': prev_rew_dur,
+                'rework_pct': calc_pct(curr_rew_dur, prev_rew_dur),
+                'total_tasks': int(curr_summary.get('total_count', 0) or 0),
+                'completed_tasks': curr_comp_cnt,
+                'prev_completed_tasks': prev_comp_cnt,
+                'completed_pct': calc_pct(curr_comp_cnt, prev_comp_cnt),
+                'assignable_duration': metrics.get('overview_slice_assignable_remaining_duration_seconds', 0),
+                'total_backlog_duration': metrics.get('slice_backlog_duration_seconds', 0),
+                'total_pending_duration': lead_dur + aud_dur + adm_dur,
+                'leader_review_duration': lead_dur,
+                'auditor_review_duration': aud_dur,
+                'admin_review_duration': adm_dur,
+            }
+        except Exception as e:
+            print(f"Warning: Failed to fetch summary KPIs from efficiency API: {e}. Falling back to overview.")
+            data = self.fetch_dashboard_data(start_date, end_date, force_refresh)
+            metrics = data.get('metrics', {})
+            return {
+                'total_approved_duration': metrics.get('slice_completed_duration_seconds', 0),
+                'prev_approved_duration': 0.0,
+                'approved_pct': 0.0,
+                'total_error_duration': metrics.get('error_video_output_duration_seconds', 0),
+                'prev_error_duration': 0.0,
+                'error_pct': 0.0,
+                'rework_duration': metrics.get('overview_slice_rework_submitted_duration_seconds', 0),
+                'prev_rework_duration': 0.0,
+                'rework_pct': 0.0,
+                'total_tasks': metrics.get('total_tasks', 0),
+                'completed_tasks': metrics.get('slice_completed_count', 0),
+                'prev_completed_tasks': 0,
+                'completed_pct': 0.0,
+                'assignable_duration': metrics.get('overview_slice_assignable_remaining_duration_seconds', 0),
+                'total_backlog_duration': metrics.get('slice_backlog_duration_seconds', 0),
+                'total_pending_duration': metrics.get('review_pending_duration_seconds', 0),
+                'leader_review_duration': 0.0,
+                'auditor_review_duration': 0.0,
+                'admin_review_duration': 0.0,
+            }
 
     def get_user_breakdown_df(self, start_date: str, end_date: str,
         force_refresh: bool=False) -> pd.DataFrame:
+        try:
+            summary, items = self.fetch_annotator_efficiency(
+                start_date=start_date,
+                end_date=end_date,
+                role=2,
+                force_refresh=force_refresh,
+            )
+            canonical_stats: dict[str, dict[str, Any]] = {}
+            for it in items:
+                raw_u = it.get('username', '')
+                canonical = self._get_canonical_name(it.get('user_id'), raw_u)
+                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                    continue
+                if canonical not in canonical_stats:
+                    canonical_stats[canonical] = {
+                        'Completed Tasks': 0,
+                        'Completed Duration': 0.0,
+                        'Submitted Tasks': 0,
+                        'Submitted Duration': 0.0,
+                        'Error Count': 0,
+                        'Total Duration': 0.0,
+                        'Rework Duration': 0.0,
+                        'Rework Count': 0,
+                    }
+                canonical_stats[canonical]['Completed Tasks'] += int(it.get('completed_count', 0) or 0)
+                canonical_stats[canonical]['Completed Duration'] += float(it.get('completed_duration_seconds', 0) or 0.0)
+                canonical_stats[canonical]['Submitted Tasks'] += int(it.get('submitted_count', 0) or 0)
+                canonical_stats[canonical]['Submitted Duration'] += float(it.get('submitted_duration_seconds', 0) or 0.0)
+                canonical_stats[canonical]['Error Count'] += int(it.get('error_review_count', 0) or 0)
+                canonical_stats[canonical]['Total Duration'] += float(it.get('total_duration_seconds', 0) or 0.0)
+                canonical_stats[canonical]['Rework Duration'] += float(it.get('rework_duration_seconds', 0) or 0.0)
+                canonical_stats[canonical]['Rework Count'] += int(it.get('rework_count', 0) or 0)
+
+            records = []
+            for user, st in sorted(canonical_stats.items()):
+                comp_dur = st['Completed Duration']
+                subm_dur = st['Submitted Duration']
+                rew_dur = st['Rework Duration']
+                worked_dur = max(comp_dur, subm_dur)
+                new_work_dur = max(0.0, worked_dur - rew_dur)
+                records.append({
+                    'User': user,
+                    'Completed Tasks': st['Completed Tasks'],
+                    'Completed Duration': comp_dur,
+                    'Submitted Tasks': st['Submitted Tasks'],
+                    'Submitted Duration': subm_dur,
+                    'Error Count': st['Error Count'],
+                    'Total Duration': st['Total Duration'],
+                    'Rework Duration': rew_dur,
+                    'Rework Count': st['Rework Count'],
+                    'New Work Duration': new_work_dur,
+                })
+            if records:
+                return pd.DataFrame(records)
+        except Exception as e:
+            print(f"Warning: Failed to fetch user breakdown from efficiency API: {e}. Falling back.")
+
         error_durations = {}
         error_counts = {}
         if self._data is not None and not self._data.empty:
@@ -167,8 +337,13 @@ class DataManager:
                 'User': user,
                 'Completed Tasks': stats['Completed Tasks'],
                 'Completed Duration': completed_dur,
+                'Submitted Tasks': stats['Completed Tasks'],
+                'Submitted Duration': completed_dur,
                 'Error Count': err_count,
-                'Total Duration': stats['total_duration_api']
+                'Total Duration': stats['total_duration_api'],
+                'Rework Duration': 0.0,
+                'Rework Count': 0,
+                'New Work Duration': stats['normal_duration'],
             })
 
         return pd.DataFrame(records)
@@ -193,7 +368,20 @@ class DataManager:
         if dates_to_fetch:
             def fetch_single_day(dt_str):
                 try:
-                    return dt_str, self.fetch_dashboard_data(dt_str, dt_str, force_refresh=(dt_str == today_str and force_refresh))
+                    summary, items = self.fetch_annotator_efficiency(
+                        start_date=dt_str,
+                        end_date=dt_str,
+                        role=2,
+                        force_refresh=(dt_str == today_str and force_refresh),
+                    )
+                    day_users = {}
+                    for it in items:
+                        canonical = self._get_canonical_name(it.get('user_id'), it.get('username'))
+                        if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                            continue
+                        completed_dur = float(it.get('completed_duration_seconds', 0) or 0.0)
+                        day_users[canonical] = day_users.get(canonical, 0.0) + completed_dur
+                    return dt_str, day_users
                 except Exception:
                     return dt_str, {}
 
@@ -201,18 +389,8 @@ class DataManager:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 results = dict(executor.map(fetch_single_day, dates_to_fetch))
 
-            for d, data in results.items():
-                day_breakdown = data.get('breakdowns', {}).get('slice_user_breakdown', [])
-                day_users = {}
-                for entry in day_breakdown:
-                    uid = entry.get('user_id')
-                    username = self.scraper._get_username(uid)
-                    canonical = self._get_canonical_name(uid, username)
-                    if canonical in ['Admin', 'Test', 'Dep', 'user-None', '']:
-                        continue
-                    completed_dur = entry.get('normal_completed_duration_seconds', 0) or 0
-                    day_users[canonical] = day_users.get(canonical, 0) + completed_dur
-                self._daily_cache[d] = day_users
+            for d, users in results.items():
+                self._daily_cache[d] = users
 
         daily_dict = {d: self._daily_cache.get(d, {}) for d in all_dates}
         if not daily_dict:
@@ -232,11 +410,58 @@ class DataManager:
 
     def get_todays_work_df(self, target_date: (str | None)=None,
         force_refresh: bool=False) -> pd.DataFrame:
-        """Fetch today's work broken down by user in real time."""
+        """Fetch daily work broken down by user in real time directly from efficiency API."""
         if not target_date:
             target_date = datetime.now().strftime('%Y-%m-%d')
 
-        # 1. Try master data transitions if available
+        # 1. Real-time API calculation directly from annotator efficiency endpoint
+        try:
+            summary, items = self.fetch_annotator_efficiency(
+                start_date=target_date,
+                end_date=target_date,
+                role=2,
+                force_refresh=force_refresh,
+            )
+            canonical_stats: dict[str, dict[str, Any]] = {}
+            for it in items:
+                raw_u = it.get('username', '')
+                canonical = self._get_canonical_name(it.get('user_id'), raw_u)
+                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                    continue
+                sub_cnt = int(it.get('submitted_count', 0) or 0)
+                sub_dur = float(it.get('submitted_duration_seconds', 0) or 0.0)
+                comp_cnt = int(it.get('completed_count', 0) or 0)
+                comp_dur = float(it.get('completed_duration_seconds', 0) or 0.0)
+                rew_cnt = int(it.get('rework_count', 0) or 0)
+                rew_dur = float(it.get('rework_duration_seconds', 0) or 0.0)
+
+                day_cnt = max(sub_cnt, comp_cnt)
+                day_dur = max(sub_dur, comp_dur)
+
+                if day_cnt > 0 or day_dur > 0 or rew_dur > 0:
+                    if canonical not in canonical_stats:
+                        canonical_stats[canonical] = {'tasks': 0, 'total_dur': 0.0, 'rework_dur': 0.0}
+                    canonical_stats[canonical]['tasks'] += day_cnt
+                    canonical_stats[canonical]['total_dur'] += day_dur
+                    canonical_stats[canonical]['rework_dur'] += rew_dur
+
+            records = []
+            for user, st in sorted(canonical_stats.items()):
+                new_dur = max(st['total_dur'] - st['rework_dur'], 0.0)
+                records.append({
+                    'User': user,
+                    'Total Tasks': st['tasks'],
+                    'Total Duration': st['total_dur'],
+                    'New Videos (First Time)': new_dur,
+                    'Reworks': st['rework_dur'],
+                })
+            if records:
+                return pd.DataFrame(records)
+            return pd.DataFrame()
+        except Exception as e:
+            print(f'Warning: Failed to fetch daily work from efficiency API: {e}. Falling back to CSV.')
+
+        # 2. Offline fallback to master data transitions if available
         if self._data is not None and self._transitions_data is not None:
             try:
                 df = self._data
@@ -279,39 +504,7 @@ class DataManager:
             except Exception:
                 pass
 
-        # 2. Real-time API calculation directly from overview endpoint
-        try:
-            data = self.fetch_dashboard_data(target_date, target_date, force_refresh)
-            breakdowns = data.get('breakdowns', {}).get('slice_user_breakdown', [])
-            records = []
-            for entry in breakdowns:
-                uid = entry.get('user_id')
-                if uid is None:
-                    continue
-                username = self.scraper._get_username(uid)
-                canonical = self._get_canonical_name(uid, username)
-                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '']:
-                    continue
-                completed_count = entry.get('completed_count', 0) or 0
-                completed_dur = entry.get('normal_completed_duration_seconds', 0) or 0
-                # In overview breakdown, duration_seconds includes backlog and review_pending.
-                # Only completed work belongs in Today's Activity summary.
-                if completed_count > 0 or completed_dur > 0:
-                    records.append({
-                        'User': canonical,
-                        'Total Tasks': completed_count,
-                        'Total Duration': completed_dur,
-                        'New Videos (First Time)': completed_dur,
-                        'Reworks': 0.0
-                    })
-            if records:
-                res_df = pd.DataFrame(records)
-                res_df = res_df.groupby('User', as_index=False).sum()
-                return res_df
-            return pd.DataFrame()
-        except Exception as e:
-            print(f'Error computing todays work from API: {e}')
-            return pd.DataFrame()
+        return pd.DataFrame()
 
     def get_live_rework_by_user(self, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
         """Fetch actual tasks with status 'slice_rework' from API grouped by canonical user."""
@@ -370,21 +563,66 @@ class DataManager:
             return {}
 
     def get_settlement_df(self, breakdown_df: pd.DataFrame) -> pd.DataFrame:
-        """Calculate paid vs remaining duration based on August 7th batch."""
-        paid_batch = {'Aditya': 5 * 3600 + 24 * 60 + 50, 'Komal': 3 * 3600 +
-            17 * 60 + 8, 'Priya': 1 * 3600 + 51 * 60 + 2, 'Rajni': 0,
-            'Ranjeeta': 0, 'Riya': 0, 'Sanddep': 0}
-        if breakdown_df.empty:
-            return pd.DataFrame()
+        """Calculate multi-column settlement overview (Jul 1-Aug 7, Aug 8-Aug 31, and Remaining Unsettled)."""
+        if not hasattr(self, 'settlement_history') or not self.settlement_history:
+            from slicing_dashboard.config import PROJECT_ROOT
+            settlement_path = PROJECT_ROOT / 'config' / 'settlement_history.json'
+            if settlement_path.exists():
+                with open(settlement_path) as f:
+                    self.settlement_history = json.load(f)
+            else:
+                self.settlement_history = {}
+
+        users_settlement = self.settlement_history.get('users', {})
+
+        # Map current completed duration from breakdown_df
+        current_work_map = {}
+        if not breakdown_df.empty:
+            for _, row in breakdown_df.iterrows():
+                current_work_map[row['User']] = float(row.get('Completed Duration', 0) or 0)
+
+        # Include all canonical users from settlement history or current breakdown
+        all_canonical_users = sorted(set(users_settlement.keys()) | set(current_work_map.keys()))
+        all_canonical_users = [u for u in all_canonical_users if u not in ['Admin', 'Test', 'Dep', 'user-None', '', 'TOTAL', '(unassigned)']]
+
         records = []
-        for _, row in breakdown_df.iterrows():
-            user = row['User']
-            total_dur = row['Completed Duration']
-            paid = paid_batch.get(user, 0)
-            remaining = max(total_dur - paid, 0)
-            records.append({'User': user, 'Paid Duration': paid,
-                'Remaining Duration': remaining, 'Total Duration': total_dur})
+        for user in all_canonical_users:
+            u_info = users_settlement.get(user, {})
+            b1_hours = float(u_info.get('batch_jul1_aug7', {}).get('total_hours', 0.0) or 0.0)
+            b2_hours = float(u_info.get('batch_aug8_aug31', {}).get('total_hours', 0.0) or 0.0)
+            total_settled_hours = float(u_info.get('total_settled', {}).get('total_hours', 0.0) or 0.0)
+
+            b1_sec = b1_hours * 3600.0
+            b2_sec = b2_hours * 3600.0
+            total_settled_sec = total_settled_hours * 3600.0
+
+            curr_work_sec = current_work_map.get(user, 0.0)
+            remaining_sec = curr_work_sec
+
+            records.append({
+                'User': user,
+                'Jul 1 - Aug 7 (Paid)': b1_sec,
+                'Aug 8 - Aug 31 (Paid)': b2_sec,
+                'Total Settled (Aug 31)': total_settled_sec,
+                'Current Work (Unsettled)': curr_work_sec,
+                'Remaining Payable': remaining_sec,
+            })
+
+        if not records:
+            return pd.DataFrame()
+
         df = pd.DataFrame(records)
+
+        # Add TOTAL summary row
+        total_row = {
+            'User': 'TOTAL',
+            'Jul 1 - Aug 7 (Paid)': df['Jul 1 - Aug 7 (Paid)'].sum(),
+            'Aug 8 - Aug 31 (Paid)': df['Aug 8 - Aug 31 (Paid)'].sum(),
+            'Total Settled (Aug 31)': df['Total Settled (Aug 31)'].sum(),
+            'Current Work (Unsettled)': df['Current Work (Unsettled)'].sum(),
+            'Remaining Payable': df['Remaining Payable'].sum(),
+        }
+        df = pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
         return df
 
     def get_detailed_pending_assigned_df(
@@ -420,33 +658,51 @@ class DataManager:
             'Count': int(assignable_count or 0),
         })
 
-        # Calculate review stage ratios from live review pressure
-        rev_pressure = breakdowns.get('review_pressure', {})
-        leader_dur_total = float(rev_pressure.get('slice_submitted_duration_seconds', 0) or 0)
-        auditor_dur_total = float(rev_pressure.get('slice_auditor_review_duration_seconds', 0) or 0)
-        admin_dur_total = float(rev_pressure.get('slice_admin_review_duration_seconds', 0) or 0)
-        total_review_dur = leader_dur_total + auditor_dur_total + admin_dur_total
+        # 2. Exact Pending Reviews per user from annotator efficiency API
+        try:
+            _, eff_items = self.fetch_annotator_efficiency(
+                start_date=start_date,
+                end_date=end_date,
+                role=2,
+                force_refresh=force_refresh,
+            )
+            for it in eff_items:
+                raw_u = it.get('username', '')
+                canonical = self._get_canonical_name(it.get('user_id'), raw_u)
+                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                    continue
+                dur_lead = float(it.get('leader_review_duration_seconds', 0) or 0)
+                cnt_lead = int(it.get('leader_review_count', 0) or 0)
+                dur_aud = float(it.get('auditor_review_duration_seconds', 0) or 0)
+                cnt_aud = int(it.get('auditor_review_count', 0) or 0)
+                dur_adm = float(it.get('admin_review_duration_seconds', 0) or 0)
+                cnt_adm = int(it.get('admin_review_count', 0) or 0)
 
-        if total_review_dur > 0:
-            ratio_leader = leader_dur_total / total_review_dur
-            ratio_auditor = auditor_dur_total / total_review_dur
-            ratio_admin = admin_dur_total / total_review_dur
-        else:
-            ratio_leader, ratio_auditor, ratio_admin = 0.12, 0.26, 0.62
+                if dur_lead > 0 or cnt_lead > 0:
+                    records.append({
+                        'User': canonical,
+                        'Stage': 'Pending Leader',
+                        'Duration': dur_lead,
+                        'Count': cnt_lead,
+                    })
+                if dur_aud > 0 or cnt_aud > 0:
+                    records.append({
+                        'User': canonical,
+                        'Stage': 'Pending Auditor',
+                        'Duration': dur_aud,
+                        'Count': cnt_aud,
+                    })
+                if dur_adm > 0 or cnt_adm > 0:
+                    records.append({
+                        'User': canonical,
+                        'Stage': 'Pending Admin',
+                        'Duration': dur_adm,
+                        'Count': cnt_adm,
+                    })
+        except Exception as e:
+            print(f"Warning: Failed to fetch exact pending review from efficiency API: {e}")
 
-        leader_cnt_total = int(rev_pressure.get('slice_submitted_count', 0) or 0)
-        auditor_cnt_total = int(rev_pressure.get('slice_auditor_review_count', 0) or 0)
-        admin_cnt_total = int(rev_pressure.get('slice_admin_review_count', 0) or 0)
-        total_review_cnt = leader_cnt_total + auditor_cnt_total + admin_cnt_total
-
-        if total_review_cnt > 0:
-            ratio_cnt_leader = leader_cnt_total / total_review_cnt
-            ratio_cnt_auditor = auditor_cnt_total / total_review_cnt
-            ratio_cnt_admin = admin_cnt_total / total_review_cnt
-        else:
-            ratio_cnt_leader, ratio_cnt_auditor, ratio_cnt_admin = 0.10, 0.28, 0.62
-
-        # 2. Real-time Assigned and Pending Reviews per user
+        # 3. Real-time Assigned per user
         user_breakdown = breakdowns.get('slice_user_breakdown', [])
         live_rework = self.get_live_rework_by_user(force_refresh=force_refresh)
 
@@ -490,16 +746,13 @@ class DataManager:
             review_pend_dur = stats['review_dur']
             review_pend_cnt = stats['review_cnt']
 
-            # Pure assigned working workload (backlog minus review pending)
             pure_assigned_dur = max(backlog_dur - review_pend_dur, 0.0)
             pure_assigned_cnt = max(backlog_cnt - review_pend_cnt, 0)
 
-            # Get exact rework tasks for this user from live API
             rework_info = live_rework.get(canonical, {'count': 0, 'duration': 0.0})
             rework_dur = float(rework_info.get('duration', 0.0))
             rework_cnt = int(rework_info.get('count', 0))
 
-            # New assigned is pure assigned workload minus rework
             new_dur = max(pure_assigned_dur - rework_dur, 0.0)
             new_cnt = max(pure_assigned_cnt - rework_cnt, 0)
 
@@ -517,38 +770,6 @@ class DataManager:
                     'Duration': rework_dur,
                     'Count': rework_cnt,
                 })
-
-            # Pending reviews split across Leader, Auditor, and Admin review
-            if review_pend_dur > 0 or review_pend_cnt > 0:
-                dur_leader = review_pend_dur * ratio_leader
-                dur_auditor = review_pend_dur * ratio_auditor
-                dur_admin = review_pend_dur * ratio_admin
-
-                cnt_leader = round(review_pend_cnt * ratio_cnt_leader)
-                cnt_auditor = round(review_pend_cnt * ratio_cnt_auditor)
-                cnt_admin = max(0, review_pend_cnt - cnt_leader - cnt_auditor)
-
-                if dur_leader > 0 or cnt_leader > 0:
-                    records.append({
-                        'User': canonical,
-                        'Stage': 'Pending Leader',
-                        'Duration': dur_leader,
-                        'Count': cnt_leader,
-                    })
-                if dur_auditor > 0 or cnt_auditor > 0:
-                    records.append({
-                        'User': canonical,
-                        'Stage': 'Pending Auditor',
-                        'Duration': dur_auditor,
-                        'Count': cnt_auditor,
-                    })
-                if dur_admin > 0 or cnt_admin > 0:
-                    records.append({
-                        'User': canonical,
-                        'Stage': 'Pending Admin',
-                        'Duration': dur_admin,
-                        'Count': cnt_admin,
-                    })
 
         res_df = pd.DataFrame(records)
         if not res_df.empty:
@@ -678,50 +899,192 @@ class DataManager:
             traceback.print_exc()
             return False
 
+    def fetch_annotator_efficiency(
+        self,
+        start_date: str,
+        end_date: str,
+        role: int = 2,
+        force_refresh: bool = False,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """Fetch efficiency metrics directly from the API.
 
-    def get_slice_data_overview_df(self, start_date: str, end_date: str, use_raw_names: bool=False) ->pd.DataFrame:
+        Returns:
+            (summary_dict, items_list)
+        """
+        cache_key = f"eff_{role}_{start_date}_{end_date}"
+        if not force_refresh and cache_key in self._cache:
+            return self._cache[cache_key]
+
+        if not self.scraper.is_authenticated:
+            self.scraper.login()
+
+        url = self.scraper._base_url
+
+        # 1. Fetch overall summary
+        overall_resp = self.scraper._client.get(
+            f"{url}/api/dashboard/annotator-efficiency-overall",
+            params={"start_date": start_date, "end_date": end_date, "role": role},
+        )
+        overall_resp.raise_for_status()
+        summary = overall_resp.json().get("summary", {})
+
+        # 2. Fetch all paginated user items
+        items: list[dict[str, Any]] = []
+        page = 1
+        while True:
+            eff_resp = self.scraper._client.get(
+                f"{url}/api/dashboard/annotator-efficiency",
+                params={
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "role": role,
+                    "page": page,
+                    "page_size": 200,
+                },
+            )
+            eff_resp.raise_for_status()
+            page_json = eff_resp.json()
+            page_items = page_json.get("items", [])
+            if not page_items:
+                break
+            items.extend(page_items)
+            total = page_json.get("total", len(items))
+            if len(items) >= total or len(page_items) < 200:
+                break
+            page += 1
+
+        res = (summary, items)
+        self._cache[cache_key] = res
+        return res
+
+    def get_slice_data_overview_df(
+        self,
+        start_date: str,
+        end_date: str,
+        use_raw_names: bool = True,
+        force_refresh: bool = False,
+    ) -> pd.DataFrame:
         """Calculate detailed metrics matching the original Slicing Dashboard.
-        
-        Columns: Total Count, Total Duration, Completed Slice Count/Duration,
+
+        Columns: Username, Total Count, Total Duration, Completed Slice Count/Duration,
         Submitted Slice Count/Duration, Pending Leader Review Count/Duration,
         Pending Auditor Review Count/Duration, Pending Admin Review Count/Duration,
-        Error Video Count/Duration, Rework Slice Count/Duration.
+        Error Video Pending Review Count/Duration, Rework Slice Count/Duration.
         """
+        def format_duration_str(seconds):
+            if pd.isna(seconds) or seconds is None:
+                return '00:00:00'
+            sec = int(round(float(seconds)))
+            h = sec // 3600
+            m = (sec % 3600) // 60
+            s = sec % 60
+            return f'{h:02d}:{m:02d}:{s:02d}'
+
+        def format_count_dur(count, duration):
+            c = int(count or 0)
+            d_str = format_duration_str(duration)
+            return f"{c} / {d_str}"
+
+        # 1. Try fetching from live API first
+        try:
+            summary, items = self.fetch_annotator_efficiency(
+                start_date=start_date,
+                end_date=end_date,
+                role=2,
+                force_refresh=force_refresh,
+            )
+
+            rows = []
+            # Summary row: All Slicers
+            rows.append({
+                'Username': 'All Slicers',
+                'Total Count': int(summary.get('total_count', 0) or 0),
+                'Total Duration': format_duration_str(summary.get('total_duration_seconds', 0)),
+                'Completed Slice Count/Duration': format_count_dur(
+                    summary.get('completed_count', 0), summary.get('completed_duration_seconds', 0)
+                ),
+                'Submitted Slice Count/Duration': format_count_dur(
+                    summary.get('submitted_count', 0), summary.get('submitted_duration_seconds', 0)
+                ),
+                'Pending Leader Review Count/Duration': format_count_dur(
+                    summary.get('leader_review_count', 0), summary.get('leader_review_duration_seconds', 0)
+                ),
+                'Pending Auditor Review Count/Duration': format_count_dur(
+                    summary.get('auditor_review_count', 0), summary.get('auditor_review_duration_seconds', 0)
+                ),
+                'Pending Admin Review Count/Duration': format_count_dur(
+                    summary.get('admin_review_count', 0), summary.get('admin_review_duration_seconds', 0)
+                ),
+                'Error Video Pending Review Count/Duration': format_count_dur(
+                    summary.get('error_review_count', 0), summary.get('error_review_duration_seconds', 0)
+                ),
+                'Rework Slice Count/Duration': format_count_dur(
+                    summary.get('rework_count', 0), summary.get('rework_duration_seconds', 0)
+                ),
+            })
+
+            # User rows
+            for it in items:
+                raw_user = it.get('username') or f"user-{it.get('user_id')}"
+                disp_user = raw_user if use_raw_names else self._get_canonical_name(it.get('user_id'), raw_user)
+                if not use_raw_names and disp_user in ['Admin', 'Test', 'Dep', 'user-None', '']:
+                    continue
+
+                rows.append({
+                    'Username': disp_user,
+                    'Total Count': int(it.get('total_count', 0) or 0),
+                    'Total Duration': format_duration_str(it.get('total_duration_seconds', 0)),
+                    'Completed Slice Count/Duration': format_count_dur(
+                        it.get('completed_count', 0), it.get('completed_duration_seconds', 0)
+                    ),
+                    'Submitted Slice Count/Duration': format_count_dur(
+                        it.get('submitted_count', 0), it.get('submitted_duration_seconds', 0)
+                    ),
+                    'Pending Leader Review Count/Duration': format_count_dur(
+                        it.get('leader_review_count', 0), it.get('leader_review_duration_seconds', 0)
+                    ),
+                    'Pending Auditor Review Count/Duration': format_count_dur(
+                        it.get('auditor_review_count', 0), it.get('auditor_review_duration_seconds', 0)
+                    ),
+                    'Pending Admin Review Count/Duration': format_count_dur(
+                        it.get('admin_review_count', 0), it.get('admin_review_duration_seconds', 0)
+                    ),
+                    'Error Video Pending Review Count/Duration': format_count_dur(
+                        it.get('error_review_count', 0), it.get('error_review_duration_seconds', 0)
+                    ),
+                    'Rework Slice Count/Duration': format_count_dur(
+                        it.get('rework_count', 0), it.get('rework_duration_seconds', 0)
+                    ),
+                })
+
+            res_df = pd.DataFrame(rows)
+            return res_df
+        except Exception as e:
+            print(f"Warning: Failed to fetch live annotator efficiency: {e}. Falling back to master CSV.")
+
+        # 2. Offline fallback to master CSV if API fails
         if self._data is None:
             self.load_data()
         df = self._data
         if df.empty:
             return pd.DataFrame()
-            
-        def format_duration_str(seconds):
-            if pd.isna(seconds) or seconds is None:
-                return '00:00:00'
-            seconds = int(seconds)
-            h = seconds // 3600
-            m = seconds % 3600 // 60
-            s = seconds % 60
-            return f'{h:02d}:{m:02d}:{s:02d}'
-            
+
         # Determine grouping column
         if use_raw_names:
-            # user_id stores the original username string from cleaning.py
             group_col = 'user_id'
         else:
-            # Compute canonical user
             df = df.copy()
             df['canonical_user'] = df.apply(lambda row: self._get_canonical_name(row.get('user_id', ''), row.get('user_name', '')), axis=1)
             group_col = 'canonical_user'
-            
-        # Ignore structural non-user accounts if using canonical
+
         if not use_raw_names:
             df = df[~df[group_col].isin(['Admin', 'Test', 'Dep', 'user-None', ''])]
-            
+
         records = []
         for user, group in df.groupby(group_col):
             total_count = len(group)
             total_dur = group['duration_seconds'].sum()
-            
-            # Helper to get count and duration for a specific status
+
             def get_stats(status_list):
                 subset = group[
                     (group['status_normalized'].isin(status_list)) & 
@@ -731,17 +1094,17 @@ class DataManager:
                 count = len(subset)
                 dur = subset['duration_seconds'].sum()
                 return count, dur
-                
+
             comp_count, comp_dur = get_stats(['slice_completed'])
             pl_count, pl_dur = get_stats(['slice_submitted'])
             paud_count, paud_dur = get_stats(['slice_pending_auditor_review'])
             padm_count, padm_dur = get_stats(['slice_pending_admin_review'])
             err_count, err_dur = get_stats(['video_error_review', 'video_error_confirmed'])
             rew_count, rew_dur = get_stats(['slice_rework'])
-            
+
             sub_count = pl_count + paud_count + padm_count
             sub_dur = pl_dur + paud_dur + padm_dur
-            
+
             records.append({
                 'Username': user,
                 'Total Count': total_count,
@@ -751,10 +1114,10 @@ class DataManager:
                 'Pending Leader Review Count/Duration': f"{pl_count} / {format_duration_str(pl_dur)}",
                 'Pending Auditor Review Count/Duration': f"{paud_count} / {format_duration_str(paud_dur)}",
                 'Pending Admin Review Count/Duration': f"{padm_count} / {format_duration_str(padm_dur)}",
-                'Error Video Count/Duration': f"{err_count} / {format_duration_str(err_dur)}",
+                'Error Video Pending Review Count/Duration': f"{err_count} / {format_duration_str(err_dur)}",
                 'Rework Slice Count/Duration': f"{rew_count} / {format_duration_str(rew_dur)}"
             })
-            
+
         res_df = pd.DataFrame(records)
         if not res_df.empty:
             res_df = res_df.sort_values('Username')

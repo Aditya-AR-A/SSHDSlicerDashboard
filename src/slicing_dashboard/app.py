@@ -10,6 +10,7 @@ from slicing_dashboard.data_manager import DataManager
 
 USER_COLORS = {
     "Aditya": "#636EFA",
+    "Gurharleen": "#478754",
     "Komal": "#EF553B",
     "Priya": "#00CC96",
     "Rajni": "#AB63FA",
@@ -247,23 +248,24 @@ app.layout = html.Div(
                                 dbc.Tabs(
                                     [
                                         dbc.Tab(
-                                            label="Slice Data Overview",
-                                            tab_id="tab-overview",
-                                        ),
-                                        dbc.Tab(
-                                            label="Today's Work", tab_id="tab-today"
+                                            label="Today's Work",
+                                            tab_id="tab-today",
                                         ),
                                         dbc.Tab(
                                             label="Yesterday's Work",
                                             tab_id="tab-yesterday",
                                         ),
                                         dbc.Tab(
-                                            label="Settlement Overview (Since Aug 7)",
+                                            label="Settlement Overview (Since Aug 31)",
                                             tab_id="tab-settlement",
+                                        ),
+                                        dbc.Tab(
+                                            label="Slice Data Overview",
+                                            tab_id="tab-overview",
                                         ),
                                     ],
                                     id="tabs",
-                                    active_tab="tab-overview",
+                                    active_tab="tab-today",
                                     className="mb-3",
                                 ),
                                 html.Div(
@@ -396,6 +398,7 @@ def update_dashboard(
                 else:
                     current_selection.append(clicked_user)
     effective_users = current_selection if current_selection else None
+    is_filtering = effective_users is not None and len(effective_users) < len(available_users)
     theme_template = "plotly_dark" if is_dark else "plotly_white"
     font_color = "#e0e0e0" if is_dark else "#333333"
     bg_color = "rgba(0,0,0,0)"
@@ -431,27 +434,41 @@ def update_dashboard(
                 "fontSize": "14px",
             },
             style_data_conditional=[
-                {"if": {"row_index": "odd"}, "backgroundColor": odd_bg}
+                {"if": {"row_index": "odd"}, "backgroundColor": odd_bg},
+                {
+                    "if": {"filter_query": '{Username} = "All Slicers"'},
+                    "backgroundColor": "rgba(45, 125, 246, 0.25)" if is_dark else "rgba(45, 125, 246, 0.15)",
+                    "fontWeight": "bold",
+                },
+                {
+                    "if": {"filter_query": '{User} = "TOTAL"'},
+                    "backgroundColor": "rgba(45, 125, 246, 0.25)" if is_dark else "rgba(45, 125, 246, 0.15)",
+                    "fontWeight": "bold",
+                },
             ],
             style_table={"borderRadius": "10px", "overflow": "hidden"},
         )
 
     raw_data = dm.fetch_dashboard_data(start_date, end_date, force_refresh)
-    kpis = dm.get_summary_kpis(start_date, end_date, force_refresh)
+    kpis = dm.get_summary_kpis(
+        start_date,
+        end_date,
+        selected_users=effective_users if is_filtering else None,
+        force_refresh=force_refresh,
+    )
     breakdowns = raw_data.get("breakdowns", {})
     funnel_list = breakdowns.get("slice_funnel", [])
     funnel_map = {f.get("key"): f for f in funnel_list}
-    rev_pressure = breakdowns.get("review_pressure", {})
 
     assigned_val = float(funnel_map.get("assigned", {}).get("duration_seconds", 0) or 0)
     rework_val = float(funnel_map.get("rework", {}).get("duration_seconds", 0) or 0)
     total_assigned_dur = assigned_val + rework_val
     pool_dur = float(funnel_map.get("pending_assign", {}).get("duration_seconds", 0) or kpis.get("assignable_duration", 0) or 0)
 
-    total_pending_dur = float(raw_data.get("metrics", {}).get("review_pending_duration_seconds", 0) or 0)
-    leader_dur = float(rev_pressure.get("slice_submitted_duration_seconds", 0) or 0)
-    auditor_dur = float(rev_pressure.get("slice_auditor_review_duration_seconds", 0) or 0)
-    admin_dur = float(rev_pressure.get("slice_admin_review_duration_seconds", 0) or 0)
+    total_pending_dur = float(kpis.get("total_pending_duration", 0) or 0)
+    leader_dur = float(kpis.get("leader_review_duration", 0) or 0)
+    auditor_dur = float(kpis.get("auditor_review_duration", 0) or 0)
+    admin_dur = float(kpis.get("admin_review_duration", 0) or 0)
 
     def make_kpi_card(
         title,
@@ -662,13 +679,13 @@ def update_dashboard(
         hovermode=False,
     )
     breakdown_df = dm.get_user_breakdown_df(start_date, end_date, force_refresh)
-    if effective_users:
+    if is_filtering and effective_users:
         breakdown_df = breakdown_df[breakdown_df["User"].isin(effective_users)]
     cumulative_df = dm.get_cumulative_df(start_date, end_date, force_refresh)
     fig_cum = go.Figure()
     if not cumulative_df.empty:
         for col in cumulative_df.columns:
-            if col != "Date" and (not effective_users or col in effective_users):
+            if col != "Date" and (not is_filtering or col in effective_users):
                 color = USER_COLORS.get(col, "#999999")
                 formatted_strs = [format_seconds(s) for s in cumulative_df[col]]
                 fig_cum.add_trace(
@@ -731,37 +748,135 @@ def update_dashboard(
             textposition="outside",
             hovertemplate="User: %{x}<br>Duration: %{customdata[0]}<extra></extra>",
         )
-        error_df = breakdown_df[["User", "Error Count"]].copy()
-        error_df = error_df[error_df["Error Count"] > 0]
-        if not error_df.empty:
-            fig_err = px.pie(
-                error_df,
-                values="Error Count",
-                names="User",
-                hole=0.5,
-                title="Errors by User",
-                color="User",
-                color_discrete_map=USER_COLORS,
+        # Determine target date for New Work + Rework chart:
+        # If range of dates is selected, affix to today; if single day is selected, use that day.
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if start_date == end_date:
+            target_work_date = start_date
+            chart_date_label = f"{start_date}"
+        else:
+            target_work_date = today_str
+            chart_date_label = f"Today: {today_str}"
+
+        # Fetch or compute New Work and Rework distribution for target_work_date
+        work_df = pd.DataFrame()
+        if target_work_date == today_str:
+            try:
+                from slicing_dashboard.reporting.work_classifier import WorkClassifier
+                wc = WorkClassifier(scraper=dm.scraper)
+                work_df = wc.classify_all_users(today_str)
+            except Exception:
+                work_df = pd.DataFrame()
+
+        if work_df.empty:
+            if start_date == end_date:
+                work_df = breakdown_df.copy()
+            else:
+                try:
+                    work_df = dm.get_user_breakdown_df(target_work_date, target_work_date, force_refresh=force_refresh)
+                except Exception:
+                    work_df = pd.DataFrame()
+
+        if not work_df.empty:
+            if "New Work Duration" not in work_df.columns:
+                if "Submitted Duration" in work_df.columns:
+                    total_worked = work_df[["Completed Duration", "Submitted Duration"]].max(axis=1)
+                else:
+                    total_worked = work_df["Completed Duration"]
+                work_df["New Work Duration"] = (total_worked - work_df.get("Rework Duration", 0)).clip(lower=0)
+
+            if "Rework Duration" not in work_df.columns:
+                work_df["Rework Duration"] = 0.0
+
+            if "Total Work Duration" not in work_df.columns:
+                work_df["Total Work Duration"] = work_df["New Work Duration"] + work_df["Rework Duration"]
+
+            if effective_users:
+                work_df = work_df[work_df["User"].isin(effective_users)]
+
+            active_work = work_df[work_df["Total Work Duration"] > 0].copy()
+        else:
+            active_work = pd.DataFrame()
+
+        if not active_work.empty:
+            # Sort by total work duration descending
+            active_work = active_work.sort_values("Total Work Duration", ascending=False)
+
+            new_hours = active_work["New Work Duration"] / 3600
+            rework_hours = active_work["Rework Duration"] / 3600
+            total_hours = active_work["Total Work Duration"] / 3600
+
+            new_fmt = active_work["New Work Duration"].apply(format_seconds)
+            rework_fmt = active_work["Rework Duration"].apply(format_seconds)
+            total_fmt = active_work["Total Work Duration"].apply(format_seconds)
+
+            new_pct = (active_work["New Work Duration"] / active_work["Total Work Duration"] * 100).fillna(0)
+            rework_pct = (active_work["Rework Duration"] / active_work["Total Work Duration"] * 100).fillna(0)
+
+            # Modern theme-aware color styling: Sky Blue for New Work, Warm Orange for Rework
+            new_color = "#38bdf8" if is_dark else "#0284c7"
+            rework_color = "#f97316" if is_dark else "#ea580c"
+
+            fig_err = go.Figure()
+            # Bottom segment: New Work
+            fig_err.add_trace(
+                go.Bar(
+                    name="New Work",
+                    x=active_work["User"],
+                    y=new_hours,
+                    marker=dict(
+                        color=new_color,
+                        line=dict(color="rgba(255,255,255,0.15)" if is_dark else "rgba(0,0,0,0.1)", width=1),
+                    ),
+                    customdata=list(zip(new_fmt, new_pct, total_fmt, total_hours)),
+                    hovertemplate="<b>%{x}</b><br><b>New Work:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br><b>Total:</b> %{customdata[2]}<extra></extra>",
+                )
             )
-            fig_err.update_traces(
-                pull=[0.05] * len(error_df),
-                hovertemplate="%{label}: %{value} <extra></extra>",
+            # Top segment: Rework
+            fig_err.add_trace(
+                go.Bar(
+                    name="Rework",
+                    x=active_work["User"],
+                    y=rework_hours,
+                    marker=dict(
+                        color=rework_color,
+                        line=dict(color="rgba(255,255,255,0.15)" if is_dark else "rgba(0,0,0,0.1)", width=1),
+                    ),
+                    customdata=list(zip(rework_fmt, rework_pct, total_fmt, total_hours)),
+                    hovertemplate="<b>%{x}</b><br><b>Rework:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br><b>Total:</b> %{customdata[2]}<extra></extra>",
+                )
+            )
+            fig_err.update_layout(
+                barmode="stack",
+                title=f"New Work + Rework ({chart_date_label})",
+                yaxis_title="Hours",
+                showlegend=True,
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="right",
+                    x=1,
+                    font=dict(size=12, color=font_color),
+                    bgcolor="rgba(0,0,0,0)",
+                ),
             )
         else:
             fig_err = go.Figure().add_annotation(
-                text="No errors found", showarrow=False, font={"size": 18}
+                text=f"No work recorded ({chart_date_label})", showarrow=False, font={"size": 18, "color": font_color}
             )
-            fig_err.update_layout(title="Errors by User")
+            fig_err.update_layout(title=f"New Work + Rework ({chart_date_label})")
         fig_err.update_layout(
             template=theme_template,
             plot_bgcolor=bg_color,
             paper_bgcolor=bg_color,
             font=dict(family="Inter, sans-serif", size=16, color=font_color),
             title_font=dict(size=20, weight="bold"),
-            margin=dict(l=20, r=20, t=60, b=20),
+            margin=dict(l=50, r=20, t=60, b=50),
             clickmode="event+select",
-            showlegend=False,
             hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
+            xaxis=dict(showgrid=False, zeroline=False),
+            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", zeroline=False),
         )
     else:
         fig_ind = go.Figure().update_layout(
@@ -781,7 +896,7 @@ def update_dashboard(
     detailed_df = dm.get_detailed_pending_assigned_df(
         start_date=start_date, end_date=end_date, force_refresh=force_refresh
     )
-    if effective_users and not detailed_df.empty:
+    if is_filtering and effective_users and not detailed_df.empty:
         detailed_df = detailed_df[
             (detailed_df["User"].isin(effective_users))
             | (detailed_df["User"] == "Assignable Pool")
@@ -919,7 +1034,7 @@ def update_dashboard(
         today_df = dm.get_todays_work_df(
             target_date=target_date, force_refresh=force_refresh
         )
-        if effective_users and not today_df.empty:
+        if is_filtering and effective_users and not today_df.empty:
             today_df = today_df[today_df["User"].isin(effective_users)]
         if not today_df.empty:
             for col in ["Total Duration", "New Videos (First Time)", "Reworks"]:
@@ -929,7 +1044,7 @@ def update_dashboard(
             raw_full_df = dm.get_todays_work_df(
                 target_date=target_date, force_refresh=False
             )
-            if effective_users:
+            if is_filtering and effective_users:
                 raw_full_df = raw_full_df[raw_full_df["User"].isin(effective_users)]
             for col in ["Total Duration", "New Videos (First Time)", "Reworks"]:
                 total_seconds = raw_full_df[col].sum() if not raw_full_df.empty else 0
@@ -940,16 +1055,15 @@ def update_dashboard(
         tab_content = create_table(today_df)
     elif active_tab == "tab-overview":
         overview_df = dm.get_slice_data_overview_df(
-            start_date, end_date, use_raw_names=True
+            start_date, end_date, use_raw_names=True, force_refresh=force_refresh
         )
-        if effective_users and not overview_df.empty:
-            # We must map effective_users (canonical) back to raw usernames?
-            # Or just filter if the raw username is in effective_users?
-            # For simplicity, if they filter by canonical user, we might miss some raw usernames.
-            # Let's map the raw usernames to canonical to check if they should be included.
+        if is_filtering and effective_users and not overview_df.empty:
             filtered_records = []
             for _, row in overview_df.iterrows():
                 raw_user = row["Username"]
+                if raw_user == "All Slicers":
+                    filtered_records.append(row)
+                    continue
                 # Determine canonical user
                 uid_str = (
                     raw_user.replace("user-", "")
@@ -968,19 +1082,40 @@ def update_dashboard(
         tab_content = create_table(overview_df)
     else:
         full_breakdown_df = dm.get_user_breakdown_df(
-            start_date, end_date, force_refresh
+            "2026-09-01", end_date, force_refresh
         )
-        if effective_users:
+        if is_filtering and effective_users:
             full_breakdown_df = full_breakdown_df[
                 full_breakdown_df["User"].isin(effective_users)
             ]
         settlement_df = dm.get_settlement_df(full_breakdown_df)
         if not settlement_df.empty:
-            settlement_df = settlement_df.sort_values(
-                by="Remaining Duration", ascending=False
+            def format_settlement_val(val):
+                if pd.isna(val) or val is None or val == 0:
+                    return "00:00 (0.00h)"
+                val = float(val)
+                sec = int(round(val))
+                h = sec // 3600
+                m = (sec % 3600) // 60
+                hours_dec = val / 3600.0
+                return f"{h:02d}:{m:02d} ({hours_dec:.2f}h)"
+
+            user_part = settlement_df[settlement_df["User"] != "TOTAL"].sort_values(
+                by="Remaining Payable", ascending=False
             )
-            for col in ["Paid Duration", "Remaining Duration", "Total Duration"]:
-                settlement_df[col] = settlement_df[col].apply(format_seconds)
+            total_part = settlement_df[settlement_df["User"] == "TOTAL"]
+            settlement_df = pd.concat([user_part, total_part], ignore_index=True)
+
+            duration_cols = [
+                "Jul 1 - Aug 7 (Paid)",
+                "Aug 8 - Aug 31 (Paid)",
+                "Total Settled (Aug 31)",
+                "Current Work (Unsettled)",
+                "Remaining Payable",
+            ]
+            for col in duration_cols:
+                if col in settlement_df.columns:
+                    settlement_df[col] = settlement_df[col].apply(format_settlement_val)
         tab_content = create_table(settlement_df)
     status_msg = f"Updated: {datetime.now().strftime('%H:%M:%S')} (Real-time)"
     return (
