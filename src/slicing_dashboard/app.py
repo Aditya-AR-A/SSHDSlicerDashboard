@@ -745,38 +745,41 @@ def _build_work_chart(
         chart_date_label = "Today"
 
     work_df = pd.DataFrame()
-    if target_work_date == today_str:
+    if start_date == end_date:
         try:
-            from slicing_dashboard.processing.batch_work_classifier import (
-                get_batch_work_classifier,
+            # get_todays_work_df fetches accurate completed/submitted efficiency data directly from backend
+            t_df = dm.get_todays_work_df(
+                target_work_date,
+                force_refresh=force_refresh,
             )
-
-            bwc = get_batch_work_classifier(scraper=dm.scraper)
-            b_df = bwc.classify_and_aggregate_daily_work(today_str, force_refresh=force_refresh)
-            if not b_df.empty:
+            if not t_df.empty:
                 work_df = pd.DataFrame({
-                    "User": b_df["User"],
-                    "New Work Duration": b_df["New Videos (First Time)"],
-                    "Rework Duration": b_df["Reworks"],
-                    "Total Work Duration": b_df["Total Duration"],
-                    "RawID": b_df.get("RawID", ""),
+                    "User": t_df["User"],
+                    "New Work Duration": t_df["New Videos (First Time)"],
+                    "Rework Duration": t_df.get("Reworks", 0.0),
+                    "Total Work Duration": t_df["Total Duration"],
+                    "RawID": t_df.get("RawID", ""),
+                })
+            else:
+                work_df = breakdown_df.copy()
+        except Exception:
+            work_df = breakdown_df.copy()
+    else:
+        try:
+            t_df = dm.get_todays_work_df(
+                target_work_date,
+                force_refresh=force_refresh,
+            )
+            if not t_df.empty:
+                work_df = pd.DataFrame({
+                    "User": t_df["User"],
+                    "New Work Duration": t_df["New Videos (First Time)"],
+                    "Rework Duration": t_df.get("Reworks", 0.0),
+                    "Total Work Duration": t_df["Total Duration"],
+                    "RawID": t_df.get("RawID", ""),
                 })
         except Exception:
             work_df = pd.DataFrame()
-
-    if work_df.empty:
-        if start_date == end_date:
-            work_df = breakdown_df.copy()
-        else:
-            try:
-                # get_todays_work_df now provides RawID for other single dates
-                work_df = dm.get_todays_work_df(
-                    target_work_date,
-                    target_work_date,
-                    force_refresh=force_refresh,
-                )
-            except Exception:
-                work_df = pd.DataFrame()
 
     if not work_df.empty:
         if "New Work Duration" not in work_df.columns:
