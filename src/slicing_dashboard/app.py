@@ -759,6 +759,7 @@ def _build_work_chart(
                     "New Work Duration": b_df["New Videos (First Time)"],
                     "Rework Duration": b_df["Reworks"],
                     "Total Work Duration": b_df["Total Duration"],
+                    "RawID": b_df.get("RawID", ""),
                 })
         except Exception:
             work_df = pd.DataFrame()
@@ -768,7 +769,8 @@ def _build_work_chart(
             work_df = breakdown_df.copy()
         else:
             try:
-                work_df = dm.get_user_breakdown_df(
+                # get_todays_work_df now provides RawID for other single dates
+                work_df = dm.get_todays_work_df(
                     target_work_date,
                     target_work_date,
                     force_refresh=force_refresh,
@@ -783,7 +785,7 @@ def _build_work_chart(
                     ["Completed Duration", "Submitted Duration"]
                 ].max(axis=1)
             else:
-                total_worked = work_df["Completed Duration"]
+                total_worked = work_df.get("Completed Duration", 0)
             work_df["New Work Duration"] = (
                 total_worked - work_df.get("Rework Duration", 0)
             ).clip(lower=0)
@@ -800,31 +802,10 @@ def _build_work_chart(
             work_df = work_df[work_df["User"].isin(effective_users)]
 
         active_work = work_df[work_df["Total Work Duration"] > 0].copy()
-        # Add IDs: slicer usernames for this user's work on target_work_date
-        if (
-            dm._data is not None
-            and not dm._data.empty
-            and "user_name" in dm._data.columns
-            and "status" in dm._data.columns
-        ):
-            _completed = {"slice_approved", "slice_submitted", "slice_completed"}
-            _date_col = "completed_date" if "completed_date" in dm._data.columns else None
-
-            def _get_work_ids(user: str) -> str:
-                try:
-                    mask = dm._data["user_name"] == user
-                    mask &= dm._data["status"].isin(_completed)
-                    if _date_col:
-                        mask &= dm._data[_date_col] == target_work_date
-                    ids = sorted(
-                        dm._data.loc[mask, "slicer"].dropna().unique().tolist()
-                    )
-                    chunks = [ids[i:i+3] for i in range(0, len(ids), 3)]
-                    return "<br>".join(", ".join(chunk) for chunk in chunks)
-                except Exception:
-                    return ""
-
-            active_work["IDs"] = active_work["User"].apply(_get_work_ids)
+        
+        # Use the RawID natively provided by b_df or get_todays_work_df
+        if "RawID" in active_work.columns:
+            active_work["IDs"] = active_work["RawID"]
         else:
             active_work["IDs"] = ""
     else:

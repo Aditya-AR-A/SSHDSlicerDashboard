@@ -711,20 +711,26 @@ class DataManager:
 
                 if day_cnt > 0 or day_dur > 0 or rew_dur > 0:
                     if canonical not in canonical_stats:
-                        canonical_stats[canonical] = {'tasks': 0, 'total_dur': 0.0, 'rework_dur': 0.0}
+                        canonical_stats[canonical] = {'tasks': 0, 'total_dur': 0.0, 'rework_dur': 0.0, 'raw_ids': set()}
                     canonical_stats[canonical]['tasks'] += day_cnt
                     canonical_stats[canonical]['total_dur'] += day_dur
                     canonical_stats[canonical]['rework_dur'] += rew_dur
+                    if raw_u:
+                        canonical_stats[canonical]['raw_ids'].add(raw_u)
 
             records = []
             for user, st in sorted(canonical_stats.items()):
                 new_dur = max(st['total_dur'] - st['rework_dur'], 0.0)
+                raw_ids_list = list(st['raw_ids'])
+                raw_id_str = raw_ids_list[0] if len(raw_ids_list) == 1 else (",".join(raw_ids_list) if raw_ids_list else "")
+                
                 records.append({
                     'User': user,
                     'Total Tasks': st['tasks'],
                     'Total Duration': st['total_dur'],
                     'New Videos (First Time)': new_dur,
                     'Reworks': st['rework_dur'],
+                    'RawID': raw_id_str,
                 })
             if records:
                 return pd.DataFrame(records)

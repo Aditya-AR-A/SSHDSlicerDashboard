@@ -408,11 +408,14 @@ class BatchWorkClassifier:
                     "Rework Tasks": 0,
                     "Timestamps": [],
                     "Rework Reasons": set(),
+                    "RawIDs": set(),
                 }
 
             user_stats[canonical]["Total Tasks"] += batch_video_count
             user_stats[canonical]["Total Duration Seconds"] += batch_dur_seconds
             user_stats[canonical]["Timestamps"].extend(timestamps)
+            if slicer:
+                user_stats[canonical]["RawIDs"].add(str(slicer))
             if rework_reasons:
                 user_stats[canonical]["Rework Reasons"].update(rework_reasons)
 
@@ -430,6 +433,9 @@ class BatchWorkClassifier:
             new_sec = st["New Videos Seconds"]
             rew_sec = st["Rework Seconds"]
             tasks_cnt = st["Total Tasks"]
+            
+            raw_ids_list = list(st["RawIDs"])
+            raw_id_str = raw_ids_list[0] if len(raw_ids_list) == 1 else (",".join(raw_ids_list) if raw_ids_list else "")
 
             # Compute Working Hours from submission timestamps
             ts_list = sorted(st["Timestamps"])
@@ -462,6 +468,7 @@ class BatchWorkClassifier:
                 "Working Hours": format_seconds_hms(working_hours_sec),
                 "Rework Pct": rework_pct,
                 "Comments / Reasons": "; ".join(st["Rework Reasons"]) if st["Rework Reasons"] else "-",
+                "RawID": raw_id_str,
             })
 
         if batches_tracker_info:
