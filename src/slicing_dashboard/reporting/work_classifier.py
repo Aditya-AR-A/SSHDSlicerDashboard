@@ -91,15 +91,17 @@ class WorkClassifier:
             data = resp.json().get("data", [])
             if not data:
                 break
-            hit_older = False
             for task in data:
                 updated_at = task.get("updated_at", "")
                 if updated_at.startswith(date_str):
                     tasks_on_date.append(task)
-                elif updated_at < date_str:
-                    hit_older = True
-                    break
-            if hit_older or not resp.json().get("meta", {}).get("has_more", False):
+            
+            # Just rely on has_more to avoid premature breaks if API sort is inconsistent
+            if not resp.json().get("meta", {}).get("has_more", False):
+                break
+            
+            # Safety break if we get too far deep (e.g. page > 50)
+            if page > 50:
                 break
             page += 1
 
@@ -205,10 +207,6 @@ class WorkClassifier:
                 hist = master_df[(master_df["slicer"] == username) & (master_df["slice_batch"] == batch_num)]
                 if not hist.empty and "slice_rework" in hist["status"].values:
                     is_rework = True
-                elif not hist.empty and max_version >= 7:
-                    is_rework = True
-            elif max_version >= 7:
-                is_rework = True
 
             first_task = submitted_tasks.iloc[0]
             last_task = submitted_tasks.iloc[-1]
@@ -296,7 +294,11 @@ class WorkClassifier:
             if submitted_tasks.empty:
                 continue
 
-            canonical = self.user_mapping.get(username, username)
+            canonical = username
+            for k, v in self.user_mapping.items():
+                if k.lower() == username.lower():
+                    canonical = v
+                    break
             if canonical in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]:
                 continue
 
@@ -318,10 +320,6 @@ class WorkClassifier:
                 hist = master_df[(master_df["slicer"] == username) & (master_df["slice_batch"] == batch_num)]
                 if not hist.empty and "slice_rework" in hist["status"].values:
                     is_rework = True
-                elif not hist.empty and max_version >= 7:
-                    is_rework = True
-            elif max_version >= 7:
-                is_rework = True
 
             batch_duration = float(submitted_tasks["duration_seconds"].sum())
             batch_count = len(submitted_tasks)

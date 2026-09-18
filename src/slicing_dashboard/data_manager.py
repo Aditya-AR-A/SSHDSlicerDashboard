@@ -66,7 +66,10 @@ class DataManager:
         self._last_loaded = datetime.now()
 
     def _get_canonical_name(self, uid: int, username: str) -> str:
-        return self.user_mapping.get(username, username)
+        for k, v in self.user_mapping.items():
+            if k.lower() == username.lower():
+                return v
+        return username
 
     def fetch_dashboard_data(self, start_date: str, end_date: str,
         force_refresh: bool=False) -> dict:

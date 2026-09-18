@@ -1,0 +1,153 @@
+{
+  "canonical_name": "Aditya",
+  "target_date": "2026-09-17",
+  "accounts": {
+    "807": "SSHD-Aditya",
+    "863": "SSHD-Slicer1",
+    "4912": "SSHD-Adi",
+    "6552": "SSHD-Slicer6",
+    "6728": "SSHD-Slicer8nk",
+    "6738": "SSHD-Slicer10"
+  },
+  "batches": [
+    {
+      "username": "SSHD-Adi",
+      "slice_batch": 16,
+      "classification": "Rework",
+      "task_count": 49,
+      "duration_seconds": 3602.0,
+      "duration_hms": "01:00:02",
+      "duration_hours": 1.0,
+      "first_submission": {
+        "task_id": "manual_cut_13465588289_20260915_152118_00000_task_0",
+        "video_id": "manual_cut_13465588289_20260915_152118_00000",
+        "time_cst": "2026-09-17T17:25:55",
+        "duration_seconds": 125.0,
+        "status": "slice_pending_admin_review",
+        "version": 13
+      },
+      "last_submission": {
+        "task_id": "manual_cut_13631513553_20260915_075716_00015_task_0",
+        "video_id": "manual_cut_13631513553_20260915_075716_00015",
+        "time_cst": "2026-09-17T17:25:55",
+        "duration_seconds": 25.0,
+        "status": "slice_pending_admin_review",
+        "version": 13
+      }
+    },
+    {
+      "username": "SSHD-Slicer10",
+      "slice_batch": 7,
+      "classification": "New Video",
+      "task_count": 64,
+      "duration_seconds": 6656.0,
+      "duration_hms": "01:50:56",
+      "duration_hours": 1.85,
+      "first_submission": {
+        "task_id": "manual_cut_17616093269_20260915_112524_00001_task_0",
+        "video_id": "manual_cut_17616093269_20260915_112524_00001",
+        "time_cst": "2026-09-17T21:23:47",
+        "duration_seconds": 299.0,
+        "status": "slice_pending_auditor_review",
+        "version": 3
+      },
+      "last_submission": {
+        "task_id": "manual_cut_18205939391_20260913_094946_00006_task_0",
+        "video_id": "manual_cut_18205939391_20260913_094946_00006",
+        "time_cst": "2026-09-17T21:23:47",
+        "duration_seconds": 74.0,
+        "status": "slice_pending_auditor_review",
+        "version": 3
+      }
+    },
+    {
+      "username": "SSHD-Slicer6",
+      "slice_batch": 5,
+      "classification": "New Video",
+      "task_count": 8,
+      "duration_seconds": 509.0,
+      "duration_hms": "00:08:29",
+      "duration_hours": 0.14,
+      "first_submission": {
+        "task_id": "manual_cut_13008893050_20260805_094748_00000_task_3",
+        "video_id": "manual_cut_13008893050_20260805_094748_00000",
+        "time_cst": "2026-09-17T21:03:33",
+        "duration_seconds": 38.0,
+        "status": "slice_submitted",
+        "version": 2
+      },
+      "last_submission": {
+        "task_id": "manual_cut_13008893050_20260806_113643_00002_task_3",
+        "video_id": "manual_cut_13008893050_20260806_113643_00002",
+        "time_cst": "2026-09-17T21:14:56",
+        "duration_seconds": 61.0,
+        "status": "slice_submitted",
+        "version": 2
+      }
+    },
+    {
+      "username": "SSHD-Slicer8nk",
+      "slice_batch": 5,
+      "classification": "Rework",
+      "task_count": 35,
+      "duration_seconds": 3617.0,
+      "duration_hms": "01:00:17",
+      "duration_hours": 1.0,
+      "first_submission": {
+        "task_id": "manual_cut_18756002770_20260906_125023_00004_task_0",
+        "video_id": "manual_cut_18756002770_20260906_125023_00004",
+        "time_cst": "2026-09-17T18:11:10",
+        "duration_seconds": 160.0,
+        "status": "slice_pending_admin_review",
+        "version": 15
+      },
+      "last_submission": {
+        "task_id": "manual_cut_18756002770_20260906_155644_00010_task_2",
+        "video_id": "manual_cut_18756002770_20260906_155644_00010",
+        "time_cst": "2026-09-17T18:11:10",
+        "duration_seconds": 40.0,
+        "status": "slice_pending_admin_review",
+        "version": 15
+      }
+    },
+    {
+      "username": "SSHD-Slicer8nk",
+      "slice_batch": 6,
+      "classification": "Rework",
+      "task_count": 57,
+      "duration_seconds": 7309.0,
+      "duration_hms": "02:01:49",
+      "duration_hours": 2.03,
+      "first_submission": {
+        "task_id": "manual_cut_18356045235_20260915_151851_00001_task_0",
+        "video_id": "manual_cut_18356045235_20260915_151851_00001",
+        "time_cst": "2026-09-17T20:10:16",
+        "duration_seconds": 168.0,
+        "status": "slice_pending_admin_review",
+        "version": 7
+      },
+      "last_submission": {
+        "task_id": "manual_cut_18473551620_20260915_100821_00005_task_0",
+        "video_id": "manual_cut_18473551620_20260915_100821_00005",
+        "time_cst": "2026-09-17T20:10:17",
+        "duration_seconds": 300.0,
+        "status": "slice_pending_admin_review",
+        "version": 7
+      }
+    }
+  ],
+  "totals": {
+    "new_videos_tasks": 72,
+    "new_videos_seconds": 7165.0,
+    "new_videos_hms": "01:59:25",
+    "new_videos_hours": 1.99,
+    "rework_tasks": 141,
+    "rework_seconds": 14528.0,
+    "rework_hms": "04:02:08",
+    "rework_hours": 4.04,
+    "combined_tasks": 213,
+    "combined_seconds": 21693.0,
+    "combined_hms": "06:01:33",
+    "combined_hours": 6.03
+  }
+}
