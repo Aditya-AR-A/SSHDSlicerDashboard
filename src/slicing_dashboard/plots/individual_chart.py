@@ -62,18 +62,18 @@ def build_individual_chart(
     fig.update_layout(
         plot_bgcolor=t["bg_color"],
         paper_bgcolor=t["bg_color"],
-        font=dict(family="Inter, sans-serif", size=11, color=t["font_color"]),
-        title_font=dict(size=14, weight="bold"),
+        font=dict(family="Inter, sans-serif", size=12, color=t["font_color"]),
+        title_font=dict(size=15, weight="bold"),
         xaxis_title="Hours",
-        xaxis=dict(range=[0, max_range], automargin=True),
+        xaxis=dict(range=[0, max_range], automargin=True, tickfont=dict(size=11)),
         yaxis_title="",
-        yaxis=dict(automargin=True),
+        yaxis=dict(automargin=True, tickfont=dict(size=12, weight="bold")),
         height=CHART_HEIGHT,
         margin=dict(l=10, r=20, t=40, b=35),
         bargap=0.3,
         clickmode="event+select",
         showlegend=False,
-        hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"]),
+        hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"], font_size=13),
     )
     fig.update_traces(
         textposition="outside",

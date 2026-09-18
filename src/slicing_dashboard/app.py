@@ -735,20 +735,31 @@ def _build_work_chart(
     today_str = datetime.now().strftime("%Y-%m-%d")
     if start_date == end_date:
         target_work_date = start_date
-        chart_date_label = start_date
+        if start_date == today_str:
+            chart_date_label = "Today"
+        else:
+            d = datetime.strptime(start_date, "%Y-%m-%d")
+            chart_date_label = f"{d.strftime('%b')} {d.day}"
     else:
         target_work_date = today_str
-        chart_date_label = f"Today: {today_str}"
+        chart_date_label = "Today"
 
     work_df = pd.DataFrame()
     if target_work_date == today_str:
         try:
-            from slicing_dashboard.reporting.work_classifier import (
-                WorkClassifier,
+            from slicing_dashboard.processing.batch_work_classifier import (
+                get_batch_work_classifier,
             )
 
-            wc = WorkClassifier(scraper=dm.scraper)
-            work_df = wc.classify_all_users(today_str)
+            bwc = get_batch_work_classifier(scraper=dm.scraper)
+            b_df = bwc.classify_and_aggregate_daily_work(today_str, force_refresh=force_refresh)
+            if not b_df.empty:
+                work_df = pd.DataFrame({
+                    "User": b_df["User"],
+                    "New Work Duration": b_df["New Videos (First Time)"],
+                    "Rework Duration": b_df["Reworks"],
+                    "Total Work Duration": b_df["Total Duration"],
+                })
         except Exception:
             work_df = pd.DataFrame()
 
@@ -789,6 +800,33 @@ def _build_work_chart(
             work_df = work_df[work_df["User"].isin(effective_users)]
 
         active_work = work_df[work_df["Total Work Duration"] > 0].copy()
+        # Add IDs: slicer usernames for this user's work on target_work_date
+        if (
+            dm._data is not None
+            and not dm._data.empty
+            and "user_name" in dm._data.columns
+            and "status" in dm._data.columns
+        ):
+            _completed = {"slice_approved", "slice_submitted", "slice_completed"}
+            _date_col = "completed_date" if "completed_date" in dm._data.columns else None
+
+            def _get_work_ids(user: str) -> str:
+                try:
+                    mask = dm._data["user_name"] == user
+                    mask &= dm._data["status"].isin(_completed)
+                    if _date_col:
+                        mask &= dm._data[_date_col] == target_work_date
+                    ids = sorted(
+                        dm._data.loc[mask, "slicer"].dropna().unique().tolist()
+                    )
+                    chunks = [ids[i:i+3] for i in range(0, len(ids), 3)]
+                    return "<br>".join(", ".join(chunk) for chunk in chunks)
+                except Exception:
+                    return ""
+
+            active_work["IDs"] = active_work["User"].apply(_get_work_ids)
+        else:
+            active_work["IDs"] = ""
     else:
         active_work = pd.DataFrame()
 
@@ -818,9 +856,10 @@ def _render_tab(
             today_df = today_df[today_df["User"].isin(effective_users)]
         if not today_df.empty:
             for col in ["Total Duration", "New Videos (First Time)", "Reworks"]:
-                today_df[col] = today_df[col].apply(format_seconds)
+                if col in today_df.columns:
+                    today_df[col] = today_df[col].apply(format_seconds)
             totals = today_df.select_dtypes(include=["number"]).sum()
-            total_row = {"User": "TOTAL", "Total Tasks": totals["Total Tasks"]}
+            total_row = {"User": "TOTAL", "Total Tasks": int(totals.get("Total Tasks", 0))}
             raw_full_df = dm.get_todays_work_df(
                 target_date=target_date, force_refresh=False
             )
@@ -829,10 +868,20 @@ def _render_tab(
                     raw_full_df["User"].isin(effective_users)
                 ]
             for col in ["Total Duration", "New Videos (First Time)", "Reworks"]:
-                total_seconds = (
-                    raw_full_df[col].sum() if not raw_full_df.empty else 0
-                )
-                total_row[col] = format_seconds(total_seconds)
+                if col in raw_full_df.columns:
+                    total_seconds = (
+                        raw_full_df[col].sum() if not raw_full_df.empty else 0
+                    )
+                    total_row[col] = format_seconds(total_seconds)
+            if "Working Hours" in today_df.columns:
+                total_wh = raw_full_df["Working Hours Seconds"].sum() if "Working Hours Seconds" in raw_full_df.columns else 0
+                total_row["Working Hours"] = format_seconds(total_wh) if total_wh > 0 else "-"
+            if "Rework %" in today_df.columns:
+                tot_dur = raw_full_df["Total Duration"].sum() if not raw_full_df.empty else 0
+                tot_rew = raw_full_df["Reworks"].sum() if not raw_full_df.empty else 0
+                total_row["Rework %"] = f"{round(tot_rew / tot_dur * 100, 1)}%" if tot_dur > 0 else "0.0%"
+            if "Working Hours Seconds" in today_df.columns:
+                today_df = today_df.drop(columns=["Working Hours Seconds"])
             today_df = pd.concat(
                 [today_df, pd.DataFrame([total_row])], ignore_index=True
             )

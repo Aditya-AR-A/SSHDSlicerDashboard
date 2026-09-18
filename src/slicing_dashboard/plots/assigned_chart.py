@@ -38,6 +38,8 @@ def build_assigned_chart(assigned_df, is_dark: bool) -> go.Figure:
     df["Formatted Duration"] = df["Duration"].apply(format_seconds)
     if "Count" not in df.columns:
         df["Count"] = 0
+    if "IDs" not in df.columns:
+        df["IDs"] = ""
     user_totals = df.groupby("User")["Duration"].sum() if not df.empty else pd.Series(dtype=float)
     max_hours = (user_totals.max() / 3600) if not user_totals.empty else 0
     max_range = max_hours * 1.15 if (max_hours and max_hours > 0) else 1
@@ -57,14 +59,14 @@ def build_assigned_chart(assigned_df, is_dark: bool) -> go.Figure:
         },
         text="Formatted Duration",
         barmode="stack",
-        custom_data=["Formatted Duration", "Stage", "Count"],
+        custom_data=["Formatted Duration", "Stage", "Count", "IDs"],
     )
     fig.update_layout(
         template=t["template"],
         plot_bgcolor=t["bg_color"],
         paper_bgcolor=t["bg_color"],
-        font=dict(family="Inter, sans-serif", size=11, color=t["font_color"]),
-        title_font=dict(size=14, weight="bold"),
+        font=dict(family="Inter, sans-serif", size=12, color=t["font_color"]),
+        title_font=dict(size=15, weight="bold"),
         height=CHART_HEIGHT,
         margin=dict(l=10, r=50, t=45, b=55),
         bargap=0.3,
@@ -75,22 +77,28 @@ def build_assigned_chart(assigned_df, is_dark: bool) -> go.Figure:
             y=-0.18,
             xanchor="center",
             x=0.5,
-            font=dict(size=10),
+            font=dict(size=11),
         ),
-        hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"]),
+        hoverlabel=dict(
+            bgcolor=t["hover_bg"],
+            font_color=t["hover_fg"],
+            font_size=13,
+        ),
         xaxis_title="Hours",
-        xaxis=dict(range=[0, max_range], automargin=True),
+        xaxis=dict(range=[0, max_range], automargin=True, tickfont=dict(size=11)),
         yaxis_title="",
-        yaxis=dict(automargin=True),
+        yaxis=dict(automargin=True, tickfont=dict(size=12, weight="bold")),
     )
     fig.update_traces(
-        textposition="inside",
-        textfont=dict(size=9),
+        textposition="auto",
+        textfont=dict(size=10, weight="bold"),
+        constraintext="none",
         hovertemplate=(
             "<b>%{y}</b><br>"
             "Stage: %{customdata[1]}<br>"
-            "Duration: %{customdata[0]}<br>"
-            "Tasks: %{customdata[2]}<extra></extra>"
+            "Duration: <b>%{customdata[0]}</b><br>"
+            "Tasks: %{customdata[2]}<br>"
+            "Slicer IDs: %{customdata[3]}<extra></extra>"
         ),
     )
     return fig

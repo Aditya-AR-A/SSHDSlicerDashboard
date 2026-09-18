@@ -36,7 +36,7 @@ def build_error_rework_chart(
             showarrow=False,
             font={"size": 14, "color": t["font_color"]},
         )
-        fig.update_layout(title=f"New Work + Rework ({chart_date_label})")
+        fig.update_layout(title=f"{chart_date_label}'s Work")
     else:
         df = active_work_df.sort_values("Total Work Duration", ascending=False)
 
@@ -55,6 +55,8 @@ def build_error_rework_chart(
             df["Rework Duration"] / df["Total Work Duration"] * 100
         ).fillna(0)
 
+        ids_col = df["IDs"].tolist() if "IDs" in df.columns else [""] * len(df)
+
         new_color = "#38bdf8" if is_dark else "#0284c7"
         rework_color = "#f97316" if is_dark else "#ea580c"
 
@@ -64,6 +66,7 @@ def build_error_rework_chart(
                 name="New Work",
                 x=df["User"],
                 y=new_hours,
+                text=new_fmt,
                 marker=dict(
                     color=new_color,
                     line=dict(
@@ -73,11 +76,12 @@ def build_error_rework_chart(
                         width=1,
                     ),
                 ),
-                customdata=list(zip(new_fmt, new_pct, total_fmt, total_hours)),
+                customdata=list(zip(new_fmt, new_pct, total_fmt, total_hours, ids_col)),
                 hovertemplate=(
                     "<b>%{x}</b><br>"
                     "<b>New Work:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br>"
-                    "<b>Total:</b> %{customdata[2]}<extra></extra>"
+                    "<b>Total:</b> %{customdata[2]}<br>"
+                    "Slicer IDs: %{customdata[4]}<extra></extra>"
                 ),
             )
         )
@@ -86,6 +90,7 @@ def build_error_rework_chart(
                 name="Rework",
                 x=df["User"],
                 y=rework_hours,
+                text=rework_fmt,
                 marker=dict(
                     color=rework_color,
                     line=dict(
@@ -96,18 +101,19 @@ def build_error_rework_chart(
                     ),
                 ),
                 customdata=list(
-                    zip(rework_fmt, rework_pct, total_fmt, total_hours)
+                    zip(rework_fmt, rework_pct, total_fmt, total_hours, ids_col)
                 ),
                 hovertemplate=(
                     "<b>%{x}</b><br>"
                     "<b>Rework:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br>"
-                    "<b>Total:</b> %{customdata[2]}<extra></extra>"
+                    "<b>Total:</b> %{customdata[2]}<br>"
+                    "Slicer IDs: %{customdata[4]}<extra></extra>"
                 ),
             )
         )
         fig.update_layout(
             barmode="stack",
-            title=f"New Work + Rework ({chart_date_label})",
+            title=f"{chart_date_label}'s Work",
             yaxis_title="Hours",
             showlegend=True,
             legend=dict(
@@ -116,7 +122,7 @@ def build_error_rework_chart(
                 y=1.02,
                 xanchor="right",
                 x=1,
-                font=dict(size=10, color=t["font_color"]),
+                font=dict(size=11, color=t["font_color"]),
                 bgcolor="rgba(0,0,0,0)",
             ),
         )
@@ -128,20 +134,35 @@ def build_error_rework_chart(
         template=t["template"],
         plot_bgcolor=t["bg_color"],
         paper_bgcolor=t["bg_color"],
-        font=dict(family="Inter, sans-serif", size=11, color=t["font_color"]),
-        title_font=dict(size=14, weight="bold"),
+        font=dict(family="Inter, sans-serif", size=12, color=t["font_color"]),
+        title_font=dict(size=15, weight="bold"),
         height=CHART_HEIGHT,
         margin=dict(l=40, r=15, t=45, b=35),
         bargap=0.35,
         clickmode="event+select",
-        hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"]),
-        xaxis=dict(showgrid=False, zeroline=False, automargin=True),
+        hoverlabel=dict(
+            bgcolor=t["hover_bg"],
+            font_color=t["hover_fg"],
+            font_size=13,
+        ),
+        xaxis=dict(
+            showgrid=False,
+            zeroline=False,
+            automargin=True,
+            tickfont=dict(size=12, weight="bold"),
+        ),
         yaxis=dict(
             range=[0, max_range],
             showgrid=True,
             gridcolor="rgba(128,128,128,0.2)",
             zeroline=False,
             automargin=True,
+            tickfont=dict(size=11),
         ),
+    )
+    fig.update_traces(
+        textposition="auto",
+        textfont=dict(size=10, weight="bold"),
+        constraintext="none",
     )
     return fig

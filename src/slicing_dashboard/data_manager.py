@@ -589,7 +589,103 @@ class DataManager:
         if not target_date:
             target_date = datetime.now().strftime('%Y-%m-%d')
 
-        # 1. Real-time API calculation directly from annotator efficiency endpoint
+        # 1. Fetch TRUE live counts from efficiency API first to avoid overcounting admin-updated tasks
+        canonical_eff = {}
+        try:
+            _, items = self.fetch_annotator_efficiency(
+                start_date=target_date, end_date=target_date, role=2, force_refresh=force_refresh
+            )
+            for it in items:
+                raw_u = it.get('username', '')
+                canonical = self._get_canonical_name(it.get('user_id'), raw_u)
+                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                    continue
+                sub_cnt = int(it.get('submitted_count', 0) or 0)
+                sub_dur = float(it.get('submitted_duration_seconds', 0) or 0.0)
+                comp_cnt = int(it.get('completed_count', 0) or 0)
+                comp_dur = float(it.get('completed_duration_seconds', 0) or 0.0)
+                day_cnt = max(sub_cnt, comp_cnt)
+                day_dur = max(sub_dur, comp_dur)
+                
+                if day_cnt > 0 or day_dur > 0:
+                    if canonical not in canonical_eff:
+                        canonical_eff[canonical] = {'tasks': 0, 'total_dur': 0.0}
+                    canonical_eff[canonical]['tasks'] += day_cnt
+                    canonical_eff[canonical]['total_dur'] += day_dur
+        except Exception as e:
+            print(f"Warning: Failed to fetch efficiency API for true counts: {e}")
+
+        # 2. Batch-First Live Classifier using return comments & video timestamps to get Rework %
+        try:
+            from slicing_dashboard.processing.batch_work_classifier import get_batch_work_classifier
+            from slicing_dashboard.extraction.parsers import format_duration
+            bwc = get_batch_work_classifier(scraper=self.scraper)
+            b_df = bwc.classify_and_aggregate_daily_work(
+                target_date=target_date, force_refresh=force_refresh
+            )
+            
+            records = []
+            users_processed = set()
+            
+            if not b_df.empty:
+                for _, r in b_df.iterrows():
+                    user = r['User']
+                    users_processed.add(user)
+                    
+                    # Use true counts from efficiency API if available, else fallback to batch classifier
+                    eff = canonical_eff.get(user, {'tasks': int(r['Total Tasks']), 'total_dur': float(r['Total Duration'])})
+                    true_tasks = eff['tasks']
+                    true_dur = eff['total_dur']
+                    
+                    if true_dur <= 0 and true_tasks <= 0:
+                        continue
+                        
+                    rework_pct = float(r.get('Rework Pct', 0.0))
+                    rework_dur = (rework_pct / 100.0) * true_dur
+                    new_dur = true_dur - rework_dur
+                    
+                    # Formatting duration to HH:MM:SS
+                    h = int(true_dur // 3600)
+                    m = int((true_dur % 3600) // 60)
+                    s = int(true_dur % 60)
+                    wh_str = f"{h:02d}:{m:02d}:{s:02d}"
+
+                    records.append({
+                        'User': user,
+                        'Total Tasks': true_tasks,
+                        'Total Duration': true_dur,
+                        'New Videos (First Time)': new_dur,
+                        'Reworks': rework_dur,
+                        'Working Hours Seconds': true_dur,
+                        'Working Hours': wh_str,
+                        'Rework %': f"{rework_pct}%",
+                    })
+            
+            # Add users who had true counts in efficiency API but were missed by batch classifier
+            for user, eff in canonical_eff.items():
+                if user not in users_processed and (eff['tasks'] > 0 or eff['total_dur'] > 0):
+                    true_dur = eff['total_dur']
+                    h = int(true_dur // 3600)
+                    m = int((true_dur % 3600) // 60)
+                    s = int(true_dur % 60)
+                    wh_str = f"{h:02d}:{m:02d}:{s:02d}"
+                    records.append({
+                        'User': user,
+                        'Total Tasks': eff['tasks'],
+                        'Total Duration': true_dur,
+                        'New Videos (First Time)': true_dur,
+                        'Reworks': 0.0,
+                        'Working Hours Seconds': true_dur,
+                        'Working Hours': wh_str,
+                        'Rework %': "0.0%",
+                    })
+                    
+            if records:
+                return pd.DataFrame(records)
+        except Exception as e:
+            print(f'Warning: BatchWorkClassifier failed: {e}. Falling back to efficiency API.')
+
+        # 2. Real-time API calculation directly from annotator efficiency endpoint
         try:
             summary, items = self.fetch_annotator_efficiency(
                 start_date=target_date,
@@ -854,13 +950,18 @@ class DataManager:
             'Stage': 'Assignable (Pool)',
             'Duration': float(assignable_dur or 0),
             'Count': int(assignable_count or 0),
+            'RawID': '',
         })
 
         # 2. Exact Pending Reviews per user from annotator efficiency API
+        # Using a very wide date range (2020 to today) ensures we get ALL currently pending tasks,
+        # bypassing the ~7500 record pagination limit of the slice/tasks endpoint which was hiding
+        # older pending tasks (e.g., hiding 8 hours of Priya's 12 hours).
+        today_str = datetime.now().strftime('%Y-%m-%d')
         try:
             _, eff_items = self.fetch_annotator_efficiency(
-                start_date=start_date,
-                end_date=end_date,
+                start_date='2020-01-01',
+                end_date=today_str,
                 role=2,
                 force_refresh=force_refresh,
             )
@@ -869,19 +970,21 @@ class DataManager:
                 canonical = self._get_canonical_name(it.get('user_id'), raw_u)
                 if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
                     continue
+                
                 dur_lead = float(it.get('leader_review_duration_seconds', 0) or 0)
                 cnt_lead = int(it.get('leader_review_count', 0) or 0)
                 dur_aud = float(it.get('auditor_review_duration_seconds', 0) or 0)
                 cnt_aud = int(it.get('auditor_review_count', 0) or 0)
                 dur_adm = float(it.get('admin_review_duration_seconds', 0) or 0)
                 cnt_adm = int(it.get('admin_review_count', 0) or 0)
-
+                
                 if dur_lead > 0 or cnt_lead > 0:
                     records.append({
                         'User': canonical,
                         'Stage': 'Pending Leader',
                         'Duration': dur_lead,
                         'Count': cnt_lead,
+                        'RawID': raw_u,
                     })
                 if dur_aud > 0 or cnt_aud > 0:
                     records.append({
@@ -889,6 +992,7 @@ class DataManager:
                         'Stage': 'Pending Auditor',
                         'Duration': dur_aud,
                         'Count': cnt_aud,
+                        'RawID': raw_u,
                     })
                 if dur_adm > 0 or cnt_adm > 0:
                     records.append({
@@ -896,6 +1000,7 @@ class DataManager:
                         'Stage': 'Pending Admin',
                         'Duration': dur_adm,
                         'Count': cnt_adm,
+                        'RawID': raw_u,
                     })
         except Exception as e:
             print(f"Warning: Failed to fetch exact pending review from efficiency API: {e}")
@@ -903,6 +1008,17 @@ class DataManager:
         # 3. Real-time Assigned per user
         user_breakdown = breakdowns.get('slice_user_breakdown', [])
         live_rework = self.get_live_rework_by_user(force_refresh=force_refresh)
+
+        # Ensure user ID → name mapping is loaded. On first load, get_live_rework_by_user
+        # may return from snapshot cache without ever calling _fetch_users(), which leaves
+        # scraper._users empty and makes _get_username() fall back to "user-11493" etc.
+        if not self.scraper._users:
+            try:
+                if not self.scraper.is_authenticated:
+                    self.scraper.login()
+                self.scraper._fetch_users()
+            except Exception:
+                pass
 
         canonical_assigned: dict[str, dict[str, Any]] = {}
         for entry in user_breakdown:
@@ -925,11 +1041,14 @@ class DataManager:
                     'backlog_cnt': 0,
                     'review_dur': 0.0,
                     'review_cnt': 0,
+                    'raw_ids': set(),
                 }
             canonical_assigned[canonical]['backlog_dur'] += backlog_dur
             canonical_assigned[canonical]['backlog_cnt'] += backlog_cnt
             canonical_assigned[canonical]['review_dur'] += review_pend_dur
             canonical_assigned[canonical]['review_cnt'] += review_pend_cnt
+            if username:
+                canonical_assigned[canonical]['raw_ids'].add(username)
 
         all_users = sorted(set(canonical_assigned.keys()) | set(live_rework.keys()))
         for canonical in all_users:
@@ -938,11 +1057,16 @@ class DataManager:
                 'backlog_cnt': 0,
                 'review_dur': 0.0,
                 'review_cnt': 0,
+                'raw_ids': set(),
             })
             backlog_dur = stats['backlog_dur']
             backlog_cnt = stats['backlog_cnt']
             review_pend_dur = stats['review_dur']
             review_pend_cnt = stats['review_cnt']
+            raw_ids = list(stats['raw_ids'])
+            
+            # Since assigned can have multiple IDs, we'll pick the first or join them
+            assigned_raw_id = raw_ids[0] if len(raw_ids) == 1 else (",".join(raw_ids) if raw_ids else "")
 
             pure_assigned_dur = max(backlog_dur - review_pend_dur, 0.0)
             pure_assigned_cnt = max(backlog_cnt - review_pend_cnt, 0)
@@ -950,6 +1074,9 @@ class DataManager:
             rework_info = live_rework.get(canonical, {'count': 0, 'duration': 0.0})
             rework_dur = float(rework_info.get('duration', 0.0))
             rework_cnt = int(rework_info.get('count', 0))
+            # Live rework currently doesn't provide raw IDs, but it maps 1:1 with user breakdown mostly
+            # We will use assigned_raw_id for rework too if available
+            rework_raw_id = assigned_raw_id
 
             new_dur = max(pure_assigned_dur - rework_dur, 0.0)
             new_cnt = max(pure_assigned_cnt - rework_cnt, 0)
@@ -960,6 +1087,7 @@ class DataManager:
                     'Stage': 'New Assigned',
                     'Duration': new_dur,
                     'Count': new_cnt,
+                    'RawID': assigned_raw_id,
                 })
             if rework_dur > 0 or rework_cnt > 0:
                 records.append({
@@ -967,11 +1095,38 @@ class DataManager:
                     'Stage': 'Rework Assigned',
                     'Duration': rework_dur,
                     'Count': rework_cnt,
+                    'RawID': rework_raw_id,
                 })
 
         res_df = pd.DataFrame(records)
         if not res_df.empty:
-            res_df = res_df.groupby(['User', 'Stage'], as_index=False).sum()
+            def _aggregate_raw_ids(ids_series):
+                all_ids = set()
+                for val in ids_series:
+                    if not val:
+                        continue
+                    if isinstance(val, str) and ',' in val:
+                        all_ids.update([v.strip() for v in val.split(',') if v.strip()])
+                    else:
+                        all_ids.add(val)
+                return sorted(list(all_ids))
+
+            res_df = res_df.groupby(['User', 'Stage'], as_index=False).agg({
+                'Duration': 'sum',
+                'Count': 'sum',
+                'RawID': _aggregate_raw_ids
+            })
+
+            def format_ids(ids_list):
+                if not ids_list: return ''
+                chunks = [ids_list[i:i+3] for i in range(0, len(ids_list), 3)]
+                return '<br>'.join(', '.join(chunk) for chunk in chunks)
+
+            res_df['IDs'] = res_df['RawID'].apply(format_ids)
+            res_df = res_df.drop(columns=['RawID'])
+        else:
+            res_df['IDs'] = ''
+
         return res_df
 
     def run_sync_pipeline(self) -> bool:
