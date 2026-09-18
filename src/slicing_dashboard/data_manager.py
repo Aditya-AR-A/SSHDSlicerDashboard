@@ -92,10 +92,12 @@ class DataManager:
         """Persist current cache to disk and database as snapshot."""
         try:
             self.last_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            cache_copy = dict(list(self._cache.items()))
+            daily_copy = {k: dict(v) if isinstance(v, dict) else v for k, v in list(self._daily_cache.items())}
             payload = {
                 "last_sync_time": self.last_sync_time,
-                "cache": self._cache,
-                "daily_cache": self._daily_cache,
+                "cache": cache_copy,
+                "daily_cache": daily_copy,
                 "summary_kpis": self._snapshot_payload.get("summary_kpis", {}),
                 "user_breakdown_records": self._snapshot_payload.get("user_breakdown_records", []),
                 "available_users": self._snapshot_payload.get("available_users", []),

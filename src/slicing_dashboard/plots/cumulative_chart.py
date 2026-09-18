@@ -2,6 +2,7 @@
 Cumulative completed-hours line chart builder.
 """
 
+import pandas as pd
 import plotly.graph_objects as go
 
 from slicing_dashboard.plots.theme import (
