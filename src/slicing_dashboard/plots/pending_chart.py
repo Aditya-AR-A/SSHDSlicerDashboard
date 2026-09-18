@@ -39,6 +39,9 @@ def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
     if "Count" not in df.columns:
         df["Count"] = 0
 
+    max_hours = (df.groupby("User")["Duration"].sum() / 3600).max() if not df.empty else 0
+    max_range = max_hours * 1.15 if (max_hours and max_hours > 0) else 1
+
     fig = px.bar(
         df,
         x="User",
@@ -74,7 +77,15 @@ def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
         ),
         hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"]),
         yaxis_title="Hours",
+        yaxis=dict(
+            range=[0, max_range],
+            automargin=True,
+            showgrid=True,
+            gridcolor="rgba(128,128,128,0.2)",
+            zeroline=False,
+        ),
         xaxis_title="",
+        xaxis=dict(automargin=True),
     )
     fig.update_traces(
         textposition="inside",

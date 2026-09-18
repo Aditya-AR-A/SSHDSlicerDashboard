@@ -51,9 +51,11 @@ class HTTPScraper(BaseScraper):
             return False
         try:
             login_url = f'{self._base_url}/api/auth/login'
-            response = self._client.post(login_url, json={'account': self.
-                settings.admin_username, 'password': self.settings.
-                admin_password})
+            response = self._client.post(
+                login_url,
+                json={'account': self.settings.admin_username, 'password': self.settings.admin_password},
+                timeout=4.0,
+            )
             if response.status_code == 200:
                 user_data = response.json()
                 self._authenticated = True
@@ -227,7 +229,7 @@ class HTTPScraper(BaseScraper):
         if self._users and not force:
             return
         try:
-            response = self._client.get(f'{self._base_url}/api/users', timeout=10.0)
+            response = self._client.get(f'{self._base_url}/api/users', timeout=4.0)
             response.raise_for_status()
             data = response.json()
             items = data.get('items', data) if isinstance(data, dict) else data

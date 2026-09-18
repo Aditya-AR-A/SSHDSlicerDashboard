@@ -38,7 +38,11 @@ def build_assigned_chart(assigned_df, is_dark: bool) -> go.Figure:
     df["Formatted Duration"] = df["Duration"].apply(format_seconds)
     if "Count" not in df.columns:
         df["Count"] = 0
-    df = df.sort_values(by="Duration", ascending=True)
+    user_totals = df.groupby("User")["Duration"].sum() if not df.empty else pd.Series(dtype=float)
+    max_hours = (user_totals.max() / 3600) if not user_totals.empty else 0
+    max_range = max_hours * 1.15 if (max_hours and max_hours > 0) else 1
+    df["User_Total"] = df["User"].map(user_totals)
+    df = df.sort_values(by=["User_Total", "Duration"], ascending=True)
 
     fig = px.bar(
         df,
@@ -75,7 +79,9 @@ def build_assigned_chart(assigned_df, is_dark: bool) -> go.Figure:
         ),
         hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"]),
         xaxis_title="Hours",
+        xaxis=dict(range=[0, max_range], automargin=True),
         yaxis_title="",
+        yaxis=dict(automargin=True),
     )
     fig.update_traces(
         textposition="inside",

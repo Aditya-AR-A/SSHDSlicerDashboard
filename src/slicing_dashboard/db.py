@@ -116,3 +116,54 @@ class DatabaseManager:
             raise RuntimeError('Database not connected.')
         return pd.read_sql_table('transitions_master', self.engine)
 
+    def save_dashboard_snapshot(self, snapshot_data: dict) -> bool:
+        """Save JSON snapshot to PostgreSQL database table 'dashboard_snapshot'."""
+        if not self.is_connected():
+            return False
+        try:
+            import json
+            from sqlalchemy import text
+            with self.engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "CREATE TABLE IF NOT EXISTS dashboard_snapshot ("
+                        "  key VARCHAR(50) PRIMARY KEY,"
+                        "  data JSONB,"
+                        "  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+                        ")"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "INSERT INTO dashboard_snapshot (key, data, updated_at) "
+                        "VALUES ('latest', :data, NOW()) "
+                        "ON CONFLICT (key) DO UPDATE SET "
+                        "  data = EXCLUDED.data, "
+                        "  updated_at = NOW()"
+                    ),
+                    {"data": json.dumps(snapshot_data)},
+                )
+            return True
+        except Exception as e:
+            print(f"Error saving snapshot to database: {e}")
+            return False
+
+    def load_dashboard_snapshot(self) -> dict | None:
+        """Load JSON snapshot from PostgreSQL database table 'dashboard_snapshot'."""
+        if not self.is_connected():
+            return None
+        try:
+            import json
+            from sqlalchemy import text
+            with self.engine.connect() as conn:
+                res = conn.execute(
+                    text("SELECT data FROM dashboard_snapshot WHERE key = 'latest' LIMIT 1")
+                ).fetchone()
+                if res and res[0]:
+                    val = res[0]
+                    return json.loads(val) if isinstance(val, str) else val
+            return None
+        except Exception as e:
+            print(f"Error loading snapshot from database: {e}")
+            return None
+

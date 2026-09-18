@@ -31,7 +31,7 @@ class DataManager:
         else:
             self.user_mapping = {}
 
-        from slicing_dashboard.config import PROJECT_ROOT
+        from slicing_dashboard.config import PROJECT_ROOT, DATA_DIR
         settlement_path = PROJECT_ROOT / 'config' / 'settlement_history.json'
         if settlement_path.exists():
             with open(settlement_path) as f:
@@ -42,6 +42,133 @@ class DataManager:
         self._data = None
         self._transitions_data = None
         self._last_loaded = None
+
+        # ── Snapshot & Server Status Tracking ────────────────────────
+        self._snapshot_path = DATA_DIR / 'snapshot_cache.json'
+        self.server_is_live: bool = True
+        self.is_using_snapshot: bool = False
+        self.last_sync_time: str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        self.last_sync_error: str | None = None
+        self._last_heartbeat_check: datetime | None = None
+        self._snapshot_payload: dict = {}
+
+        # Always load master data and snapshot cache on startup
+        self.load_data()
+        self._load_snapshot()
+
+    def _load_snapshot(self) -> None:
+        """Load cached snapshot from disk or database if available."""
+        snap = None
+        # 1. Try loading from local file or /tmp (Vercel)
+        for p in [self._snapshot_path, Path("/tmp/snapshot_cache.json")]:
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        snap = json.load(f)
+                        if snap:
+                            break
+                except Exception:
+                    pass
+
+        # 2. Try loading from database if connected (persists across Vercel serverless functions)
+        try:
+            from slicing_dashboard.db import DatabaseManager
+            db = DatabaseManager()
+            db_snap = db.load_dashboard_snapshot()
+            if db_snap and isinstance(db_snap, dict):
+                snap = db_snap
+        except Exception:
+            pass
+
+        if snap:
+            self._snapshot_payload = snap
+            if "cache" in snap and isinstance(snap["cache"], dict):
+                self._cache.update(snap["cache"])
+            if "daily_cache" in snap and isinstance(snap["daily_cache"], dict):
+                self._daily_cache.update(snap["daily_cache"])
+            self.last_sync_time = snap.get("last_sync_time", self.last_sync_time)
+
+    def _save_snapshot(self) -> None:
+        """Persist current cache to disk and database as snapshot."""
+        try:
+            self.last_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            payload = {
+                "last_sync_time": self.last_sync_time,
+                "cache": self._cache,
+                "daily_cache": self._daily_cache,
+                "summary_kpis": self._snapshot_payload.get("summary_kpis", {}),
+                "user_breakdown_records": self._snapshot_payload.get("user_breakdown_records", []),
+                "available_users": self._snapshot_payload.get("available_users", []),
+            }
+            self._snapshot_payload = payload
+
+            # 1. Save to disk (DATA_DIR locally, /tmp on Vercel)
+            for target in [self._snapshot_path, Path("/tmp/snapshot_cache.json")]:
+                try:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with open(target, "w", encoding="utf-8") as f:
+                        json.dump(payload, f, indent=2)
+                    break
+                except Exception:
+                    continue
+
+            # 2. Save to database if connected (for Vercel persistence across all lambdas)
+            try:
+                from slicing_dashboard.db import DatabaseManager
+                db = DatabaseManager()
+                db.save_dashboard_snapshot(payload)
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"Warning: Failed to save snapshot: {e}")
+
+    def check_server_heartbeat(self, timeout: float = 2.5) -> bool:
+        """Probe the server using the official /api/auth/heartbeat endpoint."""
+        now = datetime.now()
+        if (
+            self._last_heartbeat_check is not None
+            and (now - self._last_heartbeat_check) < timedelta(seconds=15)
+        ):
+            return self.server_is_live
+
+        self._last_heartbeat_check = now
+        try:
+            url = f"{self.scraper._base_url}/api/auth/heartbeat"
+            user_id = 6552
+            if hasattr(self.scraper, "_users") and self.scraper._users:
+                user_id = next(iter(self.scraper._users.keys()), 6552)
+
+            resp = self.scraper._client.post(
+                url,
+                json={"user_id": user_id},
+                timeout=timeout,
+            )
+            # 200 OK means backend is live and actively processing
+            if resp.status_code == 200:
+                self.server_is_live = True
+                self.last_sync_error = None
+                return True
+            elif resp.status_code in [500, 502, 503, 504]:
+                self.server_is_live = False
+                self.last_sync_error = f"Gateway error ({resp.status_code})"
+                return False
+            else:
+                # 401/403 or other status means server process is responding
+                self.server_is_live = True
+                return True
+        except Exception as e:
+            self.server_is_live = False
+            self.last_sync_error = str(e)
+            return False
+
+    def get_server_status(self) -> dict:
+        """Return a status dictionary for dashboard UI."""
+        return {
+            "is_live": self.server_is_live,
+            "is_using_snapshot": self.is_using_snapshot,
+            "last_sync_time": self.last_sync_time,
+            "error": self.last_sync_error,
+        }
 
     def load_data(self) -> None:
         """Load slicing and transitions master data from local processed CSV."""
@@ -73,21 +200,46 @@ class DataManager:
 
     def fetch_dashboard_data(self, start_date: str, end_date: str,
         force_refresh: bool=False) -> dict:
-        """Fetches the overview dashboard data and user breakdown."""
+        """Fetches overview dashboard data with safe snapshot fallback."""
         cache_key = f'{start_date}_{end_date}'
         if not force_refresh and cache_key in self._cache:
             return self._cache[cache_key]
-        if not self.scraper.is_authenticated:
-            self.scraper.login()
-        if not self.scraper._users:
-            self.scraper._fetch_users()
-        overview_url = f'{self.scraper._base_url}/api/dashboard/overview'
-        params = {'mode': 'slice', 'start_date': start_date, 'end_date': end_date}
-        response = self.scraper._client.get(overview_url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        self._cache[cache_key] = data
-        return data
+
+        # If server is known down, don't stall — return snapshot cache immediately
+        if not self.server_is_live and cache_key in self._cache:
+            self.is_using_snapshot = True
+            return self._cache[cache_key]
+
+        try:
+            if not self.scraper.is_authenticated:
+                if not self.scraper.login():
+                    raise ConnectionError("Login failed")
+            if not self.scraper._users:
+                self.scraper._fetch_users()
+            overview_url = f'{self.scraper._base_url}/api/dashboard/overview'
+            params = {'mode': 'slice', 'start_date': start_date, 'end_date': end_date}
+            response = self.scraper._client.get(overview_url, params=params, timeout=5.0)
+            response.raise_for_status()
+            data = response.json()
+            self._cache[cache_key] = data
+            self.server_is_live = True
+            self.is_using_snapshot = False
+            self._save_snapshot()
+            return data
+        except Exception as e:
+            self.server_is_live = False
+            self.is_using_snapshot = True
+            self.last_sync_error = str(e)
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+            # Fallback to default overview in snapshot
+            def_ov = self._snapshot_payload.get('cache', {}).get('default_overview')
+            if def_ov:
+                return def_ov
+            for k, v in self._cache.items():
+                if isinstance(v, dict) and "metrics" in v:
+                    return v
+            return {"metrics": {}, "breakdowns": {"slice_user_breakdown": [], "slice_funnel": []}}
 
     def get_summary_kpis(self, start_date: str, end_date: str,
         selected_users: (list[str] | None) = None,
@@ -349,6 +501,9 @@ class DataManager:
                 'New Work Duration': stats['normal_duration'],
             })
 
+        if not records and self._snapshot_payload.get('user_breakdown_records'):
+            return pd.DataFrame(self._snapshot_payload['user_breakdown_records'])
+
         return pd.DataFrame(records)
 
     def get_cumulative_df(self, start_date: str, end_date: str,
@@ -359,14 +514,29 @@ class DataManager:
         all_dates = [(start + timedelta(days=x)).strftime('%Y-%m-%d') for x in range((end - start).days + 1)]
         today_str = datetime.now().strftime('%Y-%m-%d')
 
+        # If server is offline, populate missing dates from local master CSV and avoid slow network timeouts
+        if not self.server_is_live and self._data is not None and not self._data.empty:
+            try:
+                c_df = self._data[(self._data["is_completed"] == True) & (self._data["completed_date"].isin(all_dates))].copy()
+                if not c_df.empty:
+                    c_df["canonical_user"] = c_df.apply(lambda r: self._get_canonical_name(r.get("user_id"), r.get("user_name")), axis=1)
+                    for (dt, u), grp in c_df.groupby(["completed_date", "canonical_user"]):
+                        if u not in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                            if dt not in self._daily_cache:
+                                self._daily_cache[dt] = {}
+                            self._daily_cache[dt][u] = float(grp["duration_seconds"].sum())
+            except Exception:
+                pass
+
         # Determine dates that need fetching
         dates_to_fetch = []
-        for d in all_dates:
-            if d == today_str:
-                if force_refresh or d not in self._daily_cache:
+        if self.server_is_live:
+            for d in all_dates:
+                if d == today_str:
+                    if force_refresh or d not in self._daily_cache:
+                        dates_to_fetch.append(d)
+                elif d not in self._daily_cache or force_refresh:
                     dates_to_fetch.append(d)
-            elif d not in self._daily_cache or force_refresh:
-                dates_to_fetch.append(d)
 
         if dates_to_fetch:
             def fetch_single_day(dt_str):
@@ -627,6 +797,29 @@ class DataManager:
         }
         df = pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
         return df
+
+    def get_settlement_periods(self) -> tuple[tuple[str, str], tuple[str, str]]:
+        """Calculate date ranges for (current_settlement_period, previous_settlement_period).
+
+        Returns:
+            ((curr_start, curr_end), (prev_start, prev_end))
+        """
+        today = datetime.now()
+        today_str = today.strftime("%Y-%m-%d")
+
+        settlement_date_str = self.settlement_history.get("settlement_date", "2026-08-31")
+        try:
+            settlement_dt = datetime.strptime(settlement_date_str, "%Y-%m-%d")
+            curr_start = (settlement_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+        except Exception:
+            curr_start = today.replace(day=1).strftime("%Y-%m-%d")
+        curr_end = today_str
+
+        # Previous settled batch from settlement history (Aug 8 to Aug 31)
+        prev_start = "2026-08-08"
+        prev_end = settlement_date_str
+
+        return (curr_start, curr_end), (prev_start, prev_end)
 
     def get_detailed_pending_assigned_df(
         self,
@@ -909,7 +1102,7 @@ class DataManager:
         role: int = 2,
         force_refresh: bool = False,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        """Fetch efficiency metrics directly from the API.
+        """Fetch efficiency metrics directly from the API with safe fallback.
 
         Returns:
             (summary_dict, items_list)
@@ -918,47 +1111,68 @@ class DataManager:
         if not force_refresh and cache_key in self._cache:
             return self._cache[cache_key]
 
-        if not self.scraper.is_authenticated:
-            self.scraper.login()
+        if not self.server_is_live and cache_key in self._cache:
+            self.is_using_snapshot = True
+            return self._cache[cache_key]
 
-        url = self.scraper._base_url
+        try:
+            if not self.scraper.is_authenticated:
+                if not self.scraper.login():
+                    raise ConnectionError("Login failed")
 
-        # 1. Fetch overall summary
-        overall_resp = self.scraper._client.get(
-            f"{url}/api/dashboard/annotator-efficiency-overall",
-            params={"start_date": start_date, "end_date": end_date, "role": role},
-        )
-        overall_resp.raise_for_status()
-        summary = overall_resp.json().get("summary", {})
+            url = self.scraper._base_url
 
-        # 2. Fetch all paginated user items
-        items: list[dict[str, Any]] = []
-        page = 1
-        while True:
-            eff_resp = self.scraper._client.get(
-                f"{url}/api/dashboard/annotator-efficiency",
-                params={
-                    "start_date": start_date,
-                    "end_date": end_date,
-                    "role": role,
-                    "page": page,
-                    "page_size": 200,
-                },
+            # 1. Fetch overall summary
+            overall_resp = self.scraper._client.get(
+                f"{url}/api/dashboard/annotator-efficiency-overall",
+                params={"start_date": start_date, "end_date": end_date, "role": role},
+                timeout=5.0,
             )
-            eff_resp.raise_for_status()
-            page_json = eff_resp.json()
-            page_items = page_json.get("items", [])
-            if not page_items:
-                break
-            items.extend(page_items)
-            total = page_json.get("total", len(items))
-            if len(items) >= total or len(page_items) < 200:
-                break
-            page += 1
+            overall_resp.raise_for_status()
+            summary = overall_resp.json().get("summary", {})
 
-        res = (summary, items)
-        self._cache[cache_key] = res
-        return res
+            # 2. Fetch all paginated user items
+            items: list[dict[str, Any]] = []
+            page = 1
+            while True:
+                eff_resp = self.scraper._client.get(
+                    f"{url}/api/dashboard/annotator-efficiency",
+                    params={
+                        "start_date": start_date,
+                        "end_date": end_date,
+                        "role": role,
+                        "page": page,
+                        "page_size": 200,
+                    },
+                    timeout=5.0,
+                )
+                eff_resp.raise_for_status()
+                page_json = eff_resp.json()
+                page_items = page_json.get("items", [])
+                if not page_items:
+                    break
+                items.extend(page_items)
+                total = page_json.get("total", len(items))
+                if len(items) >= total or len(page_items) < 200 or page > 20:
+                    break
+                page += 1
+
+            res = (summary, items)
+            self._cache[cache_key] = res
+            self.server_is_live = True
+            self.is_using_snapshot = False
+            self._save_snapshot()
+            return res
+        except Exception as e:
+            self.server_is_live = False
+            self.is_using_snapshot = True
+            self.last_sync_error = str(e)
+            if cache_key in self._cache:
+                return self._cache[cache_key]
+            for k, v in self._cache.items():
+                if k.startswith("eff_") and isinstance(v, tuple):
+                    return v
+            return ({}, [])
 
     def get_slice_data_overview_df(
         self,

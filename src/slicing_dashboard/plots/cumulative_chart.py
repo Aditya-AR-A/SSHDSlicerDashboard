@@ -57,6 +57,17 @@ def build_cumulative_chart(
                 )
             )
 
+    max_hours = 0.0
+    if not cumulative_df.empty:
+        user_cols = [
+            c for c in cumulative_df.columns
+            if c != "Date" and (not is_filtering or not effective_users or c in effective_users)
+        ]
+        if user_cols:
+            max_val = cumulative_df[user_cols].max().max()
+            max_hours = (max_val / 3600) if (max_val and not pd.isna(max_val)) else 0.0
+    max_range = max_hours * 1.15 if max_hours > 0 else 1
+
     fig.update_layout(
         title=f"Cumulative Completed Hours (From {start_date})",
         template=t["template"],
@@ -71,9 +82,13 @@ def build_cumulative_chart(
         margin=dict(l=40, r=15, t=40, b=35),
         showlegend=False,
         hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"]),
-        xaxis=dict(showgrid=False, zeroline=False),
+        xaxis=dict(showgrid=False, zeroline=False, automargin=True),
         yaxis=dict(
-            showgrid=True, gridcolor="rgba(128,128,128,0.2)", zeroline=False
+            range=[0, max_range],
+            showgrid=True,
+            gridcolor="rgba(128,128,128,0.2)",
+            zeroline=False,
+            automargin=True,
         ),
     )
     return fig

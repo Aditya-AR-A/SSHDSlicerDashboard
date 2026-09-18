@@ -121,6 +121,9 @@ def build_error_rework_chart(
             ),
         )
 
+    max_hours = total_hours.max() if not df.empty else 0
+    max_range = max_hours * 1.15 if (max_hours and max_hours > 0) else 1
+
     fig.update_layout(
         template=t["template"],
         plot_bgcolor=t["bg_color"],
@@ -132,9 +135,13 @@ def build_error_rework_chart(
         bargap=0.35,
         clickmode="event+select",
         hoverlabel=dict(bgcolor=t["hover_bg"], font_color=t["hover_fg"]),
-        xaxis=dict(showgrid=False, zeroline=False),
+        xaxis=dict(showgrid=False, zeroline=False, automargin=True),
         yaxis=dict(
-            showgrid=True, gridcolor="rgba(128,128,128,0.2)", zeroline=False
+            range=[0, max_range],
+            showgrid=True,
+            gridcolor="rgba(128,128,128,0.2)",
+            zeroline=False,
+            automargin=True,
         ),
     )
     return fig

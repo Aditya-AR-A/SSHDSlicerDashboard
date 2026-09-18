@@ -34,6 +34,8 @@ default_end = end_dt.strftime("%Y-%m-%d")
 
 app = dash.Dash(
     __name__,
+    title="SSHD Slicing Dashboard",
+    update_title=None,
     external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
     suppress_callback_exceptions=True,
 )
@@ -47,6 +49,11 @@ try:
     )
 except Exception:
     available_users = []
+
+if not available_users and dm._snapshot_payload.get("available_users"):
+    available_users = dm._snapshot_payload["available_users"]
+if not available_users:
+    available_users = ["Aditya", "Deepak", "Komal", "Pawan", "Priya", "Rajni", "Riya", "Sanddep"]
 
 # ── Chart style shorthand ────────────────────────────────────────────────
 _graph_style = {"height": f"{CHART_HEIGHT}px"}
@@ -64,10 +71,24 @@ app.layout = html.Div(
                 dbc.Row(
                     [
                         dbc.Col(
-                            html.H2(
-                                "Slicing Performance & Settlement",
-                                className="fw-bold m-0 text-primary",
-                                style={"fontSize": "1.2rem"},
+                            html.Div(
+                                [
+                                    html.I(
+                                        className="bi bi-film text-primary me-2",
+                                        style={"fontSize": "1.25rem"},
+                                    ),
+                                    html.Span(
+                                        "SSHD",
+                                        className="fw-bold text-primary me-2",
+                                        style={"fontSize": "1.15rem", "letterSpacing": "0.5px"},
+                                    ),
+                                    html.Span(
+                                        "Slicing Performance & Settlement",
+                                        className="fw-semibold text-body",
+                                        style={"fontSize": "1.1rem"},
+                                    ),
+                                ],
+                                className="d-flex align-items-center",
                             ),
                             width="auto",
                             className="me-auto",
@@ -80,18 +101,21 @@ app.layout = html.Div(
                                         id="btn-today",
                                         color="outline-primary",
                                         size="sm",
+                                        title="Today's performance",
                                     ),
                                     dbc.Button(
-                                        "7 Days",
-                                        id="btn-7d",
+                                        "Current Period",
+                                        id="btn-curr-period",
                                         color="outline-primary",
                                         size="sm",
+                                        title="Current settlement period (Sep 1 - Today)",
                                     ),
                                     dbc.Button(
-                                        "Month",
-                                        id="btn-month",
+                                        "Previous Period",
+                                        id="btn-prev-period",
                                         color="outline-primary",
                                         size="sm",
+                                        title="Previous settlement period (Aug 8 - Aug 31)",
                                     ),
                                 ],
                                 className="me-2",
@@ -159,6 +183,11 @@ app.layout = html.Div(
                             width="auto",
                         ),
                         dbc.Col(
+                            html.Div(id="server-status-badge"),
+                            width="auto",
+                            className="me-1",
+                        ),
+                        dbc.Col(
                             dbc.Button(
                                 html.I(className="bi bi-arrow-clockwise"),
                                 id="refresh-btn",
@@ -173,14 +202,23 @@ app.layout = html.Div(
                     style={"position": "relative", "zIndex": 1050},
                 ),
 
+                # ── Server Status Offline Banner ─────────────────────
+                html.Div(id="server-status-banner"),
+
                 # ── KPI Cards (flex grid — all 7 in one row) ─────────
                 html.Div(id="kpi-cards", className="kpi-grid mb-2"),
 
                 # ── Stores & Intervals ───────────────────────────────
                 dcc.Store(id="selected-users-store", data=available_users),
+                dcc.Store(id="server-status-store", data=dm.get_server_status()),
                 dcc.Interval(
                     id="auto-refresh-interval",
-                    interval=30 * 1000,
+                    interval=5 * 60 * 1000,  # 5 minutes
+                    n_intervals=0,
+                ),
+                dcc.Interval(
+                    id="heartbeat-interval",
+                    interval=30 * 1000,  # 30 seconds
                     n_intervals=0,
                 ),
 
@@ -328,24 +366,106 @@ app.clientside_callback(
     [Output("date-from", "value"), Output("date-to", "value")],
     [
         Input("btn-today", "n_clicks"),
-        Input("btn-7d", "n_clicks"),
-        Input("btn-month", "n_clicks"),
+        Input("btn-curr-period", "n_clicks"),
+        Input("btn-prev-period", "n_clicks"),
     ],
     prevent_initial_call=True,
 )
-def quick_filters(btn_today, btn_7d, btn_month):
+def quick_filters(btn_today, btn_curr, btn_prev):
     ctx = dash.callback_context
     if not ctx.triggered:
         raise dash.exceptions.PreventUpdate
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    end = datetime.now()
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+
     if button_id == "btn-today":
-        start = end
-    elif button_id == "btn-7d":
-        start = end - timedelta(days=7)
-    elif button_id == "btn-month":
-        start = end.replace(day=1)
-    return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+        return today_str, today_str
+    elif button_id == "btn-curr-period":
+        (curr_start, curr_end), _ = dm.get_settlement_periods()
+        return curr_start, curr_end
+    elif button_id == "btn-prev-period":
+        _, (prev_start, prev_end) = dm.get_settlement_periods()
+        return prev_start, prev_end
+
+    return default_start, default_end
+
+
+def _build_status_badge(status: dict):
+    is_live = status.get("is_live", True)
+    using_snap = status.get("is_using_snapshot", False)
+    if is_live and not using_snap:
+        return html.Span(
+            [
+                html.Span(
+                    style={
+                        "display": "inline-block",
+                        "width": "8px",
+                        "height": "8px",
+                        "borderRadius": "50%",
+                        "backgroundColor": "#10B981",
+                        "marginRight": "6px",
+                        "boxShadow": "0 0 6px #10B981",
+                    }
+                ),
+                html.Span("Live (5m sync)", style={"fontSize": "0.78rem", "fontWeight": "600", "color": "#10B981"}),
+            ],
+            className="d-flex align-items-center me-2 px-2 py-1 glass-panel rounded",
+            title="API server is online. Auto-syncing every 5 minutes.",
+        )
+    else:
+        return html.Span(
+            [
+                html.Span(
+                    style={
+                        "display": "inline-block",
+                        "width": "8px",
+                        "height": "8px",
+                        "borderRadius": "50%",
+                        "backgroundColor": "#F59E0B",
+                        "marginRight": "6px",
+                    }
+                ),
+                html.Span("Offline (Snapshot)", style={"fontSize": "0.78rem", "fontWeight": "600", "color": "#F59E0B"}),
+            ],
+            className="d-flex align-items-center me-2 px-2 py-1 glass-panel rounded border border-warning",
+            title=f"Server unreachable. Displaying snapshot from {status.get('last_sync_time', 'earlier')}.",
+        )
+
+
+def _build_status_banner(status: dict):
+    is_live = status.get("is_live", True)
+    using_snap = status.get("is_using_snapshot", False)
+    if not is_live or using_snap:
+        sync_time = status.get("last_sync_time", "earlier")
+        return dbc.Alert(
+            [
+                html.Div(
+                    [
+                        html.I(className="bi bi-exclamation-triangle-fill text-warning me-2", style={"fontSize": "1.1rem"}),
+                        html.Strong("Server Offline: ", className="text-warning me-1"),
+                        html.Span(
+                            f"Remote API server is currently unreachable. Displaying cached data snapshot from {sync_time}. Heartbeat is checking every 30s to auto-sync once restored."
+                        ),
+                    ],
+                    className="d-flex align-items-center flex-grow-1",
+                ),
+                html.Div(
+                    [
+                        html.Span(
+                            className="spinner-grow spinner-grow-sm text-warning me-1",
+                            style={"width": "7px", "height": "7px"},
+                        ),
+                        html.Span("Heartbeat Active", style={"fontSize": "0.75rem"}),
+                    ],
+                    className="badge bg-dark text-warning border border-warning ms-2 d-flex align-items-center",
+                ),
+            ],
+            color="warning",
+            className="py-1 px-3 mb-2 d-flex align-items-center justify-content-between shadow-sm border-warning",
+            style={"borderRadius": "6px", "fontSize": "0.82rem", "backgroundColor": "rgba(245, 158, 11, 0.12)"},
+        )
+    return None
 
 
 # ── Main dashboard callback ──────────────────────────────────────────────
@@ -362,6 +482,8 @@ def quick_filters(btn_today, btn_7d, btn_month):
         Output("refresh-status", "children"),
         Output("theme-toggle", "children"),
         Output("selected-users-store", "data"),
+        Output("server-status-banner", "children"),
+        Output("server-status-badge", "children"),
     ],
     [
         Input("refresh-btn", "n_clicks"),
@@ -411,6 +533,11 @@ def update_dashboard(
         triggered_id = None
 
     force_refresh = triggered_id in ["refresh-btn", "auto-refresh-interval"]
+    if triggered_id == "auto-refresh-interval":
+        # Only do heavy network refresh if server is live
+        is_live = dm.check_server_heartbeat()
+        if not is_live:
+            force_refresh = False
 
     # ── User selection / filtering ───────────────────────────────────
     current_selection = (
@@ -551,9 +678,14 @@ def update_dashboard(
         force_refresh,
     )
 
-    status_msg = (
-        f"Updated: {datetime.now().strftime('%H:%M:%S')} (Real-time)"
-    )
+    srv_status = dm.get_server_status()
+    badge_el = _build_status_badge(srv_status)
+    banner_el = _build_status_banner(srv_status)
+
+    if srv_status.get("is_using_snapshot", False) or not srv_status.get("is_live", True):
+        status_msg = f"Snapshot: {srv_status.get('last_sync_time', 'Cached')} (Offline)"
+    else:
+        status_msg = f"Updated: {datetime.now().strftime('%H:%M:%S')} (Live)"
 
     return (
         kpi_layout,
@@ -567,7 +699,27 @@ def update_dashboard(
         status_msg,
         toggle_label,
         current_selection,
+        banner_el,
+        badge_el,
     )
+
+
+# ── Heartbeat polling callback ───────────────────────────────────────────
+@app.callback(
+    [
+        Output("server-status-store", "data"),
+        Output("server-status-badge", "children", allow_duplicate=True),
+        Output("server-status-banner", "children", allow_duplicate=True),
+    ],
+    [Input("heartbeat-interval", "n_intervals")],
+    prevent_initial_call=True,
+)
+def heartbeat_check(n_intervals):
+    dm.check_server_heartbeat(timeout=2.5)
+    status = dm.get_server_status()
+    badge = _build_status_badge(status)
+    banner = _build_status_banner(status)
+    return status, badge, banner
 
 
 # ── Helper: build the New Work + Rework chart ────────────────────────────
