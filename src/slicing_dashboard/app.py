@@ -176,30 +176,33 @@ app.layout = html.Div(
                                 id="cumulative-chart",
                                 config={"displayModeBar": False},
                                 className="glass-panel p-2 rounded shadow-sm",
-                                style={"height": "450px"},
+                                style={"minHeight": "400px", "height": "100%"},
                             ),
                             width=12,
                             lg=7,
+                            className="mb-3 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="individual-chart",
                                 config={"displayModeBar": False},
                                 className="glass-panel p-2 rounded shadow-sm",
-                                style={"height": "450px"},
+                                style={"minHeight": "400px", "height": "100%"},
                             ),
                             width=12,
                             lg=4,
+                            className="mb-3 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="universal-legend",
                                 config={"displayModeBar": False},
                                 className="glass-panel p-2 rounded shadow-sm",
-                                style={"height": "450px"},
+                                style={"minHeight": "400px", "height": "100%"},
                             ),
                             width=12,
                             lg=1,
+                            className="mb-3 mb-lg-0",
                         ),
                     ],
                     className="mb-4",
@@ -212,30 +215,33 @@ app.layout = html.Div(
                                 id="pending-chart",
                                 config={"displayModeBar": False},
                                 className="glass-panel p-2 rounded shadow-sm",
-                                style={"height": "450px"},
+                                style={"minHeight": "400px", "height": "100%"},
                             ),
                             width=12,
                             lg=5,
+                            className="mb-3 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="error-rework-chart",
                                 config={"displayModeBar": False},
                                 className="glass-panel p-2 rounded shadow-sm",
-                                style={"height": "450px"},
+                                style={"minHeight": "400px", "height": "100%"},
                             ),
                             width=12,
                             lg=4,
+                            className="mb-3 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="assigned-chart",
                                 config={"displayModeBar": False},
                                 className="glass-panel p-2 rounded shadow-sm",
-                                style={"height": "450px"},
+                                style={"minHeight": "400px", "height": "100%"},
                             ),
                             width=12,
                             lg=3,
+                            className="mb-3 mb-lg-0",
                         ),
                     ],
                     className="mb-4",
@@ -580,8 +586,10 @@ def update_dashboard(
                 },
             ),
             width=12,
+            sm=6,
             md=4,
-            lg=2,
+            lg=3,
+            xl=2,
             className="mb-3 mb-lg-0",
         )
 
@@ -608,6 +616,15 @@ def update_dashboard(
             "#10B981",
             is_dark,
             assigned_trend,
+        ),
+        make_kpi_card(
+            "Unassigned Videos",
+            format_seconds(pool_dur),
+            "bi bi-inbox",
+            "Pool Duration",
+            "#06B6D4",
+            is_dark,
+            [pool_dur, pool_dur],
         ),
         make_kpi_card(
             "Pending Review (Now)",
@@ -722,10 +739,13 @@ def update_dashboard(
         breakdown_df["Formatted Duration"] = breakdown_df["Completed Duration"].apply(
             format_seconds
         )
+        # Sort for horizontal bar chart
+        breakdown_df = breakdown_df.sort_values(by="Completed Duration", ascending=True)
         fig_ind = px.bar(
             breakdown_df,
-            x="User",
-            y=breakdown_df["Completed Duration"] / 3600,
+            x=breakdown_df["Completed Duration"] / 3600,
+            y="User",
+            orientation="h",
             title=f"Completed Hours ({start_date} to {end_date})",
             template=theme_template,
             color="User",
@@ -738,15 +758,16 @@ def update_dashboard(
             paper_bgcolor=bg_color,
             font=dict(family="Inter, sans-serif", size=16, color=font_color),
             title_font=dict(size=20, weight="bold"),
-            yaxis_title="Hours",
-            margin=dict(l=50, r=30, t=60, b=50),
+            xaxis_title="Hours",
+            yaxis_title="",
+            margin=dict(l=10, r=30, t=60, b=50),
             clickmode="event+select",
             showlegend=False,
             hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
         )
         fig_ind.update_traces(
             textposition="outside",
-            hovertemplate="User: %{x}<br>Duration: %{customdata[0]}<extra></extra>",
+            hovertemplate="User: %{y}<br>Duration: %{customdata[0]}<extra></extra>",
         )
         # Determine target date for New Work + Rework chart:
         # If range of dates is selected, affix to today; if single day is selected, use that day.
@@ -965,7 +986,6 @@ def update_dashboard(
     assigned_stages = [
         "New Assigned",
         "Rework Assigned",
-        "Assignable (Pool)",
     ]
     assigned_df = (
         detailed_df[detailed_df["Stage"].isin(assigned_stages)]
@@ -978,16 +998,18 @@ def update_dashboard(
         )
         if "Count" not in assigned_df.columns:
             assigned_df["Count"] = 0
+        # Ensure ordered layout for horizontal bars
+        assigned_df = assigned_df.sort_values(by="Duration", ascending=True)
         fig_assigned = px.bar(
             assigned_df,
-            x="User",
-            y=assigned_df["Duration"] / 3600,
+            x=assigned_df["Duration"] / 3600,
+            y="User",
+            orientation="h",
             color="Stage",
-            title="Assigned & Assignable Videos (Hours)",
+            title="Assigned Videos (Hours)",
             color_discrete_map={
                 "New Assigned": "#10B981",
                 "Rework Assigned": "#F43F5E",
-                "Assignable (Pool)": "#06B6D4",
             },
             text="Formatted Duration",
             barmode="stack",
@@ -999,7 +1021,7 @@ def update_dashboard(
             paper_bgcolor=bg_color,
             font=dict(family="Inter, sans-serif", size=16, color=font_color),
             title_font=dict(size=20, weight="bold"),
-            margin=dict(l=50, r=30, t=80, b=80),
+            margin=dict(l=10, r=30, t=80, b=80),
             showlegend=True,
             legend=dict(
                 orientation="h",
@@ -1010,12 +1032,12 @@ def update_dashboard(
                 font=dict(size=14),
             ),
             hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-            yaxis_title="Hours",
-            xaxis_title="",
+            xaxis_title="Hours",
+            yaxis_title="",
         )
         fig_assigned.update_traces(
             textposition="inside",
-            hovertemplate="<b>%{x}</b><br>Stage: %{customdata[1]}<br>Duration: %{customdata[0]}<br>Tasks: %{customdata[2]}<extra></extra>",
+            hovertemplate="<b>%{y}</b><br>Stage: %{customdata[1]}<br>Duration: %{customdata[0]}<br>Tasks: %{customdata[2]}<extra></extra>",
         )
     else:
         fig_assigned = go.Figure().update_layout(
