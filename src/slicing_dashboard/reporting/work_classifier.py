@@ -91,13 +91,15 @@ class WorkClassifier:
             data = resp.json().get("data", [])
             if not data:
                 break
+            hit_older = False
             for task in data:
                 updated_at = task.get("updated_at", "")
                 if updated_at.startswith(date_str):
                     tasks_on_date.append(task)
+                elif updated_at < date_str:
+                    hit_older = True
             
-            # Just rely on has_more to avoid premature breaks if API sort is inconsistent
-            if not resp.json().get("meta", {}).get("has_more", False):
+            if hit_older or not resp.json().get("meta", {}).get("has_more", False):
                 break
             
             # Safety break if we get too far deep (e.g. page > 50)
@@ -187,7 +189,7 @@ class WorkClassifier:
         for (username, batch_num), b_df in df.groupby(["slicer", "slice_batch"]):
             # Ignore batches still purely in assigned state (0 submitted)
             submitted_tasks = b_df[b_df["status"].isin([
-                "slice_submitted", "slice_pending_auditor_review", "slice_pending_admin_review", "slice_completed"
+                "slice_submitted", "slice_pending_auditor_review"
             ])].sort_values("updated_at")
 
             if submitted_tasks.empty:
@@ -289,7 +291,7 @@ class WorkClassifier:
 
         for (username, batch_num), b_df in df.groupby(["slicer", "slice_batch"]):
             submitted_tasks = b_df[b_df["status"].isin([
-                "slice_submitted", "slice_pending_auditor_review", "slice_pending_admin_review", "slice_completed"
+                "slice_submitted", "slice_pending_auditor_review"
             ])]
             if submitted_tasks.empty:
                 continue

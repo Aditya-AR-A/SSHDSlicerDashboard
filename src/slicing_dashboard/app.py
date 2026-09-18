@@ -1,65 +1,73 @@
-import dash
-from dash import dcc, html, Input, Output, State, dash_table
-import dash_bootstrap_components as dbc
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
-from datetime import datetime, timedelta
-from pathlib import Path
-from slicing_dashboard.data_manager import DataManager
+"""
+Slicing Performance & Settlement Dashboard — Main Application.
 
-USER_COLORS = {
-    "Aditya": "#636EFA",
-    "Gurharleen": "#478754",
-    "Komal": "#EF553B",
-    "Priya": "#00CC96",
-    "Rajni": "#AB63FA",
-    "Ranjeeta": "#FFA15A",
-    "Riya": "#19D3F3",
-    "Sanddep": "#FF6692",
-    "Admin": "#B6E880",
-    "Test": "#FF97FF",
-    "Dep": "#FECB52",
-}
+Layout and callbacks. All chart/table builders live in the plots/ package.
+"""
+
+import dash
+import dash_bootstrap_components as dbc
+import pandas as pd
+from dash import Input, Output, State, dcc, html
+from datetime import datetime, timedelta
+
+from slicing_dashboard.data_manager import DataManager
+from slicing_dashboard.plots import (
+    USER_COLORS,
+    format_seconds,
+    empty_fig,
+    build_cumulative_chart,
+    build_individual_chart,
+    build_pending_chart,
+    build_assigned_chart,
+    build_error_rework_chart,
+    build_legend_figure,
+    build_kpi_layout,
+    create_table,
+)
+from slicing_dashboard.plots.theme import CHART_HEIGHT
+
+# ── Bootstrap / initialise ───────────────────────────────────────────────
 dm = DataManager()
 end_dt = datetime.now()
 default_start = f"{end_dt.year}-09-01"
 default_end = end_dt.strftime("%Y-%m-%d")
-
-
-def format_seconds(seconds):
-    if pd.isna(seconds) or seconds is None:
-        return "00:00"
-    seconds = int(seconds)
-    h = seconds // 3600
-    m = seconds % 3600 // 60
-    return f"{h:02d}:{m:02d}"
-
 
 app = dash.Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
     suppress_callback_exceptions=True,
 )
+
 try:
     all_users_df = dm.get_user_breakdown_df("2026-07-01", default_end)
     available_users = (
-        sorted(all_users_df["User"].unique().tolist()) if not all_users_df.empty else []
+        sorted(all_users_df["User"].unique().tolist())
+        if not all_users_df.empty
+        else []
     )
 except Exception:
     available_users = []
+
+# ── Chart style shorthand ────────────────────────────────────────────────
+_graph_style = {"height": f"{CHART_HEIGHT}px"}
+_graph_cfg = {"displayModeBar": False}
+_initial_fig = empty_fig()
+
+# ── Layout ───────────────────────────────────────────────────────────────
 app.layout = html.Div(
     id="main-container",
     className="theme-dark",
     children=[
         dbc.Container(
             [
+                # ── Header bar ───────────────────────────────────────
                 dbc.Row(
                     [
                         dbc.Col(
                             html.H2(
                                 "Slicing Performance & Settlement",
                                 className="fw-bold m-0 text-primary",
+                                style={"fontSize": "1.2rem"},
                             ),
                             width="auto",
                             className="me-auto",
@@ -86,7 +94,7 @@ app.layout = html.Div(
                                         size="sm",
                                     ),
                                 ],
-                                className="me-3 mt-1",
+                                className="me-2",
                             ),
                             width="auto",
                         ),
@@ -97,7 +105,7 @@ app.layout = html.Div(
                                         [
                                             html.Span(
                                                 "From",
-                                                className="date-filter-label me-2 fw-bold",
+                                                className="date-filter-label me-1 fw-bold",
                                             ),
                                             dbc.Input(
                                                 id="date-from",
@@ -107,13 +115,13 @@ app.layout = html.Div(
                                                 className="date-input-custom",
                                             ),
                                         ],
-                                        className="d-flex align-items-center me-3",
+                                        className="d-flex align-items-center me-2",
                                     ),
                                     html.Div(
                                         [
                                             html.Span(
                                                 "To",
-                                                className="date-filter-label me-2 fw-bold",
+                                                className="date-filter-label me-1 fw-bold",
                                             ),
                                             dbc.Input(
                                                 id="date-to",
@@ -126,7 +134,7 @@ app.layout = html.Div(
                                         className="d-flex align-items-center",
                                     ),
                                 ],
-                                className="d-flex align-items-center date-filter-group me-3",
+                                className="d-flex align-items-center date-filter-group me-2",
                             ),
                             width="auto",
                         ),
@@ -135,7 +143,7 @@ app.layout = html.Div(
                                 html.I(className="bi bi-moon-stars"),
                                 id="theme-toggle",
                                 color="link",
-                                className="text-decoration-none fs-4 text-primary",
+                                className="text-decoration-none fs-5 text-primary p-0",
                             ),
                             width="auto",
                         ),
@@ -145,7 +153,7 @@ app.layout = html.Div(
                                 type="circle",
                                 children=html.Div(
                                     id="refresh-status",
-                                    className="text-success small fw-bold mt-1 me-3",
+                                    className="text-success small fw-bold",
                                 ),
                             ),
                             width="auto",
@@ -155,98 +163,116 @@ app.layout = html.Div(
                                 html.I(className="bi bi-arrow-clockwise"),
                                 id="refresh-btn",
                                 color="primary",
-                                size="md",
+                                size="sm",
                                 title="Refresh",
                             ),
                             width="auto",
                         ),
                     ],
-                    className="mb-4 align-items-center glass-panel p-3 rounded shadow-sm d-flex justify-content-between",
+                    className="mb-2 align-items-center glass-panel p-2 rounded shadow-sm d-flex justify-content-between",
                     style={"position": "relative", "zIndex": 1050},
                 ),
-                dbc.Row(id="kpi-cards", className="mb-4"),
+
+                # ── KPI Cards (flex grid — all 7 in one row) ─────────
+                html.Div(id="kpi-cards", className="kpi-grid mb-2"),
+
+                # ── Stores & Intervals ───────────────────────────────
                 dcc.Store(id="selected-users-store", data=available_users),
                 dcc.Interval(
-                    id="auto-refresh-interval", interval=30 * 1000, n_intervals=0
+                    id="auto-refresh-interval",
+                    interval=30 * 1000,
+                    n_intervals=0,
                 ),
+
+                # ── Chart row 1: Cumulative + Individual + Legend ─────
                 dbc.Row(
                     [
                         dbc.Col(
                             dcc.Graph(
                                 id="cumulative-chart",
-                                config={"displayModeBar": False},
-                                className="glass-panel p-2 rounded shadow-sm",
-                                style={"minHeight": "400px", "height": "100%"},
+                                figure=_initial_fig,
+                                config=_graph_cfg,
+                                className="glass-panel p-1 rounded shadow-sm chart-compact",
+                                style=_graph_style,
                             ),
                             width=12,
                             lg=7,
-                            className="mb-3 mb-lg-0",
+                            className="mb-2 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="individual-chart",
-                                config={"displayModeBar": False},
-                                className="glass-panel p-2 rounded shadow-sm",
-                                style={"minHeight": "400px", "height": "100%"},
+                                figure=_initial_fig,
+                                config=_graph_cfg,
+                                className="glass-panel p-1 rounded shadow-sm chart-compact",
+                                style=_graph_style,
                             ),
                             width=12,
                             lg=4,
-                            className="mb-3 mb-lg-0",
+                            className="mb-2 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="universal-legend",
-                                config={"displayModeBar": False},
-                                className="glass-panel p-2 rounded shadow-sm",
-                                style={"minHeight": "400px", "height": "100%"},
+                                figure=_initial_fig,
+                                config=_graph_cfg,
+                                className="glass-panel p-1 rounded shadow-sm chart-compact",
+                                style=_graph_style,
                             ),
                             width=12,
                             lg=1,
-                            className="mb-3 mb-lg-0",
+                            className="mb-2 mb-lg-0",
                         ),
                     ],
-                    className="mb-4",
+                    className="mb-2",
                     style={"display": "flex", "alignItems": "stretch"},
                 ),
+
+                # ── Chart row 2: Pending + New Work + Assigned ───────
                 dbc.Row(
                     [
                         dbc.Col(
                             dcc.Graph(
                                 id="pending-chart",
-                                config={"displayModeBar": False},
-                                className="glass-panel p-2 rounded shadow-sm",
-                                style={"minHeight": "400px", "height": "100%"},
+                                figure=_initial_fig,
+                                config=_graph_cfg,
+                                className="glass-panel p-1 rounded shadow-sm chart-compact",
+                                style=_graph_style,
                             ),
                             width=12,
                             lg=5,
-                            className="mb-3 mb-lg-0",
+                            className="mb-2 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="error-rework-chart",
-                                config={"displayModeBar": False},
-                                className="glass-panel p-2 rounded shadow-sm",
-                                style={"minHeight": "400px", "height": "100%"},
+                                figure=_initial_fig,
+                                config=_graph_cfg,
+                                className="glass-panel p-1 rounded shadow-sm chart-compact",
+                                style=_graph_style,
                             ),
                             width=12,
                             lg=4,
-                            className="mb-3 mb-lg-0",
+                            className="mb-2 mb-lg-0",
                         ),
                         dbc.Col(
                             dcc.Graph(
                                 id="assigned-chart",
-                                config={"displayModeBar": False},
-                                className="glass-panel p-2 rounded shadow-sm",
-                                style={"minHeight": "400px", "height": "100%"},
+                                figure=_initial_fig,
+                                config=_graph_cfg,
+                                className="glass-panel p-1 rounded shadow-sm chart-compact",
+                                style=_graph_style,
                             ),
                             width=12,
                             lg=3,
-                            className="mb-3 mb-lg-0",
+                            className="mb-2 mb-lg-0",
                         ),
                     ],
-                    className="mb-4",
+                    className="mb-2",
                     style={"display": "flex", "alignItems": "stretch"},
                 ),
+
+                # ── Tabs + Table ─────────────────────────────────────
                 dbc.Row(
                     [
                         dbc.Col(
@@ -272,11 +298,11 @@ app.layout = html.Div(
                                     ],
                                     id="tabs",
                                     active_tab="tab-today",
-                                    className="mb-3",
+                                    className="mb-1",
                                 ),
                                 html.Div(
                                     id="tabs-content",
-                                    className="glass-panel p-3 rounded shadow-sm",
+                                    className="glass-panel p-2 rounded shadow-sm",
                                 ),
                             ]
                         )
@@ -284,10 +310,12 @@ app.layout = html.Div(
                 ),
             ],
             fluid=True,
-            className="p-4",
+            className="p-3",
         )
     ],
 )
+
+# ── Client-side theme toggle ─────────────────────────────────────────────
 app.clientside_callback(
     dash.ClientsideFunction(namespace="clientside", function_name="toggleTheme"),
     Output("main-container", "className"),
@@ -295,6 +323,7 @@ app.clientside_callback(
 )
 
 
+# ── Quick date-range buttons ─────────────────────────────────────────────
 @app.callback(
     [Output("date-from", "value"), Output("date-to", "value")],
     [
@@ -319,6 +348,7 @@ def quick_filters(btn_today, btn_7d, btn_month):
     return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
 
 
+# ── Main dashboard callback ──────────────────────────────────────────────
 @app.callback(
     [
         Output("kpi-cards", "children"),
@@ -358,25 +388,37 @@ def update_dashboard(
     err_click,
     stored_users,
 ):
+    # ── Theme ────────────────────────────────────────────────────────
     is_dark = True if theme_clicks is None else theme_clicks % 2 == 0
     toggle_label = (
         html.I(className="bi bi-moon-stars")
         if is_dark
         else html.I(className="bi bi-sun")
     )
+
     if not start_date or not end_date:
         raise dash.exceptions.PreventUpdate
+
+    # ── Determine trigger ────────────────────────────────────────────
     ctx = dash.callback_context
-    force_refresh = False
     try:
-        triggered_id = ctx.triggered[0]["prop_id"].split(".")[0] if ctx and ctx.triggered else None
+        triggered_id = (
+            ctx.triggered[0]["prop_id"].split(".")[0]
+            if ctx and ctx.triggered
+            else None
+        )
     except Exception:
         triggered_id = None
-    if triggered_id in ["refresh-btn", "auto-refresh-interval"]:
-        force_refresh = True
+
+    force_refresh = triggered_id in ["refresh-btn", "auto-refresh-interval"]
+
+    # ── User selection / filtering ───────────────────────────────────
     current_selection = (
-        list(stored_users) if stored_users is not None else list(available_users)
+        list(stored_users)
+        if stored_users is not None
+        else list(available_users)
     )
+
     if triggered_id == "universal-legend" and restyle_data:
         updates = restyle_data[0]
         indices = restyle_data[1]
@@ -391,10 +433,15 @@ def update_dashboard(
                     user = available_users[idx]
                     if vis == "legendonly" and user in current_selection:
                         current_selection.remove(user)
-                    elif (vis == True or vis is None) and user not in current_selection:
+                    elif (
+                        vis is True or vis is None
+                    ) and user not in current_selection:
                         current_selection.append(user)
+
     if triggered_id in ["individual-chart", "error-rework-chart"]:
-        click_data = ind_click if triggered_id == "individual-chart" else err_click
+        click_data = (
+            ind_click if triggered_id == "individual-chart" else err_click
+        )
         if click_data and "points" in click_data:
             pt = click_data["points"][0]
             clicked_user = pt.get("x") or pt.get("label")
@@ -403,58 +450,14 @@ def update_dashboard(
                     current_selection.remove(clicked_user)
                 else:
                     current_selection.append(clicked_user)
+
     effective_users = current_selection if current_selection else None
-    is_filtering = effective_users is not None and len(effective_users) < len(available_users)
-    theme_template = "plotly_dark" if is_dark else "plotly_white"
-    font_color = "#e0e0e0" if is_dark else "#333333"
-    bg_color = "rgba(0,0,0,0)"
-    hover_bg = "#2a2a35" if is_dark else "#f0f0f0"
-    hover_fg = "#ffffff" if is_dark else "#111111"
+    is_filtering = (
+        effective_users is not None
+        and len(effective_users) < len(available_users)
+    )
 
-    def create_table(df):
-        if df.empty:
-            return html.Div("No data available")
-        header_bg = "rgba(40, 40, 40, 0.9)" if is_dark else "rgba(230, 230, 230, 0.9)"
-        cell_bg = "rgba(20, 20, 20, 0.5)" if is_dark else "rgba(255, 255, 255, 0.5)"
-        odd_bg = "rgba(30, 30, 30, 0.5)" if is_dark else "rgba(240, 240, 240, 0.5)"
-        border_col = "rgba(255,255,255,0.05)" if is_dark else "rgba(0,0,0,0.05)"
-        return dash_table.DataTable(
-            data=df.to_dict("records"),
-            columns=[{"name": str(i), "id": str(i)} for i in df.columns],
-            style_header={
-                "backgroundColor": header_bg,
-                "color": font_color,
-                "fontWeight": "bold",
-                "border": "none",
-                "textAlign": "left",
-                "fontFamily": "Inter, sans-serif",
-                "fontSize": "15px",
-            },
-            style_cell={
-                "backgroundColor": cell_bg,
-                "color": font_color,
-                "border": f"1px solid {border_col}",
-                "padding": "12px",
-                "textAlign": "left",
-                "fontFamily": "Inter, sans-serif",
-                "fontSize": "14px",
-            },
-            style_data_conditional=[
-                {"if": {"row_index": "odd"}, "backgroundColor": odd_bg},
-                {
-                    "if": {"filter_query": '{Username} = "All Slicers"'},
-                    "backgroundColor": "rgba(45, 125, 246, 0.25)" if is_dark else "rgba(45, 125, 246, 0.15)",
-                    "fontWeight": "bold",
-                },
-                {
-                    "if": {"filter_query": '{User} = "TOTAL"'},
-                    "backgroundColor": "rgba(45, 125, 246, 0.25)" if is_dark else "rgba(45, 125, 246, 0.15)",
-                    "fontWeight": "bold",
-                },
-            ],
-            style_table={"borderRadius": "10px", "overflow": "hidden"},
-        )
-
+    # ── Fetch data ───────────────────────────────────────────────────
     raw_data = dm.fetch_dashboard_data(start_date, end_date, force_refresh)
     kpis = dm.get_summary_kpis(
         start_date,
@@ -466,587 +469,190 @@ def update_dashboard(
     funnel_list = breakdowns.get("slice_funnel", [])
     funnel_map = {f.get("key"): f for f in funnel_list}
 
-    assigned_val = float(funnel_map.get("assigned", {}).get("duration_seconds", 0) or 0)
-    rework_val = float(funnel_map.get("rework", {}).get("duration_seconds", 0) or 0)
-    total_assigned_dur = assigned_val + rework_val
-    pool_dur = float(funnel_map.get("pending_assign", {}).get("duration_seconds", 0) or kpis.get("assignable_duration", 0) or 0)
+    # ── KPI cards ────────────────────────────────────────────────────
+    kpi_layout = build_kpi_layout(kpis, funnel_map, is_dark)
 
-    total_pending_dur = float(kpis.get("total_pending_duration", 0) or 0)
-    leader_dur = float(kpis.get("leader_review_duration", 0) or 0)
-    auditor_dur = float(kpis.get("auditor_review_duration", 0) or 0)
-    admin_dur = float(kpis.get("admin_review_duration", 0) or 0)
-
-    def make_kpi_card(
-        title,
-        value_str,
-        icon_class,
-        badge_text,
-        badge_color,
-        is_dark_mode,
-        sparkline_data,
-    ):
-        bg_col = "#252530" if is_dark_mode else "#ffffff"
-        text_col = "#e0e0e0" if is_dark_mode else "#333333"
-        icon_bg = "rgba(255,255,255,0.05)" if is_dark_mode else "rgba(0,0,0,0.03)"
-        border_col = "rgba(255,255,255,0.05)" if is_dark_mode else "rgba(0,0,0,0.05)"
-        fig = go.Figure(
-            go.Scatter(
-                y=sparkline_data,
-                mode="lines",
-                line=dict(color=badge_color, width=2.5, shape="spline"),
-                hoverinfo="skip",
-            )
-        )
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=0, b=0),
-            height=30,
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(showgrid=False, zeroline=False, visible=False),
-            yaxis=dict(showgrid=False, zeroline=False, visible=False),
-        )
-        return dbc.Col(
-            dbc.Card(
-                [
-                    dbc.CardBody(
-                        [
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.Div(
-                                            html.I(className=icon_class),
-                                            style={
-                                                "fontSize": "1.3rem",
-                                                "color": text_col,
-                                                "backgroundColor": icon_bg,
-                                                "width": "35px",
-                                                "height": "35px",
-                                                "display": "flex",
-                                                "alignItems": "center",
-                                                "justifyContent": "center",
-                                                "borderRadius": "8px",
-                                            },
-                                        ),
-                                        width="auto",
-                                        className="pe-1",
-                                    ),
-                                    dbc.Col(
-                                        html.H3(
-                                            value_str,
-                                            className="mb-0 fw-bold",
-                                            style={
-                                                "fontSize": "1.6rem",
-                                                "color": text_col,
-                                                "letterSpacing": "-0.5px",
-                                            },
-                                        ),
-                                        className="ps-2",
-                                    ),
-                                ],
-                                className="align-items-center mb-1",
-                            ),
-                            html.H6(
-                                title,
-                                className="text-muted fw-bold mb-3 mt-1",
-                                style={
-                                    "fontSize": "0.75rem",
-                                    "textTransform": "uppercase",
-                                },
-                            ),
-                            html.Div(
-                                dcc.Graph(
-                                    figure=fig,
-                                    config={"displayModeBar": False},
-                                    style={"height": "30px"},
-                                ),
-                                style={"marginBottom": "12px"},
-                            ),
-                            html.Div(
-                                [
-                                    html.Span(
-                                        badge_text,
-                                        className="fw-bold px-2 py-1 rounded",
-                                        style={
-                                            "backgroundColor": badge_color + "25",
-                                            "color": badge_color,
-                                            "fontSize": "0.7rem",
-                                        },
-                                    )
-                                ]
-                            ),
-                        ],
-                        className="p-3",
-                    )
-                ],
-                className="h-100 shadow-sm",
-                style={
-                    "backgroundColor": bg_col,
-                    "border": f"1px solid {border_col}",
-                    "borderRadius": "12px",
-                },
-            ),
-            width=12,
-            sm=6,
-            md=4,
-            lg=3,
-            xl=2,
-            className="mb-3 mb-lg-0",
-        )
-
-    def fmt_badge(pct):
-        return f"{pct:+.1f}% Vs Prev Period"
-
-    assigned_trend = [total_assigned_dur, total_assigned_dur]
-    pending_trend = [total_pending_dur, total_pending_dur]
-    kpi_layout = [
-        make_kpi_card(
-            "Total Approved",
-            format_seconds(kpis["total_approved_duration"]),
-            "bi bi-check-circle",
-            fmt_badge(kpis["approved_pct"]),
-            "#10B981" if kpis["approved_pct"] >= 0 else "#F43F5E",
-            is_dark,
-            [kpis["prev_approved_duration"], kpis["total_approved_duration"]],
-        ),
-        make_kpi_card(
-            "Assigned (Now)",
-            format_seconds(total_assigned_dur),
-            "bi bi-people",
-            f"Assigned: {format_seconds(assigned_val)} | Rework: {format_seconds(rework_val)}",
-            "#10B981",
-            is_dark,
-            assigned_trend,
-        ),
-        make_kpi_card(
-            "Unassigned Videos",
-            format_seconds(pool_dur),
-            "bi bi-inbox",
-            "Pool Duration",
-            "#06B6D4",
-            is_dark,
-            [pool_dur, pool_dur],
-        ),
-        make_kpi_card(
-            "Pending Review (Now)",
-            format_seconds(total_pending_dur),
-            "bi bi-clock",
-            f"Leader: {format_seconds(leader_dur)} | Auditor: {format_seconds(auditor_dur)} | Admin: {format_seconds(admin_dur)}",
-            "#F43F5E",
-            is_dark,
-            pending_trend,
-        ),
-        make_kpi_card(
-            "Rework Submitted",
-            format_seconds(kpis["rework_duration"]),
-            "bi bi-arrow-repeat",
-            fmt_badge(kpis["rework_pct"]),
-            "#10B981" if kpis["rework_pct"] >= 0 else "#F43F5E",
-            is_dark,
-            [kpis["prev_rework_duration"], kpis["rework_duration"]],
-        ),
-        make_kpi_card(
-            "Error Duration",
-            format_seconds(kpis["total_error_duration"]),
-            "bi bi-exclamation-triangle",
-            fmt_badge(kpis["error_pct"]),
-            "#F43F5E" if kpis["error_pct"] >= 0 else "#10B981",
-            is_dark,
-            [kpis["prev_error_duration"], kpis["total_error_duration"]],
-        ),
-        make_kpi_card(
-            "Completed Tasks",
-            f"{kpis['completed_tasks']} / {kpis['total_tasks']}",
-            "bi bi-mortarboard",
-            fmt_badge(kpis["completed_pct"]),
-            "#10B981" if kpis["completed_pct"] >= 0 else "#F43F5E",
-            is_dark,
-            [kpis["prev_completed_tasks"], kpis["completed_tasks"]],
-        ),
-    ]
-    fig_legend = go.Figure()
-    for u in available_users:
-        is_visible = u in current_selection
-        fig_legend.add_trace(
-            go.Scatter(
-                x=[None],
-                y=[None],
-                name=u,
-                mode="markers",
-                marker=dict(color=USER_COLORS.get(u, "#999"), size=12),
-                showlegend=True,
-                visible=True if is_visible else "legendonly",
-            )
-        )
-    fig_legend.update_layout(
-        template=theme_template,
-        showlegend=True,
-        legend=dict(
-            orientation="v",
-            yanchor="middle",
-            y=0.5,
-            xanchor="center",
-            x=0.5,
-            font=dict(color=font_color, size=15),
-        ),
-        margin=dict(l=0, r=0, t=0, b=0),
-        plot_bgcolor=bg_color,
-        paper_bgcolor=bg_color,
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-        hovermode=False,
+    # ── Legend ───────────────────────────────────────────────────────
+    fig_legend = build_legend_figure(
+        available_users, current_selection, is_dark
     )
-    breakdown_df = dm.get_user_breakdown_df(start_date, end_date, force_refresh)
+
+    # ── Breakdown data ───────────────────────────────────────────────
+    breakdown_df = dm.get_user_breakdown_df(
+        start_date, end_date, force_refresh
+    )
     if is_filtering and effective_users:
-        breakdown_df = breakdown_df[breakdown_df["User"].isin(effective_users)]
-    cumulative_df = dm.get_cumulative_df(start_date, end_date, force_refresh)
-    fig_cum = go.Figure()
-    if not cumulative_df.empty:
-        for col in cumulative_df.columns:
-            if col != "Date" and (not is_filtering or col in effective_users):
-                color = USER_COLORS.get(col, "#999999")
-                formatted_strs = [format_seconds(s) for s in cumulative_df[col]]
-                fig_cum.add_trace(
-                    go.Scatter(
-                        x=cumulative_df["Date"],
-                        y=cumulative_df[col] / 3600,
-                        mode="lines+markers",
-                        name=col,
-                        line=dict(color=color, shape="spline"),
-                        marker=dict(color=color),
-                        customdata=formatted_strs,
-                        hovertemplate="<b>%{x}</b><br>User: "
-                        + col
-                        + "<br>Duration: %{customdata}<extra></extra>",
-                    )
-                )
-    fig_cum.update_layout(
-        title=f"Cumulative Completed Hours (From {start_date})",
-        template=theme_template,
-        plot_bgcolor=bg_color,
-        paper_bgcolor=bg_color,
-        font=dict(family="Inter, sans-serif", size=16, color=font_color),
-        title_font=dict(size=20, weight="bold"),
-        xaxis_title="Date",
-        yaxis_title="Hours",
-        hovermode="closest",
-        margin=dict(l=50, r=30, t=60, b=50),
-        showlegend=False,
-        hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-        xaxis=dict(showgrid=False, zeroline=False),
-        yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", zeroline=False),
+        breakdown_df = breakdown_df[
+            breakdown_df["User"].isin(effective_users)
+        ]
+
+    # ── Cumulative chart ─────────────────────────────────────────────
+    cumulative_df = dm.get_cumulative_df(
+        start_date, end_date, force_refresh
     )
-    if not breakdown_df.empty:
-        breakdown_df["Formatted Duration"] = breakdown_df["Completed Duration"].apply(
-            format_seconds
-        )
-        # Sort for horizontal bar chart
-        breakdown_df = breakdown_df.sort_values(by="Completed Duration", ascending=True)
-        fig_ind = px.bar(
-            breakdown_df,
-            x=breakdown_df["Completed Duration"] / 3600,
-            y="User",
-            orientation="h",
-            title=f"Completed Hours ({start_date} to {end_date})",
-            template=theme_template,
-            color="User",
-            color_discrete_map=USER_COLORS,
-            text="Formatted Duration",
-            custom_data=["Formatted Duration"],
-        )
-        fig_ind.update_layout(
-            plot_bgcolor=bg_color,
-            paper_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", size=16, color=font_color),
-            title_font=dict(size=20, weight="bold"),
-            xaxis_title="Hours",
-            yaxis_title="",
-            margin=dict(l=10, r=30, t=60, b=50),
-            clickmode="event+select",
-            showlegend=False,
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-        )
-        fig_ind.update_traces(
-            textposition="outside",
-            hovertemplate="User: %{y}<br>Duration: %{customdata[0]}<extra></extra>",
-        )
-        # Determine target date for New Work + Rework chart:
-        # If range of dates is selected, affix to today; if single day is selected, use that day.
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        if start_date == end_date:
-            target_work_date = start_date
-            chart_date_label = f"{start_date}"
-        else:
-            target_work_date = today_str
-            chart_date_label = f"Today: {today_str}"
+    fig_cum = build_cumulative_chart(
+        cumulative_df, start_date, is_dark, effective_users, is_filtering
+    )
 
-        # Fetch or compute New Work and Rework distribution for target_work_date
-        work_df = pd.DataFrame()
-        if target_work_date == today_str:
-            try:
-                from slicing_dashboard.reporting.work_classifier import WorkClassifier
-                wc = WorkClassifier(scraper=dm.scraper)
-                work_df = wc.classify_all_users(today_str)
-            except Exception:
-                work_df = pd.DataFrame()
+    # ── Individual chart ─────────────────────────────────────────────
+    fig_ind = build_individual_chart(
+        breakdown_df, start_date, end_date, is_dark
+    )
 
-        if work_df.empty:
-            if start_date == end_date:
-                work_df = breakdown_df.copy()
-            else:
-                try:
-                    work_df = dm.get_user_breakdown_df(target_work_date, target_work_date, force_refresh=force_refresh)
-                except Exception:
-                    work_df = pd.DataFrame()
+    # ── Error / Rework chart ─────────────────────────────────────────
+    fig_err = _build_work_chart(
+        breakdown_df,
+        start_date,
+        end_date,
+        is_dark,
+        effective_users,
+        force_refresh,
+    )
 
-        if not work_df.empty:
-            if "New Work Duration" not in work_df.columns:
-                if "Submitted Duration" in work_df.columns:
-                    total_worked = work_df[["Completed Duration", "Submitted Duration"]].max(axis=1)
-                else:
-                    total_worked = work_df["Completed Duration"]
-                work_df["New Work Duration"] = (total_worked - work_df.get("Rework Duration", 0)).clip(lower=0)
-
-            if "Rework Duration" not in work_df.columns:
-                work_df["Rework Duration"] = 0.0
-
-            if "Total Work Duration" not in work_df.columns:
-                work_df["Total Work Duration"] = work_df["New Work Duration"] + work_df["Rework Duration"]
-
-            if effective_users:
-                work_df = work_df[work_df["User"].isin(effective_users)]
-
-            active_work = work_df[work_df["Total Work Duration"] > 0].copy()
-        else:
-            active_work = pd.DataFrame()
-
-        if not active_work.empty:
-            # Sort by total work duration descending
-            active_work = active_work.sort_values("Total Work Duration", ascending=False)
-
-            new_hours = active_work["New Work Duration"] / 3600
-            rework_hours = active_work["Rework Duration"] / 3600
-            total_hours = active_work["Total Work Duration"] / 3600
-
-            new_fmt = active_work["New Work Duration"].apply(format_seconds)
-            rework_fmt = active_work["Rework Duration"].apply(format_seconds)
-            total_fmt = active_work["Total Work Duration"].apply(format_seconds)
-
-            new_pct = (active_work["New Work Duration"] / active_work["Total Work Duration"] * 100).fillna(0)
-            rework_pct = (active_work["Rework Duration"] / active_work["Total Work Duration"] * 100).fillna(0)
-
-            # Modern theme-aware color styling: Sky Blue for New Work, Warm Orange for Rework
-            new_color = "#38bdf8" if is_dark else "#0284c7"
-            rework_color = "#f97316" if is_dark else "#ea580c"
-
-            fig_err = go.Figure()
-            # Bottom segment: New Work
-            fig_err.add_trace(
-                go.Bar(
-                    name="New Work",
-                    x=active_work["User"],
-                    y=new_hours,
-                    marker=dict(
-                        color=new_color,
-                        line=dict(color="rgba(255,255,255,0.15)" if is_dark else "rgba(0,0,0,0.1)", width=1),
-                    ),
-                    customdata=list(zip(new_fmt, new_pct, total_fmt, total_hours)),
-                    hovertemplate="<b>%{x}</b><br><b>New Work:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br><b>Total:</b> %{customdata[2]}<extra></extra>",
-                )
-            )
-            # Top segment: Rework
-            fig_err.add_trace(
-                go.Bar(
-                    name="Rework",
-                    x=active_work["User"],
-                    y=rework_hours,
-                    marker=dict(
-                        color=rework_color,
-                        line=dict(color="rgba(255,255,255,0.15)" if is_dark else "rgba(0,0,0,0.1)", width=1),
-                    ),
-                    customdata=list(zip(rework_fmt, rework_pct, total_fmt, total_hours)),
-                    hovertemplate="<b>%{x}</b><br><b>Rework:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br><b>Total:</b> %{customdata[2]}<extra></extra>",
-                )
-            )
-            fig_err.update_layout(
-                barmode="stack",
-                title=f"New Work + Rework ({chart_date_label})",
-                yaxis_title="Hours",
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1,
-                    font=dict(size=12, color=font_color),
-                    bgcolor="rgba(0,0,0,0)",
-                ),
-            )
-        else:
-            fig_err = go.Figure().add_annotation(
-                text=f"No work recorded ({chart_date_label})", showarrow=False, font={"size": 18, "color": font_color}
-            )
-            fig_err.update_layout(title=f"New Work + Rework ({chart_date_label})")
-        fig_err.update_layout(
-            template=theme_template,
-            plot_bgcolor=bg_color,
-            paper_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", size=16, color=font_color),
-            title_font=dict(size=20, weight="bold"),
-            margin=dict(l=50, r=20, t=60, b=50),
-            clickmode="event+select",
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-            xaxis=dict(showgrid=False, zeroline=False),
-            yaxis=dict(showgrid=True, gridcolor="rgba(128,128,128,0.2)", zeroline=False),
-        )
-    else:
-        fig_ind = go.Figure().update_layout(
-            template=theme_template,
-            paper_bgcolor=bg_color,
-            plot_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", color=font_color),
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-        )
-        fig_err = go.Figure().update_layout(
-            template=theme_template,
-            paper_bgcolor=bg_color,
-            plot_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", color=font_color),
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-        )
+    # ── Pending + Assigned charts ────────────────────────────────────
     detailed_df = dm.get_detailed_pending_assigned_df(
-        start_date=start_date, end_date=end_date, force_refresh=force_refresh
+        start_date=start_date,
+        end_date=end_date,
+        force_refresh=force_refresh,
     )
     if is_filtering and effective_users and not detailed_df.empty:
         detailed_df = detailed_df[
             (detailed_df["User"].isin(effective_users))
             | (detailed_df["User"] == "Assignable Pool")
         ]
-    pending_stages = [
-        "Pending Leader",
-        "Pending Auditor",
-        "Pending Admin",
-    ]
+
     pending_df = (
-        detailed_df[detailed_df["Stage"].isin(pending_stages)]
+        detailed_df[
+            detailed_df["Stage"].isin(
+                ["Pending Leader", "Pending Auditor", "Pending Admin"]
+            )
+        ]
         if not detailed_df.empty
         else pd.DataFrame()
     )
-    if not pending_df.empty:
-        pending_df["Formatted Duration"] = pending_df["Duration"].apply(format_seconds)
-        if "Count" not in pending_df.columns:
-            pending_df["Count"] = 0
-        fig_pending = px.bar(
-            pending_df,
-            x="User",
-            y=pending_df["Duration"] / 3600,
-            color="Stage",
-            title="Pending Reviews by Stage (Hours)",
-            color_discrete_map={
-                "Pending Leader": "#F59E0B",
-                "Pending Auditor": "#8B5CF6",
-                "Pending Admin": "#06B6D4",
-            },
-            text="Formatted Duration",
-            barmode="stack",
-            custom_data=["Formatted Duration", "Stage", "Count"],
-        )
-        fig_pending.update_layout(
-            template=theme_template,
-            plot_bgcolor=bg_color,
-            paper_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", size=16, color=font_color),
-            title_font=dict(size=20, weight="bold"),
-            margin=dict(l=50, r=30, t=80, b=80),
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.15,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=14),
-            ),
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-            yaxis_title="Hours",
-            xaxis_title="",
-        )
-        fig_pending.update_traces(
-            textposition="inside",
-            hovertemplate="<b>%{x}</b><br>Stage: %{customdata[1]}<br>Duration: %{customdata[0]}<br>Tasks: %{customdata[2]}<extra></extra>",
-        )
-    else:
-        fig_pending = go.Figure().update_layout(
-            template=theme_template,
-            paper_bgcolor=bg_color,
-            plot_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", color=font_color),
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-        )
-    assigned_stages = [
-        "New Assigned",
-        "Rework Assigned",
-    ]
+    fig_pending = build_pending_chart(pending_df, is_dark)
+
     assigned_df = (
-        detailed_df[detailed_df["Stage"].isin(assigned_stages)]
+        detailed_df[
+            detailed_df["Stage"].isin(["New Assigned", "Rework Assigned"])
+        ]
         if not detailed_df.empty
         else pd.DataFrame()
     )
-    if not assigned_df.empty:
-        assigned_df["Formatted Duration"] = assigned_df["Duration"].apply(
-            format_seconds
-        )
-        if "Count" not in assigned_df.columns:
-            assigned_df["Count"] = 0
-        # Ensure ordered layout for horizontal bars
-        assigned_df = assigned_df.sort_values(by="Duration", ascending=True)
-        fig_assigned = px.bar(
-            assigned_df,
-            x=assigned_df["Duration"] / 3600,
-            y="User",
-            orientation="h",
-            color="Stage",
-            title="Assigned Videos (Hours)",
-            color_discrete_map={
-                "New Assigned": "#10B981",
-                "Rework Assigned": "#F43F5E",
-            },
-            text="Formatted Duration",
-            barmode="stack",
-            custom_data=["Formatted Duration", "Stage", "Count"],
-        )
-        fig_assigned.update_layout(
-            template=theme_template,
-            plot_bgcolor=bg_color,
-            paper_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", size=16, color=font_color),
-            title_font=dict(size=20, weight="bold"),
-            margin=dict(l=10, r=30, t=80, b=80),
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="top",
-                y=-0.15,
-                xanchor="center",
-                x=0.5,
-                font=dict(size=14),
-            ),
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-            xaxis_title="Hours",
-            yaxis_title="",
-        )
-        fig_assigned.update_traces(
-            textposition="inside",
-            hovertemplate="<b>%{y}</b><br>Stage: %{customdata[1]}<br>Duration: %{customdata[0]}<br>Tasks: %{customdata[2]}<extra></extra>",
-        )
+    fig_assigned = build_assigned_chart(assigned_df, is_dark)
+
+    # ── Tab content ──────────────────────────────────────────────────
+    tab_content = _render_tab(
+        active_tab,
+        is_dark,
+        is_filtering,
+        effective_users,
+        end_date,
+        force_refresh,
+    )
+
+    status_msg = (
+        f"Updated: {datetime.now().strftime('%H:%M:%S')} (Real-time)"
+    )
+
+    return (
+        kpi_layout,
+        fig_legend,
+        fig_cum,
+        fig_err,
+        fig_ind,
+        fig_pending,
+        fig_assigned,
+        tab_content,
+        status_msg,
+        toggle_label,
+        current_selection,
+    )
+
+
+# ── Helper: build the New Work + Rework chart ────────────────────────────
+def _build_work_chart(
+    breakdown_df,
+    start_date,
+    end_date,
+    is_dark,
+    effective_users,
+    force_refresh,
+):
+    """Fetch work classification data and build the chart."""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    if start_date == end_date:
+        target_work_date = start_date
+        chart_date_label = start_date
     else:
-        fig_assigned = go.Figure().update_layout(
-            template=theme_template,
-            paper_bgcolor=bg_color,
-            plot_bgcolor=bg_color,
-            font=dict(family="Inter, sans-serif", color=font_color),
-            hoverlabel=dict(bgcolor=hover_bg, font_color=hover_fg),
-        )
+        target_work_date = today_str
+        chart_date_label = f"Today: {today_str}"
+
+    work_df = pd.DataFrame()
+    if target_work_date == today_str:
+        try:
+            from slicing_dashboard.reporting.work_classifier import (
+                WorkClassifier,
+            )
+
+            wc = WorkClassifier(scraper=dm.scraper)
+            work_df = wc.classify_all_users(today_str)
+        except Exception:
+            work_df = pd.DataFrame()
+
+    if work_df.empty:
+        if start_date == end_date:
+            work_df = breakdown_df.copy()
+        else:
+            try:
+                work_df = dm.get_user_breakdown_df(
+                    target_work_date,
+                    target_work_date,
+                    force_refresh=force_refresh,
+                )
+            except Exception:
+                work_df = pd.DataFrame()
+
+    if not work_df.empty:
+        if "New Work Duration" not in work_df.columns:
+            if "Submitted Duration" in work_df.columns:
+                total_worked = work_df[
+                    ["Completed Duration", "Submitted Duration"]
+                ].max(axis=1)
+            else:
+                total_worked = work_df["Completed Duration"]
+            work_df["New Work Duration"] = (
+                total_worked - work_df.get("Rework Duration", 0)
+            ).clip(lower=0)
+
+        if "Rework Duration" not in work_df.columns:
+            work_df["Rework Duration"] = 0.0
+
+        if "Total Work Duration" not in work_df.columns:
+            work_df["Total Work Duration"] = (
+                work_df["New Work Duration"] + work_df["Rework Duration"]
+            )
+
+        if effective_users:
+            work_df = work_df[work_df["User"].isin(effective_users)]
+
+        active_work = work_df[work_df["Total Work Duration"] > 0].copy()
+    else:
+        active_work = pd.DataFrame()
+
+    return build_error_rework_chart(active_work, chart_date_label, is_dark)
+
+
+# ── Helper: render tab content ───────────────────────────────────────────
+def _render_tab(
+    active_tab,
+    is_dark,
+    is_filtering,
+    effective_users,
+    end_date,
+    force_refresh,
+):
+    """Render the active tab's table content."""
     if active_tab in ("tab-today", "tab-yesterday"):
         target_date = (
             datetime.now().strftime("%Y-%m-%d")
@@ -1067,17 +673,25 @@ def update_dashboard(
                 target_date=target_date, force_refresh=False
             )
             if is_filtering and effective_users:
-                raw_full_df = raw_full_df[raw_full_df["User"].isin(effective_users)]
+                raw_full_df = raw_full_df[
+                    raw_full_df["User"].isin(effective_users)
+                ]
             for col in ["Total Duration", "New Videos (First Time)", "Reworks"]:
-                total_seconds = raw_full_df[col].sum() if not raw_full_df.empty else 0
+                total_seconds = (
+                    raw_full_df[col].sum() if not raw_full_df.empty else 0
+                )
                 total_row[col] = format_seconds(total_seconds)
             today_df = pd.concat(
                 [today_df, pd.DataFrame([total_row])], ignore_index=True
             )
-        tab_content = create_table(today_df)
+        return create_table(today_df, is_dark)
+
     elif active_tab == "tab-overview":
         overview_df = dm.get_slice_data_overview_df(
-            start_date, end_date, use_raw_names=True, force_refresh=force_refresh
+            "2026-09-01",
+            end_date,
+            use_raw_names=True,
+            force_refresh=force_refresh,
         )
         if is_filtering and effective_users and not overview_df.empty:
             filtered_records = []
@@ -1086,7 +700,6 @@ def update_dashboard(
                 if raw_user == "All Slicers":
                     filtered_records.append(row)
                     continue
-                # Determine canonical user
                 uid_str = (
                     raw_user.replace("user-", "")
                     if raw_user.startswith("user-")
@@ -1101,8 +714,10 @@ def update_dashboard(
                 if filtered_records
                 else pd.DataFrame(columns=overview_df.columns)
             )
-        tab_content = create_table(overview_df)
+        return create_table(overview_df, is_dark)
+
     else:
+        # Settlement tab
         full_breakdown_df = dm.get_user_breakdown_df(
             "2026-09-01", end_date, force_refresh
         )
@@ -1112,6 +727,7 @@ def update_dashboard(
             ]
         settlement_df = dm.get_settlement_df(full_breakdown_df)
         if not settlement_df.empty:
+
             def format_settlement_val(val):
                 if pd.isna(val) or val is None or val == 0:
                     return "00:00 (0.00h)"
@@ -1122,11 +738,13 @@ def update_dashboard(
                 hours_dec = val / 3600.0
                 return f"{h:02d}:{m:02d} ({hours_dec:.2f}h)"
 
-            user_part = settlement_df[settlement_df["User"] != "TOTAL"].sort_values(
-                by="Remaining Payable", ascending=False
-            )
+            user_part = settlement_df[
+                settlement_df["User"] != "TOTAL"
+            ].sort_values(by="Remaining Payable", ascending=False)
             total_part = settlement_df[settlement_df["User"] == "TOTAL"]
-            settlement_df = pd.concat([user_part, total_part], ignore_index=True)
+            settlement_df = pd.concat(
+                [user_part, total_part], ignore_index=True
+            )
 
             duration_cols = [
                 "Jul 1 - Aug 7 (Paid)",
@@ -1137,22 +755,10 @@ def update_dashboard(
             ]
             for col in duration_cols:
                 if col in settlement_df.columns:
-                    settlement_df[col] = settlement_df[col].apply(format_settlement_val)
-        tab_content = create_table(settlement_df)
-    status_msg = f"Updated: {datetime.now().strftime('%H:%M:%S')} (Real-time)"
-    return (
-        kpi_layout,
-        fig_legend,
-        fig_cum,
-        fig_err,
-        fig_ind,
-        fig_pending,
-        fig_assigned,
-        tab_content,
-        status_msg,
-        toggle_label,
-        current_selection,
-    )
+                    settlement_df[col] = settlement_df[col].apply(
+                        format_settlement_val
+                    )
+        return create_table(settlement_df, is_dark)
 
 
 if __name__ == "__main__":

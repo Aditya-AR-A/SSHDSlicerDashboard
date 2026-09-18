@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* Base Theme Variables */
+/* ─── Base Theme Variables ─────────────────────────────────────────────── */
 :root, [data-bs-theme="light"] {
     --bg-gradient-start: #f5f7fa;
     --bg-gradient-end: #e4e8f0;
@@ -37,14 +37,17 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     transition: background 0.3s ease, color 0.3s ease;
+    margin: 0;
+    overflow-x: hidden;
 }
 
+/* ─── Glass Panels ─────────────────────────────────────────────────────── */
 .glass-panel {
     background: var(--glass-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
-    border-radius: 12px;
+    border-radius: 10px;
 }
 
 .glass-card {
@@ -52,18 +55,41 @@ body {
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border: 1px solid var(--glass-border);
-    border-radius: 10px;
+    border-radius: 8px;
     box-shadow: 0 4px 6px var(--glass-shadow);
     transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.3s ease;
 }
 
 .glass-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 20px var(--glass-hover-shadow);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px var(--glass-hover-shadow);
     background: var(--glass-card-hover);
 }
 
-/* Date Filter Separated Container & Inputs */
+/* ─── KPI Grid — 7 cards in one row ───────────────────────────────────── */
+.kpi-grid {
+    display: flex;
+    gap: 10px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+.kpi-grid > .kpi-card {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+/* ─── Compact chart wrapper ───────────────────────────────────────────── */
+.chart-compact {
+    min-height: 0 !important;
+}
+
+.chart-compact .js-plotly-plot,
+.chart-compact .plot-container {
+    height: 100% !important;
+}
+
+/* ─── Date Filter ─────────────────────────────────────────────────────── */
 .date-filter-group {
     background: var(--glass-card-bg);
     border: 1px solid var(--glass-border);
@@ -75,7 +101,7 @@ body {
 .date-filter-label {
     color: var(--text-primary);
     opacity: 0.75;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     user-select: none;
@@ -83,11 +109,11 @@ body {
 
 .date-input-custom {
     font-family: 'Inter', sans-serif !important;
-    font-size: 0.85rem !important;
+    font-size: 0.8rem !important;
     font-weight: 500 !important;
     border-radius: 6px !important;
-    padding: 3px 8px !important;
-    width: 135px !important;
+    padding: 2px 6px !important;
+    width: 125px !important;
     transition: all 0.2s ease !important;
 }
 
@@ -167,7 +193,7 @@ body {
     border: none;
 }
 
-/* Dropdown fixes for glassmorphism */
+/* ─── Dropdown glassmorphism ──────────────────────────────────────────── */
 .dropdown-glass .Select-control {
     background-color: var(--glass-card-bg);
     border: 1px solid var(--glass-border);
@@ -180,7 +206,7 @@ body {
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
-    z-index: 1050; /* Ensure dropdown menu is always on top */
+    z-index: 1050;
 }
 
 /* Make dropdown text visible in dark mode */
@@ -212,53 +238,53 @@ body {
     background-color: #2a2a35 !important;
 }
 
-/* Date Picker Dark Mode overrides */
+/* ─── Date Picker Dark Mode overrides ─────────────────────────────────── */
 [data-bs-theme="dark"] .DateRangePickerInput, 
 [data-bs-theme="dark"] .SingleDatePickerInput {
-  background-color: #212529 !important;
-  border: 1px solid #495057 !important;
+    background-color: #212529 !important;
+    border: 1px solid #495057 !important;
 }
 [data-bs-theme="dark"] .DateInput_input, 
 [data-bs-theme="dark"] .DateInput_input_1 {
-  color: #ffffff !important;
-  background-color: transparent !important;
+    color: #ffffff !important;
+    background-color: transparent !important;
 }
 [data-bs-theme="dark"] .DateRangePickerInput_arrow_svg {
-  fill: #ffffff !important;
+    fill: #ffffff !important;
 }
 [data-bs-theme="dark"] .CalendarMonth, 
 [data-bs-theme="dark"] .CalendarMonthGrid, 
 [data-bs-theme="dark"] .CalendarMonthGrid_1 {
-  background-color: #212529 !important;
+    background-color: #212529 !important;
 }
 [data-bs-theme="dark"] .CalendarMonth_caption {
-  color: #ffffff !important;
+    color: #ffffff !important;
 }
 [data-bs-theme="dark"] .DayPicker_weekHeader {
-  color: #adb5bd !important;
+    color: #adb5bd !important;
 }
 [data-bs-theme="dark"] .CalendarDay__default {
-  background: #2b3035 !important;
-  color: #ffffff !important;
-  border: 1px solid #495057 !important;
+    background: #2b3035 !important;
+    color: #ffffff !important;
+    border: 1px solid #495057 !important;
 }
 [data-bs-theme="dark"] .CalendarDay__default:hover {
-  background: #0d6efd !important;
-  color: #ffffff !important;
+    background: #0d6efd !important;
+    color: #ffffff !important;
 }
 [data-bs-theme="dark"] .CalendarDay__selected_start, 
 [data-bs-theme="dark"] .CalendarDay__selected_end, 
 [data-bs-theme="dark"] .CalendarDay__selected {
-  background: #0d6efd !important;
-  color: #ffffff !important;
+    background: #0d6efd !important;
+    color: #ffffff !important;
 }
 [data-bs-theme="dark"] .CalendarDay__selected_span {
-  background: #0a58ca !important;
-  color: #ffffff !important;
+    background: #0a58ca !important;
+    color: #ffffff !important;
 }
 [data-bs-theme="dark"] .CalendarDay__blocked_out_of_range {
-  color: #6c757d !important;
-  background: #212529 !important;
+    color: #6c757d !important;
+    background: #212529 !important;
 }
 [data-bs-theme="dark"] .DayPicker_weekHeader_li small {
     color: #a0a0a0 !important;
@@ -295,4 +321,26 @@ body {
 }
 [data-bs-theme="light"] .CalendarMonth_caption {
     color: #333333 !important;
+}
+
+/* ─── Tabs compact ────────────────────────────────────────────────────── */
+.nav-tabs .nav-link {
+    font-size: 0.8rem;
+    padding: 6px 14px;
+}
+
+/* ─── Scrollbar styling for dark mode ─────────────────────────────────── */
+.theme-dark ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.theme-dark ::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.03);
+}
+.theme-dark ::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.12);
+    border-radius: 3px;
+}
+.theme-dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.2);
 }

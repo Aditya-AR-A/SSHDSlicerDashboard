@@ -47,6 +47,10 @@ out.txt
 out2.txt
 slicer1.json
 slicer1_all.json
+_data_dumps/
+_debug_scripts/
+_test_scripts/
+_patches/
 
 # One-off test scripts (root-level)
 test_api*.py
