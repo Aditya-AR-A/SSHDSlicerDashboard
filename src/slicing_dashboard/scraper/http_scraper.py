@@ -139,6 +139,31 @@ class HTTPScraper(BaseScraper):
                 meta = res_data.get('meta', {})
                 has_more = meta.get('has_more', False)
                 page += 1
+                
+            # Fetch all assigned tasks explicitly to bypass pagination limits for old tasks
+            assigned_page = 1
+            assigned_has_more = True
+            while assigned_has_more:
+                url = f'{self._base_url}/api/slice/tasks'
+                params = {'page_size': 200, 'page': assigned_page, 'status': 'slice_assigned'}
+                response = self._client.get(url, params=params)
+                try:
+                    response.raise_for_status()
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code == 400 and assigned_page > 1:
+                        break
+                    raise
+                res_data = response.json()
+                page_tasks = res_data.get('data', [])
+                if not page_tasks:
+                    break
+                # Only add if not already in list (though we deduplicate later, this is cleaner)
+                existing_ids = {t['id'] for t in tasks if 'id' in t}
+                tasks.extend([t for t in page_tasks if t.get('id') not in existing_ids])
+                
+                meta = res_data.get('meta', {})
+                assigned_has_more = meta.get('has_more', False)
+                assigned_page += 1
             requests_list = []
             req_page = 1
             req_has_more = True

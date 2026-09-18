@@ -919,6 +919,54 @@ class DataManager:
 
         return (curr_start, curr_end), (prev_start, prev_end)
 
+    def fetch_all_assigned_tasks_live(self) -> dict:
+        """Fetch all assigned tasks directly to bypass the date-filtering flaw of the overview API."""
+        if not self.scraper.is_authenticated:
+            self.scraper.login()
+        if not self.scraper._users:
+            self.scraper._fetch_users()
+            
+        tasks = []
+        page = 1
+        has_more = True
+        while has_more:
+            res = self.scraper._client.get(
+                f'{self.scraper._base_url}/api/slice/tasks', 
+                params={'status': 'slice_assigned', 'page_size': 200, 'page': page}
+            )
+            if res.status_code == 200:
+                data = res.json().get('data', [])
+                tasks.extend(data)
+                meta = res.json().get('meta', {})
+                has_more = meta.get('has_more', False)
+                page += 1
+            else:
+                break
+                
+        # Aggregate by canonical user
+        canonical_assigned = {}
+        for t in tasks:
+            username = t.get('slicer')
+            if not username:
+                continue
+            
+            canonical = self._get_canonical_name(0, username)
+            if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                continue
+                
+            if canonical not in canonical_assigned:
+                canonical_assigned[canonical] = {
+                    'backlog_dur': 0.0,
+                    'backlog_cnt': 0,
+                    'raw_ids': set(),
+                }
+            
+            canonical_assigned[canonical]['backlog_dur'] += float(t.get('duration_seconds', 0) or 0)
+            canonical_assigned[canonical]['backlog_cnt'] += 1
+            canonical_assigned[canonical]['raw_ids'].add(username)
+            
+        return canonical_assigned
+
     def get_detailed_pending_assigned_df(
         self,
         start_date: (str | None) = None,
@@ -1005,71 +1053,62 @@ class DataManager:
         except Exception as e:
             print(f"Warning: Failed to fetch exact pending review from efficiency API: {e}")
 
-        # 3. Real-time Assigned per user
-        user_breakdown = breakdowns.get('slice_user_breakdown', [])
+        # 3. Exact Real-time Assigned per user (bypassing overview API date limits)
         live_rework = self.get_live_rework_by_user(force_refresh=force_refresh)
 
-        # Ensure user ID → name mapping is loaded. On first load, get_live_rework_by_user
-        # may return from snapshot cache without ever calling _fetch_users(), which leaves
-        # scraper._users empty and makes _get_username() fall back to "user-11493" etc.
-        if not self.scraper._users:
-            try:
-                if not self.scraper.is_authenticated:
-                    self.scraper.login()
-                self.scraper._fetch_users()
-            except Exception:
-                pass
-
         canonical_assigned: dict[str, dict[str, Any]] = {}
-        for entry in user_breakdown:
-            uid = entry.get('user_id')
-            if uid is None:
-                continue
-            username = self.scraper._get_username(uid)
-            canonical = self._get_canonical_name(uid, username)
-            if canonical in ['Admin', 'Test', 'Dep', 'user-None', '']:
-                continue
+        try:
+            canonical_assigned = self.fetch_all_assigned_tasks_live()
+        except Exception as e:
+            print(f"Warning: Failed to fetch exact assigned tasks live: {e}")
+            # Fallback to flawed overview api breakdown if live fetch fails
+            user_breakdown = breakdowns.get('slice_user_breakdown', [])
+            for entry in user_breakdown:
+                uid = entry.get('user_id')
+                if uid is None:
+                    continue
+                username = self.scraper._get_username(uid)
+                canonical = self._get_canonical_name(uid, username)
+                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '']:
+                    continue
 
-            backlog_dur = float(entry.get('backlog_duration_seconds', 0) or 0)
-            backlog_cnt = int(entry.get('backlog_count', 0) or 0)
-            review_pend_dur = float(entry.get('review_pending_duration_seconds', 0) or 0)
-            review_pend_cnt = int(entry.get('review_pending_count', 0) or 0)
+                backlog_dur = float(entry.get('backlog_duration_seconds', 0) or 0)
+                backlog_cnt = int(entry.get('backlog_count', 0) or 0)
+                review_pend_dur = float(entry.get('review_pending_duration_seconds', 0) or 0)
+                review_pend_cnt = int(entry.get('review_pending_count', 0) or 0)
+                
+                # We need pure assigned because the old API mixes them
+                pure_assigned_dur = max(backlog_dur - review_pend_dur, 0.0)
+                pure_assigned_cnt = max(backlog_cnt - review_pend_cnt, 0)
 
-            if canonical not in canonical_assigned:
-                canonical_assigned[canonical] = {
-                    'backlog_dur': 0.0,
-                    'backlog_cnt': 0,
-                    'review_dur': 0.0,
-                    'review_cnt': 0,
-                    'raw_ids': set(),
-                }
-            canonical_assigned[canonical]['backlog_dur'] += backlog_dur
-            canonical_assigned[canonical]['backlog_cnt'] += backlog_cnt
-            canonical_assigned[canonical]['review_dur'] += review_pend_dur
-            canonical_assigned[canonical]['review_cnt'] += review_pend_cnt
-            if username:
-                canonical_assigned[canonical]['raw_ids'].add(username)
+                if canonical not in canonical_assigned:
+                    canonical_assigned[canonical] = {
+                        'backlog_dur': 0.0,
+                        'backlog_cnt': 0,
+                        'raw_ids': set(),
+                    }
+                canonical_assigned[canonical]['backlog_dur'] += pure_assigned_dur
+                canonical_assigned[canonical]['backlog_cnt'] += pure_assigned_cnt
+                if username:
+                    canonical_assigned[canonical]['raw_ids'].add(username)
 
         all_users = sorted(set(canonical_assigned.keys()) | set(live_rework.keys()))
         for canonical in all_users:
             stats = canonical_assigned.get(canonical, {
                 'backlog_dur': 0.0,
                 'backlog_cnt': 0,
-                'review_dur': 0.0,
-                'review_cnt': 0,
                 'raw_ids': set(),
             })
             backlog_dur = stats['backlog_dur']
             backlog_cnt = stats['backlog_cnt']
-            review_pend_dur = stats['review_dur']
-            review_pend_cnt = stats['review_cnt']
             raw_ids = list(stats['raw_ids'])
             
             # Since assigned can have multiple IDs, we'll pick the first or join them
             assigned_raw_id = raw_ids[0] if len(raw_ids) == 1 else (",".join(raw_ids) if raw_ids else "")
 
-            pure_assigned_dur = max(backlog_dur - review_pend_dur, 0.0)
-            pure_assigned_cnt = max(backlog_cnt - review_pend_cnt, 0)
+            # backlog_dur is now purely assigned (status=slice_assigned) from our live API fetch!
+            pure_assigned_dur = backlog_dur
+            pure_assigned_cnt = backlog_cnt
 
             rework_info = live_rework.get(canonical, {'count': 0, 'duration': 0.0})
             rework_dur = float(rework_info.get('duration', 0.0))
