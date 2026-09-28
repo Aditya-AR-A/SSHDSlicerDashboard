@@ -15,7 +15,7 @@ from slicing_dashboard.plots import (
     USER_COLORS,
     format_seconds,
     empty_fig,
-    build_cumulative_chart,
+    build_rework_ratio_chart,
     build_individual_chart,
     build_pending_chart,
     build_assigned_chart,
@@ -227,7 +227,7 @@ app.layout = html.Div(
                     [
                         dbc.Col(
                             dcc.Graph(
-                                id="cumulative-chart",
+                                id="rework-ratio-chart",
                                 figure=_initial_fig,
                                 config=_graph_cfg,
                                 className="glass-panel p-1 rounded shadow-sm chart-compact",
@@ -473,7 +473,7 @@ def _build_status_banner(status: dict):
     [
         Output("kpi-cards", "children"),
         Output("universal-legend", "figure"),
-        Output("cumulative-chart", "figure"),
+        Output("rework-ratio-chart", "figure"),
         Output("error-rework-chart", "figure"),
         Output("individual-chart", "figure"),
         Output("pending-chart", "figure"),
@@ -613,12 +613,10 @@ def update_dashboard(
             breakdown_df["User"].isin(effective_users)
         ]
 
-    # ── Cumulative chart ─────────────────────────────────────────────
-    cumulative_df = dm.get_cumulative_df(
-        start_date, end_date, force_refresh
-    )
-    fig_cum = build_cumulative_chart(
-        cumulative_df, start_date, is_dark, effective_users, is_filtering
+    # ── Rework Ratio chart ───────────────────────────────────────────
+    ratio_df = dm.get_batch_rework_ratio_df(start_date, end_date)
+    fig_rework = build_rework_ratio_chart(
+        ratio_df, start_date, is_dark, effective_users, is_filtering
     )
 
     # ── Individual chart ─────────────────────────────────────────────
@@ -690,7 +688,7 @@ def update_dashboard(
     return (
         kpi_layout,
         fig_legend,
-        fig_cum,
+        fig_rework,
         fig_err,
         fig_ind,
         fig_pending,

@@ -14,6 +14,7 @@ from slicing_dashboard.plots.assigned_chart import build_assigned_chart
 from slicing_dashboard.plots.error_rework_chart import build_error_rework_chart
 from slicing_dashboard.plots.legend import build_legend_figure
 from slicing_dashboard.plots.tables import create_table
+from slicing_dashboard.plots.rework_ratio_chart import build_rework_ratio_chart
 
 __all__ = [
     "USER_COLORS",
@@ -21,10 +22,12 @@ __all__ = [
     "theme_ctx",
     "build_kpi_layout",
     "build_cumulative_chart",
+    "build_rework_ratio_chart",
     "build_individual_chart",
     "build_pending_chart",
     "build_assigned_chart",
     "build_error_rework_chart",
     "build_legend_figure",
     "create_table",
+    "empty_fig",
 ]

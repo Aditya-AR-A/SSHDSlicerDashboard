@@ -583,6 +583,62 @@ class DataManager:
         cumulative_pivot.index.name = 'Date'
         return cumulative_pivot.reset_index()
 
+    def get_batch_rework_ratio_df(self, start_date: str, end_date: str) -> pd.DataFrame:
+        """Calculate the number of batches with 0, 1, or 2+ reworks per user."""
+        if self._data is None or self._data.empty or self._transitions_data is None or self._transitions_data.empty:
+            return pd.DataFrame()
+        
+        df = self._data
+        trans_df = self._transitions_data
+        
+        # Filter completed in period
+        mask = (df['is_completed'] == True) & (df['completed_date'] >= start_date) & (df['completed_date'] <= end_date)
+        period_df = df[mask].copy()
+        
+        if period_df.empty:
+            return pd.DataFrame()
+            
+        period_df['canonical_user'] = period_df.apply(lambda row: self._get_canonical_name(row.get('user_id', ''), row.get('user_name', '')), axis=1)
+        
+        # Filter out admins/unassigned
+        period_df = period_df[~period_df['canonical_user'].isin(['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)'])]
+        
+        # We need to know how many times each task was returned
+        returns_df = trans_df[trans_df['type'].isin(['leader_returned', 'auditor_returned'])]
+        return_counts = returns_df.groupby('task_id').size().to_dict()
+        
+        user_stats = {}
+        for (user, batch_num), b_group in period_df.groupby(['canonical_user', 'slice_batch']):
+            if pd.isna(batch_num) or str(batch_num) in ["0", "None", "nan", ""]:
+                continue
+                
+            batch_task_ids = b_group['id'].dropna().tolist()
+            # The number of returns for the batch is the max returns of any task in the batch
+            batch_returns = max([return_counts.get(str(tid), 0) for tid in batch_task_ids] + [0])
+            
+            if user not in user_stats:
+                user_stats[user] = {"No Rework": 0, "Reworked Once": 0, "Reworked Twice+": 0, "Total": 0}
+                
+            user_stats[user]["Total"] += 1
+            if batch_returns == 0:
+                user_stats[user]["No Rework"] += 1
+            elif batch_returns == 1:
+                user_stats[user]["Reworked Once"] += 1
+            else:
+                user_stats[user]["Reworked Twice+"] += 1
+                
+        records = []
+        for user, stats in sorted(user_stats.items()):
+            records.append({
+                "User": user,
+                "No Rework": stats["No Rework"],
+                "Reworked Once": stats["Reworked Once"],
+                "Reworked Twice+": stats["Reworked Twice+"],
+                "Total Batches": stats["Total"],
+            })
+            
+        return pd.DataFrame(records)
+
     def get_todays_work_df(self, target_date: (str | None)=None,
         force_refresh: bool=False) -> pd.DataFrame:
         """Fetch daily work broken down by user in real time directly from efficiency API."""
