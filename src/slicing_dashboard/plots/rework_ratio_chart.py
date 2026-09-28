@@ -48,66 +48,46 @@ def build_rework_ratio_chart(
 
         # Calculate percentages
         totals = df["Total Batches"].replace(0, 1)  # avoid div by zero
-        no_rework_pct = (df["No Rework"] / totals) * 100
-        once_pct = (df["Reworked Once"] / totals) * 100
-        twice_pct = (df["Reworked Twice+"] / totals) * 100
 
-        # Colors
-        color_no = "#10b981" if is_dark else "#059669"      # Green
-        color_once = "#f59e0b" if is_dark else "#d97706"    # Yellow/Orange
-        color_twice = "#ef4444" if is_dark else "#dc2626"   # Red
+        # Define 6 tiers: (column_name, dark_color, light_color)
+        tiers = [
+            ("No Rework", "#10b981", "#059669"),   # Emerald
+            ("1 Rework",  "#84cc16", "#65a30d"),   # Lime
+            ("2 Reworks", "#eab308", "#ca8a04"),   # Amber
+            ("3 Reworks", "#f97316", "#ea580c"),   # Orange
+            ("4 Reworks", "#ef4444", "#dc2626"),   # Coral Red
+            ("5+ Reworks","#991b1b", "#7f1d1d"),   # Deep Red
+        ]
 
-        # Add traces
-        fig.add_trace(
-            go.Bar(
-                name="No Rework",
-                x=df["User"],
-                y=no_rework_pct,
-                marker=dict(color=color_no, line=dict(width=1, color="rgba(0,0,0,0.1)")),
-                customdata=list(zip(df["No Rework"], df["Total Batches"])),
-                hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "No Rework: %{y:.1f}%<br>"
-                    "(%{customdata[0]} / %{customdata[1]} batches)<extra></extra>"
-                ),
-                text=no_rework_pct.apply(lambda x: f"{x:.0f}%" if x > 5 else ""),
-                textposition="inside",
+        # Backward compatibility for legacy column names
+        if "Reworked Once" in df.columns and "1 Rework" not in df.columns:
+            df["1 Rework"] = df["Reworked Once"]
+        if "Reworked Twice+" in df.columns and "2 Reworks" not in df.columns:
+            df["2 Reworks"] = df["Reworked Twice+"]
+
+        for col, dark_c, light_c in tiers:
+            if col not in df.columns:
+                df[col] = 0
+
+            pct = (df[col] / totals) * 100
+            bar_color = dark_c if is_dark else light_c
+
+            fig.add_trace(
+                go.Bar(
+                    name=col,
+                    x=df["User"],
+                    y=pct,
+                    marker=dict(color=bar_color, line=dict(width=1, color="rgba(0,0,0,0.1)")),
+                    customdata=list(zip(df[col], df["Total Batches"])),
+                    hovertemplate=(
+                        f"<b>%{{x}}</b><br>"
+                        f"{col}: %{{y:.1f}}%<br>"
+                        f"(%{{customdata[0]}} / %{{customdata[1]}} batches)<extra></extra>"
+                    ),
+                    text=pct.apply(lambda x: f"{x:.0f}%" if x >= 6 else ""),
+                    textposition="inside",
+                )
             )
-        )
-        
-        fig.add_trace(
-            go.Bar(
-                name="Reworked Once",
-                x=df["User"],
-                y=once_pct,
-                marker=dict(color=color_once, line=dict(width=1, color="rgba(0,0,0,0.1)")),
-                customdata=list(zip(df["Reworked Once"], df["Total Batches"])),
-                hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "Reworked Once: %{y:.1f}%<br>"
-                    "(%{customdata[0]} / %{customdata[1]} batches)<extra></extra>"
-                ),
-                text=once_pct.apply(lambda x: f"{x:.0f}%" if x > 5 else ""),
-                textposition="inside",
-            )
-        )
-        
-        fig.add_trace(
-            go.Bar(
-                name="Reworked Twice+",
-                x=df["User"],
-                y=twice_pct,
-                marker=dict(color=color_twice, line=dict(width=1, color="rgba(0,0,0,0.1)")),
-                customdata=list(zip(df["Reworked Twice+"], df["Total Batches"])),
-                hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "Reworked Twice+: %{y:.1f}%<br>"
-                    "(%{customdata[0]} / %{customdata[1]} batches)<extra></extra>"
-                ),
-                text=twice_pct.apply(lambda x: f"{x:.0f}%" if x > 5 else ""),
-                textposition="inside",
-            )
-        )
 
         fig.update_layout(
             barmode="stack",

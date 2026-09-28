@@ -614,7 +614,7 @@ def update_dashboard(
         ]
 
     # ── Rework Ratio chart ───────────────────────────────────────────
-    ratio_df = dm.get_batch_rework_ratio_df(start_date, end_date)
+    ratio_df = dm.get_batch_rework_ratio_df(start_date, end_date, force_refresh=force_refresh)
     fig_rework = build_rework_ratio_chart(
         ratio_df, start_date, is_dark, effective_users, is_filtering
     )
