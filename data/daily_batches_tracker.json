@@ -3717,8 +3717,8 @@
         "manual_cut_18588975948_20260921_135940_00002_task_5",
         "manual_cut_18588975948_20260921_135940_00002_task_4"
       ],
-      "video_count": 18,
-      "total_duration": 1997.0
+      "video_count": 21,
+      "total_duration": 2463.0
     },
     "SSHD-Akash2_batch_4": {
       "first_seen_at": "2026-09-29T12:07:44.400296",
@@ -3739,8 +3739,8 @@
       "video_ids": [
         "manual_cut_18579759021_20260922_080011_00010_task_0"
       ],
-      "video_count": 19,
-      "total_duration": 1965.0
+      "video_count": 21,
+      "total_duration": 2111.0
     },
     "SSHD-ranjeeta6_batch_9": {
       "first_seen_at": "2026-09-29T13:01:25.373603",
@@ -3761,8 +3761,8 @@
       "video_ids": [
         "manual_cut_18605433315_20260922_074528_00001_task_2"
       ],
-      "video_count": 33,
-      "total_duration": 2802.0
+      "video_count": 35,
+      "total_duration": 3100.0
     },
     "SSHD-Ranjeeta_batch_22": {
       "first_seen_at": "2026-09-29T13:24:35.763010",
@@ -3772,8 +3772,8 @@
       "video_ids": [
         "manual_cut_18456551840_20260918_115606_00000_task_4"
       ],
-      "video_count": 17,
-      "total_duration": 1903.0
+      "video_count": 18,
+      "total_duration": 1970.0
     },
     "SSHD-Slicer2_batch_31": {
       "first_seen_at": "2026-09-29T14:21:52.432626",
@@ -3784,8 +3784,8 @@
         "manual_cut_18605433315_20260917_155921_00001_task_5",
         "manual_cut_18605433315_20260917_155921_00001_task_4"
       ],
-      "video_count": 35,
-      "total_duration": 1882.0
+      "video_count": 38,
+      "total_duration": 2179.0
     },
     "SSHD-Slicer5_batch_34": {
       "first_seen_at": "2026-09-29T14:31:59.600258",
@@ -3806,8 +3806,8 @@
       "video_ids": [
         "manual_cut_15054078533_20260921_113525_00000_task_1"
       ],
-      "video_count": 10,
-      "total_duration": 1851.0
+      "video_count": 14,
+      "total_duration": 2448.0
     },
     "SSHD-Gurharleen2_batch_2": {
       "first_seen_at": "2026-09-29T15:14:02.174857",
@@ -3822,8 +3822,19 @@
         "manual_cut_11111111111_20260812_185545_00000_task_0",
         "manual_cut_13008893050_20260602_140913_00002_task_0"
       ],
-      "video_count": 68,
-      "total_duration": 5333.0
+      "video_count": 77,
+      "total_duration": 5997.0
+    },
+    "SSHD-Slicer3_batch_16": {
+      "first_seen_at": "2026-09-29T15:31:58.484220",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer3",
+      "batch_num": "16",
+      "video_ids": [
+        "manual_cut_18501715479_20260921_204047_00007_task_0"
+      ],
+      "video_count": 1,
+      "total_duration": 300.0
     }
   }
 }
