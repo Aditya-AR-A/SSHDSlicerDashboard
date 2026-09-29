@@ -1,5 +1,5 @@
 {
-  "last_sync_time": "2026-09-29 15:09:58",
+  "last_sync_time": "2026-09-29 15:30:30",
   "cache": {
     "default_overview": {
       "metrics": {
@@ -36416,7 +36416,7 @@
     ],
     "2026-09-01_2026-09-29": {
       "dashboard": "overview",
-      "updated_at": "2026-09-29T17:38:54.727588+08:00",
+      "updated_at": "2026-09-29T17:55:49.924394+08:00",
       "range": {
         "start_date": "2026-09-01",
         "end_date": "2026-09-29",
@@ -36532,22 +36532,22 @@
         "label_remaining_duration_seconds": 0.0,
         "review_pending_count": 795,
         "review_pending_duration_seconds": 87169.0,
-        "assignment_batch_total": 538,
-        "assignment_batch_task_total": 22087,
-        "assignment_batch_production_task_total": 21513,
+        "assignment_batch_total": 539,
+        "assignment_batch_task_total": 22135,
+        "assignment_batch_production_task_total": 21560,
         "error_video_output_duration_seconds": 4368.0,
         "overview_total_tasks": 26349,
         "overview_total_video_duration_seconds": 2513271.0,
         "overview_completed_tasks": 19884,
         "overview_pending_video_duration_seconds": 612665.0,
-        "overview_total_work_seconds": 2664708.0,
+        "overview_total_work_seconds": 2672055.0,
         "overview_invalid_video_ratio": 0.0088,
         "overview_label_pending_error_duration_seconds": 22142.0,
         "overview_slice_rework_submitted_duration_seconds": 65616.0,
         "overview_slice_assignable_remaining_duration_seconds": 347919.0,
         "overview_label_assignable_remaining_duration_seconds": 0.0,
         "overview_slice_completed_workload_duration_seconds": 1920858.0,
-        "overview_group_online_users": 9
+        "overview_group_online_users": 10
       },
       "summary": {
         "total_tasks": 26349,
@@ -36556,7 +36556,7 @@
         "overview_total_video_duration_seconds": 2513271.0,
         "overview_completed_tasks": 19884,
         "overview_pending_video_duration_seconds": 612665.0,
-        "overview_total_work_seconds": 2664708.0,
+        "overview_total_work_seconds": 2672055.0,
         "overview_invalid_video_ratio": 0.0088,
         "overview_label_pending_error_duration_seconds": 22142.0,
         "overview_slice_rework_submitted_duration_seconds": 65616.0,
@@ -36577,7 +36577,7 @@
         "remaining_duration_seconds": 590523.0,
         "review_pending_count": 795,
         "review_pending_duration_seconds": 87169.0,
-        "assignment_batch_total": 538,
+        "assignment_batch_total": 539,
         "error_video_output_duration_seconds": 4368.0
       },
       "series": [
@@ -37298,12 +37298,12 @@
           }
         ],
         "assignment_batches": {
-          "total_batches": 538,
-          "total_tasks": 22087,
-          "production_tasks": 21513,
-          "total_duration_seconds": 706008.0,
-          "production_duration_seconds": 683143.0,
-          "benchmark_duration_seconds": 22865.0,
+          "total_batches": 539,
+          "total_tasks": 22135,
+          "production_tasks": 21560,
+          "total_duration_seconds": 709738.0,
+          "production_duration_seconds": 686820.0,
+          "benchmark_duration_seconds": 22918.0,
           "by_status": {
             "batch_completed": {
               "batch_count": 472,
@@ -37314,12 +37314,12 @@
               "benchmark_duration_seconds": 20025.0
             },
             "batch_member_assigned": {
-              "batch_count": 34,
-              "task_count": 1179,
-              "production_task_count": 1140,
-              "duration_seconds": 128642.0,
-              "production_duration_seconds": 127053.0,
-              "benchmark_duration_seconds": 1589.0
+              "batch_count": 35,
+              "task_count": 1227,
+              "production_task_count": 1187,
+              "duration_seconds": 132372.0,
+              "production_duration_seconds": 130730.0,
+              "benchmark_duration_seconds": 1642.0
             },
             "batch_pending_auditor_review": {
               "batch_count": 23,
@@ -38446,10 +38446,10 @@
         "total_duration_seconds": 1141423.0,
         "completed_count": 20999,
         "completed_duration_seconds": 1971102.0,
-        "submitted_count": 24779,
-        "submitted_duration_seconds": 2342096.0,
-        "leader_review_count": 411,
-        "leader_review_duration_seconds": 42851.0,
+        "submitted_count": 24869,
+        "submitted_duration_seconds": 2351233.0,
+        "leader_review_count": 502,
+        "leader_review_duration_seconds": 52228.0,
         "auditor_review_count": 755,
         "auditor_review_duration_seconds": 80406.0,
         "admin_review_count": 35,
@@ -38458,7 +38458,7 @@
         "error_review_duration_seconds": 0.0,
         "rework_count": 9198,
         "rework_duration_seconds": 818679.0,
-        "work_duration_seconds": 2649091.0
+        "work_duration_seconds": 2656438.0
       },
       [
         {
@@ -38552,10 +38552,10 @@
           "total_duration_seconds": 53936.0,
           "completed_count": 514,
           "completed_duration_seconds": 47941.0,
-          "submitted_count": 530,
-          "submitted_duration_seconds": 49645.0,
-          "leader_review_count": 15,
-          "leader_review_duration_seconds": 1692.0,
+          "submitted_count": 533,
+          "submitted_duration_seconds": 49905.0,
+          "leader_review_count": 18,
+          "leader_review_duration_seconds": 1952.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -38564,7 +38564,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 26,
           "rework_duration_seconds": 3636.0,
-          "work_duration_seconds": 65126.0
+          "work_duration_seconds": 65865.0
         },
         {
           "user_id": 4207,
@@ -38573,10 +38573,10 @@
           "total_duration_seconds": 67936.0,
           "completed_count": 889,
           "completed_duration_seconds": 81890.0,
-          "submitted_count": 841,
-          "submitted_duration_seconds": 78519.0,
-          "leader_review_count": 5,
-          "leader_review_duration_seconds": 281.0,
+          "submitted_count": 847,
+          "submitted_duration_seconds": 80166.0,
+          "leader_review_count": 11,
+          "leader_review_duration_seconds": 1928.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -38585,7 +38585,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 178,
           "rework_duration_seconds": 18478.0,
-          "work_duration_seconds": 86223.0
+          "work_duration_seconds": 87277.0
         },
         {
           "user_id": 4806,
@@ -38594,10 +38594,10 @@
           "total_duration_seconds": 70832.0,
           "completed_count": 669,
           "completed_duration_seconds": 63806.0,
-          "submitted_count": 756,
-          "submitted_duration_seconds": 70032.0,
-          "leader_review_count": 23,
-          "leader_review_duration_seconds": 1329.0,
+          "submitted_count": 768,
+          "submitted_duration_seconds": 70599.0,
+          "leader_review_count": 35,
+          "leader_review_duration_seconds": 1896.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -38606,7 +38606,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 307,
           "rework_duration_seconds": 28839.0,
-          "work_duration_seconds": 80833.0
+          "work_duration_seconds": 81897.0
         },
         {
           "user_id": 4826,
@@ -38657,10 +38657,10 @@
           "total_duration_seconds": 33338.0,
           "completed_count": 409,
           "completed_duration_seconds": 37376.0,
-          "submitted_count": 423,
-          "submitted_duration_seconds": 40688.0,
-          "leader_review_count": 0,
-          "leader_review_duration_seconds": 0.0,
+          "submitted_count": 424,
+          "submitted_duration_seconds": 40734.0,
+          "leader_review_count": 1,
+          "leader_review_duration_seconds": 46.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -38669,7 +38669,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 189,
           "rework_duration_seconds": 14914.0,
-          "work_duration_seconds": 30236.0
+          "work_duration_seconds": 30354.0
         },
         {
           "user_id": 5199,
@@ -39056,10 +39056,10 @@
           "total_duration_seconds": 3673.0,
           "completed_count": 359,
           "completed_duration_seconds": 37283.0,
-          "submitted_count": 536,
-          "submitted_duration_seconds": 57475.0,
-          "leader_review_count": 28,
-          "leader_review_duration_seconds": 1975.0,
+          "submitted_count": 542,
+          "submitted_duration_seconds": 58336.0,
+          "leader_review_count": 34,
+          "leader_review_duration_seconds": 2836.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -39068,7 +39068,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 397,
           "rework_duration_seconds": 36004.0,
-          "work_duration_seconds": 44441.0
+          "work_duration_seconds": 45410.0
         },
         {
           "user_id": 9149,
@@ -39245,10 +39245,10 @@
           "total_duration_seconds": 3655.0,
           "completed_count": 268,
           "completed_duration_seconds": 30113.0,
-          "submitted_count": 367,
-          "submitted_duration_seconds": 40989.0,
-          "leader_review_count": 14,
-          "leader_review_duration_seconds": 3222.0,
+          "submitted_count": 372,
+          "submitted_duration_seconds": 41614.0,
+          "leader_review_count": 19,
+          "leader_review_duration_seconds": 3847.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -39257,7 +39257,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 84,
           "rework_duration_seconds": 7574.0,
-          "work_duration_seconds": 24042.0
+          "work_duration_seconds": 24734.0
         },
         {
           "user_id": 11175,
@@ -39308,10 +39308,10 @@
           "total_duration_seconds": 0.0,
           "completed_count": 40,
           "completed_duration_seconds": 3845.0,
-          "submitted_count": 324,
-          "submitted_duration_seconds": 23846.0,
-          "leader_review_count": 0,
-          "leader_review_duration_seconds": 0.0,
+          "submitted_count": 376,
+          "submitted_duration_seconds": 27899.0,
+          "leader_review_count": 53,
+          "leader_review_duration_seconds": 4293.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -39320,7 +39320,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 347,
           "rework_duration_seconds": 25017.0,
-          "work_duration_seconds": 12358.0
+          "work_duration_seconds": 12969.0
         },
         {
           "user_id": 11493,
@@ -39413,10 +39413,10 @@
           "total_duration_seconds": 0.0,
           "completed_count": 0,
           "completed_duration_seconds": 0.0,
-          "submitted_count": 18,
-          "submitted_duration_seconds": 1538.0,
-          "leader_review_count": 18,
-          "leader_review_duration_seconds": 1538.0,
+          "submitted_count": 20,
+          "submitted_duration_seconds": 2018.0,
+          "leader_review_count": 20,
+          "leader_review_duration_seconds": 2018.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -39425,7 +39425,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 0,
           "rework_duration_seconds": 0.0,
-          "work_duration_seconds": 6835.0
+          "work_duration_seconds": 7899.0
         },
         {
           "user_id": 13526,
@@ -39707,10 +39707,10 @@
           "total_duration_seconds": 0.0,
           "completed_count": 22,
           "completed_duration_seconds": 3645.0,
-          "submitted_count": 38,
-          "submitted_duration_seconds": 5069.0,
-          "leader_review_count": 38,
-          "leader_review_duration_seconds": 5069.0,
+          "submitted_count": 41,
+          "submitted_duration_seconds": 5667.0,
+          "leader_review_count": 41,
+          "leader_review_duration_seconds": 5667.0,
           "auditor_review_count": 0,
           "auditor_review_duration_seconds": 0.0,
           "admin_review_count": 0,
@@ -39719,7 +39719,7 @@
           "error_review_duration_seconds": 0.0,
           "rework_count": 0,
           "rework_duration_seconds": 0.0,
-          "work_duration_seconds": 9121.0
+          "work_duration_seconds": 10157.0
         }
       ]
     ],
@@ -57272,7 +57272,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_0843e316ef4642079e05e25b3e463c74",
@@ -57290,7 +57290,7 @@
       "rework_count": 0,
       "pending_review_count": 31,
       "return_count": 1,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_0e8d73db4dc446b080ed8c45e7e37f72",
@@ -57308,7 +57308,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_1702548769f548789a6b867ad3715f67",
@@ -57326,7 +57326,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_21314f651891469ea4cf8bde85188e37",
@@ -57344,7 +57344,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_24c22f06cdc94b6e8ae63c112d82ea67",
@@ -57362,7 +57362,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_2a0583c3d3a043db8157b362d02b263d",
@@ -57378,9 +57378,9 @@
       "benchmark_count": 1,
       "completed_count": 0,
       "rework_count": 0,
-      "pending_review_count": 18,
+      "pending_review_count": 20,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_35d06ee4976e49e4951e1529c8b2b5f9",
@@ -57398,7 +57398,7 @@
       "rework_count": 0,
       "pending_review_count": 27,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_45c4555b269244ca9bde8abf4f38c6ea",
@@ -57416,7 +57416,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_4c03ff68d87f4aebb51a42e9c8eef0e3",
@@ -57434,7 +57434,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_526426c8a1614dd8a55997de19048273",
@@ -57452,7 +57452,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_543bdb9787574a67adb04870a28abd48",
@@ -57470,7 +57470,7 @@
       "rework_count": 0,
       "pending_review_count": 24,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_5683d18c09234c57af4233a8f6d40c15",
@@ -57488,7 +57488,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_593bcae1a40c4defbb5b929c12080921",
@@ -57506,7 +57506,7 @@
       "rework_count": 0,
       "pending_review_count": 32,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_65a5937e2f194bfa9b6e26cae7bff8df",
@@ -57524,7 +57524,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_6b141b0001754717b285822d466e2fed",
@@ -57542,7 +57542,7 @@
       "rework_count": 0,
       "pending_review_count": 13,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_6d61908897ef4bb18d8145681bd15c74",
@@ -57560,7 +57560,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_71728d48d51646159e286fbb0e77ab66",
@@ -57578,7 +57578,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_74976bb1639f493cbabfa567d93d2b19",
@@ -57596,7 +57596,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_752e8afde2f74829bc92096ef100386d",
@@ -57614,7 +57614,7 @@
       "rework_count": 0,
       "pending_review_count": 42,
       "return_count": 2,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_8196bdc444414e9988d7d215f130bb49",
@@ -57632,7 +57632,7 @@
       "rework_count": 0,
       "pending_review_count": 41,
       "return_count": 1,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_98467e1618e2420b9f6b1c39bc44d310",
@@ -57650,7 +57650,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_98dd10f14a3b41ab93a054aa10bf5770",
@@ -57666,9 +57666,9 @@
       "benchmark_count": 1,
       "completed_count": 0,
       "rework_count": 0,
-      "pending_review_count": 5,
+      "pending_review_count": 11,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_b2fc54cb3c434afeae123f9f32780005",
@@ -57686,7 +57686,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_b754dee5b0c5471d9e9a1f9b1064d11d",
@@ -57704,7 +57704,7 @@
       "rework_count": 0,
       "pending_review_count": 49,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_bb49362dde664c56afe61894ab5c23fe",
@@ -57722,7 +57722,7 @@
       "rework_count": 0,
       "pending_review_count": 4,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_c2ad50b23a1c4636aa372acdf2282e19",
@@ -57740,7 +57740,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_c89fd2b3bcac44cdbbef2074c50291c5",
@@ -57758,7 +57758,7 @@
       "rework_count": 0,
       "pending_review_count": 2,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_d7251f5322f9480a9b007b4ec2083be9",
@@ -57774,9 +57774,9 @@
       "benchmark_count": 1,
       "completed_count": 0,
       "rework_count": 0,
-      "pending_review_count": 15,
+      "pending_review_count": 19,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_e15e175cab4a4f699c53d553733a9830",
@@ -57794,7 +57794,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_225df7c9af5240b8baf353fecd5d8ac0",
@@ -57812,7 +57812,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_3de43b293e2b44a7aa11b5e4df470960",
@@ -57830,7 +57830,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_96960c4fe96b49af883f49a28f6cd3b5",
@@ -57846,9 +57846,27 @@
       "benchmark_count": 1,
       "completed_count": 0,
       "rework_count": 0,
-      "pending_review_count": 28,
+      "pending_review_count": 34,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
+    },
+    {
+      "batch_id": "ab_afd6e0a0b32949888bc05ee639baed4a",
+      "batch_date": "2026-09-29",
+      "assignee_id": 6896,
+      "username": "SSHD- Ranzo2",
+      "canonical_user": "Ranjeeta",
+      "status": "batch_member_assigned",
+      "total_duration_seconds": 3730.0,
+      "duration_hours": 1.0361,
+      "task_count": 48,
+      "production_task_count": 47,
+      "benchmark_count": 1,
+      "completed_count": 0,
+      "rework_count": 0,
+      "pending_review_count": 0,
+      "return_count": 0,
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_db8b05ef00b446fca66ea01c438e5534",
@@ -57866,7 +57884,7 @@
       "rework_count": 0,
       "pending_review_count": 0,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     },
     {
       "batch_id": "ab_f97d68ebb866481c9837a479ef5f18c6",
@@ -57882,9 +57900,9 @@
       "benchmark_count": 1,
       "completed_count": 0,
       "rework_count": 0,
-      "pending_review_count": 23,
+      "pending_review_count": 36,
       "return_count": 0,
-      "last_updated": "2026-09-29 15:09:33"
+      "last_updated": "2026-09-29 15:24:57"
     }
   ]
 }
