@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     admin_username: str = Field(..., env='ADMIN_USERNAME')
     admin_password: str = Field(..., env='ADMIN_PASSWORD')
     database_url: str | None = Field(None, env='DATABASE_URL')
+    mongo_uri: str | None = Field(None, env='MONGO_URI')
     timezone: str = Field(default='Asia/Kolkata', description=
         'Canonical timezone for date normalization')
     request_timeout: int = Field(default=30, description=

@@ -72,18 +72,31 @@ def build_rework_ratio_chart(
             pct = (df[col] / totals) * 100
             bar_color = dark_c if is_dark else light_c
 
+            if "Total Duration (hrs)" in df.columns:
+                avg_series = df.get("Avg Batch Duration (hrs)", df["Total Duration (hrs)"] / totals)
+                customdata = list(zip(df[col], df["Total Batches"], df["Total Duration (hrs)"], avg_series))
+                hovertemplate = (
+                    f"<b>%{{x}}</b><br>"
+                    f"{col}: %{{y:.1f}}%<br>"
+                    f"(%{{customdata[0]}} / %{{customdata[1]}} batches)<br>"
+                    f"Total Duration: %{{customdata[2]:.1f}} hrs (avg %{{customdata[3]:.2f}}h/batch)<extra></extra>"
+                )
+            else:
+                customdata = list(zip(df[col], df["Total Batches"]))
+                hovertemplate = (
+                    f"<b>%{{x}}</b><br>"
+                    f"{col}: %{{y:.1f}}%<br>"
+                    f"(%{{customdata[0]}} / %{{customdata[1]}} batches)<extra></extra>"
+                )
+
             fig.add_trace(
                 go.Bar(
                     name=col,
                     x=df["User"],
                     y=pct,
                     marker=dict(color=bar_color, line=dict(width=1, color="rgba(0,0,0,0.1)")),
-                    customdata=list(zip(df[col], df["Total Batches"])),
-                    hovertemplate=(
-                        f"<b>%{{x}}</b><br>"
-                        f"{col}: %{{y:.1f}}%<br>"
-                        f"(%{{customdata[0]}} / %{{customdata[1]}} batches)<extra></extra>"
-                    ),
+                    customdata=customdata,
+                    hovertemplate=hovertemplate,
                     text=pct.apply(lambda x: f"{x:.0f}%" if x >= 6 else ""),
                     textposition="inside",
                 )

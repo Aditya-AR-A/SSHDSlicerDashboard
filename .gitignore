@@ -64,3 +64,6 @@ uv.lock
 
 # pytest cache
 .pytest_cache/
+
+# temp
+data/temp_img/

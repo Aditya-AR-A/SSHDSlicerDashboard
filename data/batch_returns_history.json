@@ -1,0 +1,1376 @@
+{
+  "last_updated": "2026-09-29 15:25:02",
+  "total_records": 137,
+  "records": [
+    {
+      "event_id": "5205_ab_f93c44808fbc488bb87c4892c7fd91d4_2026-09-29T16:58:15",
+      "user_id": 5205,
+      "username": "SSHD-Slicer 4",
+      "canonical_user": "Priya",
+      "batch_id": "ab_f93c44808fbc488bb87c4892c7fd91d4",
+      "legacy_batch_number": 23,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-29T16:58:15"
+    },
+    {
+      "event_id": "4826_ab_0843e316ef4642079e05e25b3e463c74_2026-09-29T01:55:49",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_0843e316ef4642079e05e25b3e463c74",
+      "legacy_batch_number": 28,
+      "reason": "Free Hand",
+      "returned_at": "2026-09-29T01:55:49"
+    },
+    {
+      "event_id": "5423_ab_752e8afde2f74829bc92096ef100386d_2026-09-29T01:52:15",
+      "user_id": 5423,
+      "username": "SSHD-Slicer5",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_752e8afde2f74829bc92096ef100386d",
+      "legacy_batch_number": 34,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-29T01:52:15"
+    },
+    {
+      "event_id": "13904_ab_51a76674ccac4b0185276f5294561a91_2026-09-29T00:51:24",
+      "user_id": 13904,
+      "username": "SSHD-Akash",
+      "canonical_user": "Akash",
+      "batch_id": "ab_51a76674ccac4b0185276f5294561a91",
+      "legacy_batch_number": 4,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\nIf there is no hand action, you don't need to segment that portion\"",
+      "returned_at": "2026-09-29T00:51:24"
+    },
+    {
+      "event_id": "4912_ab_5db4d931d48f4780b32afa44fc7a3e78_2026-09-29T00:35:13",
+      "user_id": 4912,
+      "username": "SSHD-Adi",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_5db4d931d48f4780b32afa44fc7a3e78",
+      "legacy_batch_number": 19,
+      "reason": "Missing action",
+      "returned_at": "2026-09-29T00:35:13"
+    },
+    {
+      "event_id": "14234_ab_59fba95525c84866b48bbd662d05b267_2026-09-28T21:52:46",
+      "user_id": 14234,
+      "username": "SSHD-Akash2",
+      "canonical_user": "Akash",
+      "batch_id": "ab_59fba95525c84866b48bbd662d05b267",
+      "legacy_batch_number": 4,
+      "reason": "Action missing.",
+      "returned_at": "2026-09-28T21:52:46"
+    },
+    {
+      "event_id": "16084_ab_8196bdc444414e9988d7d215f130bb49_2026-09-28T20:20:09",
+      "user_id": 16084,
+      "username": "SSHD-S-Riya7",
+      "canonical_user": "Riya",
+      "batch_id": "ab_8196bdc444414e9988d7d215f130bb49",
+      "legacy_batch_number": 2,
+      "reason": "Missing Action\nMultiple Actins in a Segment",
+      "returned_at": "2026-09-28T20:20:09"
+    },
+    {
+      "event_id": "14240_ab_617f2cffdb48469cbac8213aa0f1be53_2026-09-28T20:17:12",
+      "user_id": 14240,
+      "username": "SSHD-Pardeep",
+      "canonical_user": "Pardeep",
+      "batch_id": "ab_617f2cffdb48469cbac8213aa0f1be53",
+      "legacy_batch_number": 2,
+      "reason": "Multiple actions in one Segment",
+      "returned_at": "2026-09-28T20:17:12"
+    },
+    {
+      "event_id": "13526_ab_28bcfa1fce1542a29e5376a29f57b270_2026-09-28T18:33:19",
+      "user_id": 13526,
+      "username": "Akash 1 N",
+      "canonical_user": "Akash",
+      "batch_id": "ab_28bcfa1fce1542a29e5376a29f57b270",
+      "legacy_batch_number": 5,
+      "reason": "Multiple actions in one clip\nMissing action\nUnnecessary clipping of a single action/repetitive action",
+      "returned_at": "2026-09-28T18:33:19"
+    },
+    {
+      "event_id": "5423_ab_752e8afde2f74829bc92096ef100386d_2026-09-28T18:16:55",
+      "user_id": 5423,
+      "username": "SSHD-Slicer5",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_752e8afde2f74829bc92096ef100386d",
+      "legacy_batch_number": 34,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-28T18:16:55"
+    },
+    {
+      "event_id": "13526_ab_28bcfa1fce1542a29e5376a29f57b270_2026-09-28T17:47:03",
+      "user_id": 13526,
+      "username": "Akash 1 N",
+      "canonical_user": "Akash",
+      "batch_id": "ab_28bcfa1fce1542a29e5376a29f57b270",
+      "legacy_batch_number": 5,
+      "reason": "Action missing",
+      "returned_at": "2026-09-28T17:47:03"
+    },
+    {
+      "event_id": "9142_ab_27a967f2f103420db4ae7ff32821e682_2026-09-27T22:42:23",
+      "user_id": 9142,
+      "username": "SSHD-Riya3",
+      "canonical_user": "Riya",
+      "batch_id": "ab_27a967f2f103420db4ae7ff32821e682",
+      "legacy_batch_number": 9,
+      "reason": "Missing Action",
+      "returned_at": "2026-09-27T22:42:23"
+    },
+    {
+      "event_id": "6639_ab_eb830ce9aafd4c118a9ba638e9204952_2026-09-27T22:27:00",
+      "user_id": 6639,
+      "username": "SSHD-Slicer7",
+      "canonical_user": "Riya",
+      "batch_id": "ab_eb830ce9aafd4c118a9ba638e9204952",
+      "legacy_batch_number": 19,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-27T22:27:00"
+    },
+    {
+      "event_id": "6639_ab_eb830ce9aafd4c118a9ba638e9204952_2026-09-27T14:24:35",
+      "user_id": 6639,
+      "username": "SSHD-Slicer7",
+      "canonical_user": "Riya",
+      "batch_id": "ab_eb830ce9aafd4c118a9ba638e9204952",
+      "legacy_batch_number": 19,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-27T14:24:35"
+    },
+    {
+      "event_id": "4207_ab_d044ce2ea3fa494eae5715d37f55a2e6_2026-09-27T03:12:59",
+      "user_id": 4207,
+      "username": "SSHD-Rajni",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_d044ce2ea3fa494eae5715d37f55a2e6",
+      "legacy_batch_number": 31,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-27T03:12:59"
+    },
+    {
+      "event_id": "5205_ab_ee0ca4cafd1f4276a0c977c2436180d6_2026-09-27T02:16:16",
+      "user_id": 5205,
+      "username": "SSHD-Slicer 4",
+      "canonical_user": "Priya",
+      "batch_id": "ab_ee0ca4cafd1f4276a0c977c2436180d6",
+      "legacy_batch_number": 21,
+      "reason": "Action missing",
+      "returned_at": "2026-09-27T02:16:16"
+    },
+    {
+      "event_id": "6738_ab_b9c82fb49edc489cb0da5d74bae0593d_2026-09-27T02:05:27",
+      "user_id": 6738,
+      "username": "SSHD-Slicer10",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_b9c82fb49edc489cb0da5d74bae0593d",
+      "legacy_batch_number": 8,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-27T02:05:27"
+    },
+    {
+      "event_id": "7413_ab_e777f97ceeb743d090560540873fcccf_2026-09-27T01:05:33",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_e777f97ceeb743d090560540873fcccf",
+      "legacy_batch_number": 21,
+      "reason": "Missing action",
+      "returned_at": "2026-09-27T01:05:33"
+    },
+    {
+      "event_id": "9142_ab_27a967f2f103420db4ae7ff32821e682_2026-09-27T00:57:25",
+      "user_id": 9142,
+      "username": "SSHD-Riya3",
+      "canonical_user": "Riya",
+      "batch_id": "ab_27a967f2f103420db4ae7ff32821e682",
+      "legacy_batch_number": 9,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\nmissing action",
+      "returned_at": "2026-09-27T00:57:25"
+    },
+    {
+      "event_id": "6639_ab_eb830ce9aafd4c118a9ba638e9204952_2026-09-26T21:46:24",
+      "user_id": 6639,
+      "username": "SSHD-Slicer7",
+      "canonical_user": "Riya",
+      "batch_id": "ab_eb830ce9aafd4c118a9ba638e9204952",
+      "legacy_batch_number": 19,
+      "reason": "Picking up an object, moving it, and placing it down should be segmented as separate clips. Do not combine these actions into a single clip.",
+      "returned_at": "2026-09-26T21:46:24"
+    },
+    {
+      "event_id": "9142_ab_27a967f2f103420db4ae7ff32821e682_2026-09-26T14:23:25",
+      "user_id": 9142,
+      "username": "SSHD-Riya3",
+      "canonical_user": "Riya",
+      "batch_id": "ab_27a967f2f103420db4ae7ff32821e682",
+      "legacy_batch_number": 9,
+      "reason": "1.Missing action  2.Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-26T14:23:25"
+    },
+    {
+      "event_id": "6639_ab_eb830ce9aafd4c118a9ba638e9204952_2026-09-26T12:34:45",
+      "user_id": 6639,
+      "username": "SSHD-Slicer7",
+      "canonical_user": "Riya",
+      "batch_id": "ab_eb830ce9aafd4c118a9ba638e9204952",
+      "legacy_batch_number": 19,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-26T12:34:45"
+    },
+    {
+      "event_id": "4806_ab_9dba48954ebf403e95252fea0e87bd0b_2026-09-26T12:28:03",
+      "user_id": 4806,
+      "username": "SSHD-Slicer2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_9dba48954ebf403e95252fea0e87bd0b",
+      "legacy_batch_number": 28,
+      "reason": "Task Error was marked, but valid clips are present in the video. Please review the video and process the valid portions instead of marking the entire task as an error.",
+      "returned_at": "2026-09-26T12:28:03"
+    },
+    {
+      "event_id": "7413_ab_38d5aae50f334e0baa8f85b1cb314805_2026-09-26T02:04:03",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_38d5aae50f334e0baa8f85b1cb314805",
+      "legacy_batch_number": 20,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-26T02:04:03"
+    },
+    {
+      "event_id": "11493_ab_7cb12965099e43a49f6adb372bee45dd_2026-09-26T00:48:58",
+      "user_id": 11493,
+      "username": "SSHD-Gurharleen3",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_7cb12965099e43a49f6adb372bee45dd",
+      "legacy_batch_number": 3,
+      "reason": "This video contains green/black flickering throughout, so it should be marked as an error task. No segments should be created.",
+      "returned_at": "2026-09-26T00:48:58"
+    },
+    {
+      "event_id": "809_ab_364747d3439d4f28b150a18016b8d2dd_2026-09-25T23:06:29",
+      "user_id": 809,
+      "username": "SSHD-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_364747d3439d4f28b150a18016b8d2dd",
+      "legacy_batch_number": 29,
+      "reason": "Action missing.",
+      "returned_at": "2026-09-25T23:06:29"
+    },
+    {
+      "event_id": "4912_ab_5db4d931d48f4780b32afa44fc7a3e78_2026-09-25T21:40:04",
+      "user_id": 4912,
+      "username": "SSHD-Adi",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_5db4d931d48f4780b32afa44fc7a3e78",
+      "legacy_batch_number": 19,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-25T21:40:04"
+    },
+    {
+      "event_id": "13904_ab_51a76674ccac4b0185276f5294561a91_2026-09-25T21:16:02",
+      "user_id": 13904,
+      "username": "SSHD-Akash",
+      "canonical_user": "Akash",
+      "batch_id": "ab_51a76674ccac4b0185276f5294561a91",
+      "legacy_batch_number": 4,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-25T21:16:02"
+    },
+    {
+      "event_id": "6639_ab_eb830ce9aafd4c118a9ba638e9204952_2026-09-25T20:38:54",
+      "user_id": 6639,
+      "username": "SSHD-Slicer7",
+      "canonical_user": "Riya",
+      "batch_id": "ab_eb830ce9aafd4c118a9ba638e9204952",
+      "legacy_batch_number": 19,
+      "reason": "Picking up an object, moving it, and placing it down should be segmented as separate clips. Do not combine these actions into a single clip.",
+      "returned_at": "2026-09-25T20:38:54"
+    },
+    {
+      "event_id": "9142_ab_27a967f2f103420db4ae7ff32821e682_2026-09-25T20:23:58",
+      "user_id": 9142,
+      "username": "SSHD-Riya3",
+      "canonical_user": "Riya",
+      "batch_id": "ab_27a967f2f103420db4ae7ff32821e682",
+      "legacy_batch_number": 9,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-25T20:23:58"
+    },
+    {
+      "event_id": "9633_ab_1f4d0e2f0d4947958c2d655370b6b8b8_2026-09-25T20:07:13",
+      "user_id": 9633,
+      "username": "SSHD-Riya5",
+      "canonical_user": "Riya",
+      "batch_id": "ab_1f4d0e2f0d4947958c2d655370b6b8b8",
+      "legacy_batch_number": 9,
+      "reason": "clipping time action missed.",
+      "returned_at": "2026-09-25T20:07:13"
+    },
+    {
+      "event_id": "7413_ab_38d5aae50f334e0baa8f85b1cb314805_2026-09-25T19:50:59",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_38d5aae50f334e0baa8f85b1cb314805",
+      "legacy_batch_number": 20,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-25T19:50:59"
+    },
+    {
+      "event_id": "7498_ab_e03954b7e9b84b8180cb82f613ab8df2_2026-09-25T19:47:05",
+      "user_id": 7498,
+      "username": "SSHD-Riya2",
+      "canonical_user": "Riya",
+      "batch_id": "ab_e03954b7e9b84b8180cb82f613ab8df2",
+      "legacy_batch_number": 16,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-25T19:47:05"
+    },
+    {
+      "event_id": "4826_ab_7d5a30a329bf4cccb787a35ea58f7d20_2026-09-25T19:38:30",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_7d5a30a329bf4cccb787a35ea58f7d20",
+      "legacy_batch_number": 26,
+      "reason": "Missing action",
+      "returned_at": "2026-09-25T19:38:30"
+    },
+    {
+      "event_id": "7498_ab_e03954b7e9b84b8180cb82f613ab8df2_2026-09-25T14:34:54",
+      "user_id": 7498,
+      "username": "SSHD-Riya2",
+      "canonical_user": "Riya",
+      "batch_id": "ab_e03954b7e9b84b8180cb82f613ab8df2",
+      "legacy_batch_number": 16,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-25T14:34:54"
+    },
+    {
+      "event_id": "11332_ab_82ce4122f001430db422ec1c0a99562f_2026-09-25T10:26:12",
+      "user_id": 11332,
+      "username": "SSHD-Gurharleen2",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_82ce4122f001430db422ec1c0a99562f",
+      "legacy_batch_number": 2,
+      "reason": "Flashing bars",
+      "returned_at": "2026-09-25T10:26:12"
+    },
+    {
+      "event_id": "9644_ab_a7aeefea2e484033ab379bb7f3a239f0_2026-09-25T02:19:58",
+      "user_id": 9644,
+      "username": "SSHD-ranjeeta6",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_a7aeefea2e484033ab379bb7f3a239f0",
+      "legacy_batch_number": 7,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-25T02:19:58"
+    },
+    {
+      "event_id": "9640_ab_e4663dbdaad540b2a29816787699ec27_2026-09-24T23:20:14",
+      "user_id": 9640,
+      "username": "SSHD-Priya2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_e4663dbdaad540b2a29816787699ec27",
+      "legacy_batch_number": 14,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-24T23:20:14"
+    },
+    {
+      "event_id": "7498_ab_e03954b7e9b84b8180cb82f613ab8df2_2026-09-24T22:54:21",
+      "user_id": 7498,
+      "username": "SSHD-Riya2",
+      "canonical_user": "Riya",
+      "batch_id": "ab_e03954b7e9b84b8180cb82f613ab8df2",
+      "legacy_batch_number": 16,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-24T22:54:21"
+    },
+    {
+      "event_id": "4912_ab_5db4d931d48f4780b32afa44fc7a3e78_2026-09-24T22:53:47",
+      "user_id": 4912,
+      "username": "SSHD-Adi",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_5db4d931d48f4780b32afa44fc7a3e78",
+      "legacy_batch_number": 19,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-24T22:53:47"
+    },
+    {
+      "event_id": "9142_ab_27a967f2f103420db4ae7ff32821e682_2026-09-24T21:31:15",
+      "user_id": 9142,
+      "username": "SSHD-Riya3",
+      "canonical_user": "Riya",
+      "batch_id": "ab_27a967f2f103420db4ae7ff32821e682",
+      "legacy_batch_number": 9,
+      "reason": "Action missing.",
+      "returned_at": "2026-09-24T21:31:15"
+    },
+    {
+      "event_id": "4912_ab_5db4d931d48f4780b32afa44fc7a3e78_2026-09-24T20:44:31",
+      "user_id": 4912,
+      "username": "SSHD-Adi",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_5db4d931d48f4780b32afa44fc7a3e78",
+      "legacy_batch_number": 19,
+      "reason": "If there is no hand action, you don't need to segment that portion\nMissing action",
+      "returned_at": "2026-09-24T20:44:31"
+    },
+    {
+      "event_id": "9149_ab_272b0403302841d8ae74267ade93140c_2026-09-24T18:46:37",
+      "user_id": 9149,
+      "username": "SSHD-Rajni3",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_272b0403302841d8ae74267ade93140c",
+      "legacy_batch_number": 15,
+      "reason": "Missing action",
+      "returned_at": "2026-09-24T18:46:37"
+    },
+    {
+      "event_id": "9149_ab_272b0403302841d8ae74267ade93140c_2026-09-24T17:39:29",
+      "user_id": 9149,
+      "username": "SSHD-Rajni3",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_272b0403302841d8ae74267ade93140c",
+      "legacy_batch_number": 15,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-24T17:39:29"
+    },
+    {
+      "event_id": "9644_ab_a7aeefea2e484033ab379bb7f3a239f0_2026-09-23T20:18:39",
+      "user_id": 9644,
+      "username": "SSHD-ranjeeta6",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_a7aeefea2e484033ab379bb7f3a239f0",
+      "legacy_batch_number": 7,
+      "reason": "If there is no hand action , dont need to clip.",
+      "returned_at": "2026-09-23T20:18:39"
+    },
+    {
+      "event_id": "809_ab_2919eacfa51548d1b3559fb73319eb45_2026-09-23T16:38:10",
+      "user_id": 809,
+      "username": "SSHD-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_2919eacfa51548d1b3559fb73319eb45",
+      "legacy_batch_number": 27,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-23T16:38:10"
+    },
+    {
+      "event_id": "6736_ab_5cc3c147bdcd434eaa7596165482cc87_2026-09-23T16:09:28",
+      "user_id": 6736,
+      "username": "SSHD- Slicnner21",
+      "canonical_user": "Komal",
+      "batch_id": "ab_5cc3c147bdcd434eaa7596165482cc87",
+      "legacy_batch_number": 11,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-23T16:09:28"
+    },
+    {
+      "event_id": "4806_ab_6296bb08eeda4215b4913928759f0d4d_2026-09-23T14:57:28",
+      "user_id": 4806,
+      "username": "SSHD-Slicer2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_6296bb08eeda4215b4913928759f0d4d",
+      "legacy_batch_number": 27,
+      "reason": "missing action",
+      "returned_at": "2026-09-23T14:57:28"
+    },
+    {
+      "event_id": "6530_ab_296cd4a28308428e9f3a0818efc5cfa8_2026-09-23T14:38:21",
+      "user_id": 6530,
+      "username": "SSHD-Riya",
+      "canonical_user": "Riya",
+      "batch_id": "ab_296cd4a28308428e9f3a0818efc5cfa8",
+      "legacy_batch_number": 17,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-23T14:38:21"
+    },
+    {
+      "event_id": "6896_ab_c5946abeecd5438599fc9ea2847987f5_2026-09-22T23:15:09",
+      "user_id": 6896,
+      "username": "SSHD- Ranzo2",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_c5946abeecd5438599fc9ea2847987f5",
+      "legacy_batch_number": 14,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-22T23:15:09"
+    },
+    {
+      "event_id": "5423_ab_5e5db9e4ec224d39a2ec65ac83fc3613_2026-09-22T18:24:27",
+      "user_id": 5423,
+      "username": "SSHD-Slicer5",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_5e5db9e4ec224d39a2ec65ac83fc3613",
+      "legacy_batch_number": 28,
+      "reason": "missing action",
+      "returned_at": "2026-09-22T18:24:27"
+    },
+    {
+      "event_id": "5423_ab_df95ef131d404183bfaaf59584c95fe0_2026-09-22T13:55:14",
+      "user_id": 5423,
+      "username": "SSHD-Slicer5",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_df95ef131d404183bfaaf59584c95fe0",
+      "legacy_batch_number": 27,
+      "reason": "Multiple actions recorded. Action missing.",
+      "returned_at": "2026-09-22T13:55:14"
+    },
+    {
+      "event_id": "7413_ab_a222e6bab89d4ae894d3bfbc6a326ccc_2026-09-22T01:54:30",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_a222e6bab89d4ae894d3bfbc6a326ccc",
+      "legacy_batch_number": 15,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-22T01:54:30"
+    },
+    {
+      "event_id": "5423_ab_df95ef131d404183bfaaf59584c95fe0_2026-09-22T00:44:35",
+      "user_id": 5423,
+      "username": "SSHD-Slicer5",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_df95ef131d404183bfaaf59584c95fe0",
+      "legacy_batch_number": 27,
+      "reason": "Action missing",
+      "returned_at": "2026-09-22T00:44:35"
+    },
+    {
+      "event_id": "5423_ab_df95ef131d404183bfaaf59584c95fe0_2026-09-21T22:26:49",
+      "user_id": 5423,
+      "username": "SSHD-Slicer5",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_df95ef131d404183bfaaf59584c95fe0",
+      "legacy_batch_number": 27,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-21T22:26:49"
+    },
+    {
+      "event_id": "7413_ab_a222e6bab89d4ae894d3bfbc6a326ccc_2026-09-21T22:10:05",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_a222e6bab89d4ae894d3bfbc6a326ccc",
+      "legacy_batch_number": 15,
+      "reason": "Picking up an object, moving it, and placing it down should be segmented as separate clips. Do not combine these actions into a single clip. Multiple actions have been combined into a single clip. Each action should be segmented into a sepa",
+      "returned_at": "2026-09-21T22:10:05"
+    },
+    {
+      "event_id": "11493_ab_7cb12965099e43a49f6adb372bee45dd_2026-09-21T21:52:51",
+      "user_id": 11493,
+      "username": "SSHD-Gurharleen3",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_7cb12965099e43a49f6adb372bee45dd",
+      "legacy_batch_number": 3,
+      "reason": "flashing bar",
+      "returned_at": "2026-09-21T21:52:51"
+    },
+    {
+      "event_id": "9640_ab_4245fb5071a24b0cbc25f3655ec6a530_2026-09-21T20:09:00",
+      "user_id": 9640,
+      "username": "SSHD-Priya2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_4245fb5071a24b0cbc25f3655ec6a530",
+      "legacy_batch_number": 10,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-21T20:09:00"
+    },
+    {
+      "event_id": "9640_ab_4245fb5071a24b0cbc25f3655ec6a530_2026-09-21T19:20:27",
+      "user_id": 9640,
+      "username": "SSHD-Priya2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_4245fb5071a24b0cbc25f3655ec6a530",
+      "legacy_batch_number": 10,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-21T19:20:27"
+    },
+    {
+      "event_id": "6728_ab_4243a66ef82f453f88b89d49f022fd22_2026-09-21T18:06:45",
+      "user_id": 6728,
+      "username": "SSHD-Slicer8nk",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_4243a66ef82f453f88b89d49f022fd22",
+      "legacy_batch_number": 7,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-21T18:06:45"
+    },
+    {
+      "event_id": "11493_ab_7cb12965099e43a49f6adb372bee45dd_2026-09-21T14:29:56",
+      "user_id": 11493,
+      "username": "SSHD-Gurharleen3",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_7cb12965099e43a49f6adb372bee45dd",
+      "legacy_batch_number": 3,
+      "reason": "Missing action",
+      "returned_at": "2026-09-21T14:29:56"
+    },
+    {
+      "event_id": "4806_ab_5749410b739c4dd09472f5160d3b95fe_2026-09-21T13:34:08",
+      "user_id": 4806,
+      "username": "SSHD-Slicer2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_5749410b739c4dd09472f5160d3b95fe",
+      "legacy_batch_number": 24,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-21T13:34:08"
+    },
+    {
+      "event_id": "11332_ab_82ce4122f001430db422ec1c0a99562f_2026-09-21T11:06:36",
+      "user_id": 11332,
+      "username": "SSHD-Gurharleen2",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_82ce4122f001430db422ec1c0a99562f",
+      "legacy_batch_number": 2,
+      "reason": "This video contains green/black flickering throughout, so it should be marked as an error task. No segments should be created.",
+      "returned_at": "2026-09-21T11:06:36"
+    },
+    {
+      "event_id": "11493_ab_7cb12965099e43a49f6adb372bee45dd_2026-09-21T00:09:23",
+      "user_id": 11493,
+      "username": "SSHD-Gurharleen3",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_7cb12965099e43a49f6adb372bee45dd",
+      "legacy_batch_number": 3,
+      "reason": "This video contains green/black flickering throughout, so it should be marked as an error task. No segments should be created.\nInsufficient Hand Visibility: The hand must appear in at least 90% of the clip duration. Segments where the hand",
+      "returned_at": "2026-09-21T00:09:23"
+    },
+    {
+      "event_id": "4806_ab_5749410b739c4dd09472f5160d3b95fe_2026-09-20T22:59:02",
+      "user_id": 4806,
+      "username": "SSHD-Slicer2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_5749410b739c4dd09472f5160d3b95fe",
+      "legacy_batch_number": 24,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-20T22:59:02"
+    },
+    {
+      "event_id": "12686_ab_2d76392e8fd14e2d8f79ed8378995dba_2026-09-20T21:25:39",
+      "user_id": 12686,
+      "username": "SSHD-Gurharleen5",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_2d76392e8fd14e2d8f79ed8378995dba",
+      "legacy_batch_number": 1,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\nIf there is no hand action, you don't need to segment that portion\nAction missing\nThis video contains green/black flickering throu",
+      "returned_at": "2026-09-20T21:25:39"
+    },
+    {
+      "event_id": "9386_ab_f0972263b7b54399a56616562eacfbea_2026-09-20T21:10:29",
+      "user_id": 9386,
+      "username": "SSHD-Priya1",
+      "canonical_user": "Priya",
+      "batch_id": "ab_f0972263b7b54399a56616562eacfbea",
+      "legacy_batch_number": 5,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-20T21:10:29"
+    },
+    {
+      "event_id": "809_ab_f0f8b52873274f35bfe67d7ffe48c5f2_2026-09-20T14:15:40",
+      "user_id": 809,
+      "username": "SSHD-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_f0f8b52873274f35bfe67d7ffe48c5f2",
+      "legacy_batch_number": 24,
+      "reason": "This action was unnecessarily split into multiple clips. Please keep one meaningful action in a single clip.",
+      "returned_at": "2026-09-20T14:15:40"
+    },
+    {
+      "event_id": "9386_ab_f0972263b7b54399a56616562eacfbea_2026-09-20T12:34:48",
+      "user_id": 9386,
+      "username": "SSHD-Priya1",
+      "canonical_user": "Priya",
+      "batch_id": "ab_f0972263b7b54399a56616562eacfbea",
+      "legacy_batch_number": 5,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-20T12:34:48"
+    },
+    {
+      "event_id": "11494_ab_b8faeb4a7d714d9ab8c717c35b0b3268_2026-09-20T03:07:24",
+      "user_id": 11494,
+      "username": "SSHD-Gurharleen4",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_b8faeb4a7d714d9ab8c717c35b0b3268",
+      "legacy_batch_number": 3,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-20T03:07:24"
+    },
+    {
+      "event_id": "7413_ab_a222e6bab89d4ae894d3bfbc6a326ccc_2026-09-19T21:40:45",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_a222e6bab89d4ae894d3bfbc6a326ccc",
+      "legacy_batch_number": 15,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-19T21:40:45"
+    },
+    {
+      "event_id": "809_ab_f0f8b52873274f35bfe67d7ffe48c5f2_2026-09-19T20:47:56",
+      "user_id": 809,
+      "username": "SSHD-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_f0f8b52873274f35bfe67d7ffe48c5f2",
+      "legacy_batch_number": 24,
+      "reason": "This video contains green/black flickering throughout, so it should be marked as an error task. No segments should be created.",
+      "returned_at": "2026-09-19T20:47:56"
+    },
+    {
+      "event_id": "809_ab_f0f8b52873274f35bfe67d7ffe48c5f2_2026-09-19T19:20:13",
+      "user_id": 809,
+      "username": "SSHD-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_f0f8b52873274f35bfe67d7ffe48c5f2",
+      "legacy_batch_number": 24,
+      "reason": "This video contains green/black flickering throughout, so it should be marked as an error task. No segments should be created. If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-19T19:20:13"
+    },
+    {
+      "event_id": "9386_ab_cbf8c8efd2724db0b130f0ef3d7143f3_2026-09-19T18:08:22",
+      "user_id": 9386,
+      "username": "SSHD-Priya1",
+      "canonical_user": "Priya",
+      "batch_id": "ab_cbf8c8efd2724db0b130f0ef3d7143f3",
+      "legacy_batch_number": 6,
+      "reason": "missing action \nEating and drinking actions should not be segmented.",
+      "returned_at": "2026-09-19T18:08:22"
+    },
+    {
+      "event_id": "11494_ab_b8faeb4a7d714d9ab8c717c35b0b3268_2026-09-19T13:07:25",
+      "user_id": 11494,
+      "username": "SSHD-Gurharleen4",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_b8faeb4a7d714d9ab8c717c35b0b3268",
+      "legacy_batch_number": 3,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-19T13:07:25"
+    },
+    {
+      "event_id": "11332_ab_82ce4122f001430db422ec1c0a99562f_2026-09-19T11:41:06",
+      "user_id": 11332,
+      "username": "SSHD-Gurharleen2",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_82ce4122f001430db422ec1c0a99562f",
+      "legacy_batch_number": 2,
+      "reason": "Flashing bars",
+      "returned_at": "2026-09-19T11:41:06"
+    },
+    {
+      "event_id": "808_ab_41e73ef6739b4b5096ea64043295020f_2026-09-18T19:47:08",
+      "user_id": 808,
+      "username": "SSHD-Komal",
+      "canonical_user": "Komal",
+      "batch_id": "ab_41e73ef6739b4b5096ea64043295020f",
+      "legacy_batch_number": 27,
+      "reason": "You can't take it if there's any action on the other side of the glass.",
+      "returned_at": "2026-09-18T19:47:08"
+    },
+    {
+      "event_id": "9160_ab_2c881ad171044860981591f6c1f1def4_2026-09-18T13:21:53",
+      "user_id": 9160,
+      "username": "SSHD-Komal14",
+      "canonical_user": "Komal",
+      "batch_id": "ab_2c881ad171044860981591f6c1f1def4",
+      "legacy_batch_number": 4,
+      "reason": "Multiple actions recorded in a single clip.",
+      "returned_at": "2026-09-18T13:21:53"
+    },
+    {
+      "event_id": "9640_ab_ecdb58f0fa30457cb6a65a1bf340f3f5_2026-09-18T03:11:26",
+      "user_id": 9640,
+      "username": "SSHD-Priya2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_ecdb58f0fa30457cb6a65a1bf340f3f5",
+      "legacy_batch_number": 8,
+      "reason": "Insufficient Hand Visibility: The hand must appear in at least 90% of the clip duration. Segments where the hand is continuously invisible for ≥1 second, or invisible for more than 20% of the clip, must not be created.",
+      "returned_at": "2026-09-18T03:11:26"
+    },
+    {
+      "event_id": "11493_ab_d5079d7944174daebf0946bd8f56681a_2026-09-18T01:31:58",
+      "user_id": 11493,
+      "username": "SSHD-Gurharleen3",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_d5079d7944174daebf0946bd8f56681a",
+      "legacy_batch_number": 1,
+      "reason": "This action was unnecessarily split into multiple clips. Please keep one meaningful action in a single clip.",
+      "returned_at": "2026-09-18T01:31:58"
+    },
+    {
+      "event_id": "11299_ab_195b40abecf34c678a360dc119f338d0_2026-09-17T22:22:17",
+      "user_id": 11299,
+      "username": "SSHD-GURHARLEEN1",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_195b40abecf34c678a360dc119f338d0",
+      "legacy_batch_number": 2,
+      "reason": "If there is no hand action, you don't need to segment that portion.",
+      "returned_at": "2026-09-17T22:22:17"
+    },
+    {
+      "event_id": "863_ab_9834d4f23f9146899ac52ad48ca1f7a7_2026-09-17T21:23:43",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_9834d4f23f9146899ac52ad48ca1f7a7",
+      "legacy_batch_number": 24,
+      "reason": "If there is no hand action , dont need to clip.",
+      "returned_at": "2026-09-17T21:23:43"
+    },
+    {
+      "event_id": "9377_ab_2f253bab46864cdab58e7a05c0926a7c_2026-09-17T21:21:43",
+      "user_id": 9377,
+      "username": "SSHD-Riya4",
+      "canonical_user": "Riya",
+      "batch_id": "ab_2f253bab46864cdab58e7a05c0926a7c",
+      "legacy_batch_number": 3,
+      "reason": "Missing action",
+      "returned_at": "2026-09-17T21:21:43"
+    },
+    {
+      "event_id": "6728_ab_ba8d8c0be1e54f96812f8042e0dae76f_2026-09-17T18:11:14",
+      "user_id": 6728,
+      "username": "SSHD-Slicer8nk",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_ba8d8c0be1e54f96812f8042e0dae76f",
+      "legacy_batch_number": 6,
+      "reason": "Missing action",
+      "returned_at": "2026-09-17T18:11:14"
+    },
+    {
+      "event_id": "6728_ab_81cc6dcbeba3419f93e13c116457cc9d_2026-09-17T16:03:18",
+      "user_id": 6728,
+      "username": "SSHD-Slicer8nk",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_81cc6dcbeba3419f93e13c116457cc9d",
+      "legacy_batch_number": 5,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-17T16:03:18"
+    },
+    {
+      "event_id": "4912_ab_ae74a946d8624773b38d3bdd2c51d1cb_2026-09-17T15:54:24",
+      "user_id": 4912,
+      "username": "SSHD-Adi",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_ae74a946d8624773b38d3bdd2c51d1cb",
+      "legacy_batch_number": 16,
+      "reason": "If there is no hand action, you don't need to segment that portion. Eating and drinking actions should not be segmented.",
+      "returned_at": "2026-09-17T15:54:24"
+    },
+    {
+      "event_id": "11494_ab_588f6355dff8499aa1068b46c043dbe2_2026-09-17T13:28:43",
+      "user_id": 11494,
+      "username": "SSHD-Gurharleen4",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_588f6355dff8499aa1068b46c043dbe2",
+      "legacy_batch_number": 1,
+      "reason": "1. If there is no hand action, you don't need to segment that portion\n2. This action was unnecessarily split into multiple clips. Please keep one meaningful action in a single clip.",
+      "returned_at": "2026-09-17T13:28:43"
+    },
+    {
+      "event_id": "7414_ab_acae6e476c3546e19b5c00b99abc5277_2026-09-16T23:47:11",
+      "user_id": 7414,
+      "username": "SSHD-Rajni1",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_acae6e476c3546e19b5c00b99abc5277",
+      "legacy_batch_number": 12,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-16T23:47:11"
+    },
+    {
+      "event_id": "6740_ab_c258a6f8e9b046feb9e3b01aab360e11_2026-09-16T19:54:31",
+      "user_id": 6740,
+      "username": "SSHD-SlicerPS",
+      "canonical_user": "Priya",
+      "batch_id": "ab_c258a6f8e9b046feb9e3b01aab360e11",
+      "legacy_batch_number": 7,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-16T19:54:31"
+    },
+    {
+      "event_id": "11332_ab_649983fb68194b788b36771cb04383b6_2026-09-16T19:17:01",
+      "user_id": 11332,
+      "username": "SSHD-Gurharleen2",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_649983fb68194b788b36771cb04383b6",
+      "legacy_batch_number": 1,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-16T19:17:01"
+    },
+    {
+      "event_id": "6740_ab_47005236a5504b4da58c41e538ce5b51_2026-09-16T18:15:50",
+      "user_id": 6740,
+      "username": "SSHD-SlicerPS",
+      "canonical_user": "Priya",
+      "batch_id": "ab_47005236a5504b4da58c41e538ce5b51",
+      "legacy_batch_number": 8,
+      "reason": "Multiple actions recorded in a single clip. Every action should be recorded in a separate clip.",
+      "returned_at": "2026-09-16T18:15:50"
+    },
+    {
+      "event_id": "6740_ab_c258a6f8e9b046feb9e3b01aab360e11_2026-09-16T18:06:54",
+      "user_id": 6740,
+      "username": "SSHD-SlicerPS",
+      "canonical_user": "Priya",
+      "batch_id": "ab_c258a6f8e9b046feb9e3b01aab360e11",
+      "legacy_batch_number": 7,
+      "reason": "Multiple actions recorded in a single. Only touch is not a valid action. Also empty handed action recorded.",
+      "returned_at": "2026-09-16T18:06:54"
+    },
+    {
+      "event_id": "9386_ab_e679e2cbfe524da09ba5e7c059f624b4_2026-09-16T17:55:16",
+      "user_id": 9386,
+      "username": "SSHD-Priya1",
+      "canonical_user": "Priya",
+      "batch_id": "ab_e679e2cbfe524da09ba5e7c059f624b4",
+      "legacy_batch_number": 2,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-16T17:55:16"
+    },
+    {
+      "event_id": "9385_ab_257832777be847548c4d724222ad229b_2026-09-16T17:34:29",
+      "user_id": 9385,
+      "username": "SSHD-Rajni2",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_257832777be847548c4d724222ad229b",
+      "legacy_batch_number": 5,
+      "reason": "Missing action",
+      "returned_at": "2026-09-16T17:34:29"
+    },
+    {
+      "event_id": "9633_ab_4478197b3083498e97109220c060e4f2_2026-09-16T16:57:17",
+      "user_id": 9633,
+      "username": "SSHD-Riya5",
+      "canonical_user": "Riya",
+      "batch_id": "ab_4478197b3083498e97109220c060e4f2",
+      "legacy_batch_number": 4,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-16T16:57:17"
+    },
+    {
+      "event_id": "9633_ab_4478197b3083498e97109220c060e4f2_2026-09-16T15:33:39",
+      "user_id": 9633,
+      "username": "SSHD-Riya5",
+      "canonical_user": "Riya",
+      "batch_id": "ab_4478197b3083498e97109220c060e4f2",
+      "legacy_batch_number": 4,
+      "reason": "missing action",
+      "returned_at": "2026-09-16T15:33:39"
+    },
+    {
+      "event_id": "6736_ab_dcba7aec223c47628dd2c9ced1143132_2026-09-16T13:21:36",
+      "user_id": 6736,
+      "username": "SSHD- Slicnner21",
+      "canonical_user": "Komal",
+      "batch_id": "ab_dcba7aec223c47628dd2c9ced1143132",
+      "legacy_batch_number": 7,
+      "reason": "action",
+      "returned_at": "2026-09-16T13:21:36"
+    },
+    {
+      "event_id": "4207_ab_7ba36fc177034572800f7f0f0a6cefa8_2026-09-16T02:17:31",
+      "user_id": 4207,
+      "username": "SSHD-Rajni",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_7ba36fc177034572800f7f0f0a6cefa8",
+      "legacy_batch_number": 21,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-16T02:17:31"
+    },
+    {
+      "event_id": "6736_ab_dcba7aec223c47628dd2c9ced1143132_2026-09-15T22:39:36",
+      "user_id": 6736,
+      "username": "SSHD- Slicnner21",
+      "canonical_user": "Komal",
+      "batch_id": "ab_dcba7aec223c47628dd2c9ced1143132",
+      "legacy_batch_number": 7,
+      "reason": "Missing Action",
+      "returned_at": "2026-09-15T22:39:36"
+    },
+    {
+      "event_id": "4912_ab_ae74a946d8624773b38d3bdd2c51d1cb_2026-09-15T22:33:58",
+      "user_id": 4912,
+      "username": "SSHD-Adi",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_ae74a946d8624773b38d3bdd2c51d1cb",
+      "legacy_batch_number": 16,
+      "reason": "If there is no hand action, you don't need to segment that portion, \nDo not create segments for phone use or laptop use.",
+      "returned_at": "2026-09-15T22:33:58"
+    },
+    {
+      "event_id": "6896_ab_150b5568b4b043bdac97af6b022c7fd1_2026-09-15T22:29:03",
+      "user_id": 6896,
+      "username": "SSHD- Ranzo2",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_150b5568b4b043bdac97af6b022c7fd1",
+      "legacy_batch_number": 12,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-15T22:29:03"
+    },
+    {
+      "event_id": "6728_ab_81cc6dcbeba3419f93e13c116457cc9d_2026-09-15T21:58:17",
+      "user_id": 6728,
+      "username": "SSHD-Slicer8nk",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_81cc6dcbeba3419f93e13c116457cc9d",
+      "legacy_batch_number": 5,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-15T21:58:17"
+    },
+    {
+      "event_id": "4826_ab_58c8bdda6f1b406b8c4fc75e53383927_2026-09-15T20:59:32",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_58c8bdda6f1b406b8c4fc75e53383927",
+      "legacy_batch_number": 20,
+      "reason": "If there is no hand action , dont need to clip.",
+      "returned_at": "2026-09-15T20:59:32"
+    },
+    {
+      "event_id": "4912_ab_ae74a946d8624773b38d3bdd2c51d1cb_2026-09-15T20:15:20",
+      "user_id": 4912,
+      "username": "SSHD-Adi",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_ae74a946d8624773b38d3bdd2c51d1cb",
+      "legacy_batch_number": 16,
+      "reason": "Task Error was marked, but valid clips are present in the video. Please review the video and process the valid portions instead of marking the entire task as an error. If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-15T20:15:20"
+    },
+    {
+      "event_id": "4826_ab_58c8bdda6f1b406b8c4fc75e53383927_2026-09-15T20:03:53",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_58c8bdda6f1b406b8c4fc75e53383927",
+      "legacy_batch_number": 20,
+      "reason": "action missing",
+      "returned_at": "2026-09-15T20:03:53"
+    },
+    {
+      "event_id": "6740_ab_47005236a5504b4da58c41e538ce5b51_2026-09-15T19:14:28",
+      "user_id": 6740,
+      "username": "SSHD-SlicerPS",
+      "canonical_user": "Priya",
+      "batch_id": "ab_47005236a5504b4da58c41e538ce5b51",
+      "legacy_batch_number": 8,
+      "reason": "Fail",
+      "returned_at": "2026-09-15T19:14:28"
+    },
+    {
+      "event_id": "6728_ab_81cc6dcbeba3419f93e13c116457cc9d_2026-09-15T03:25:11",
+      "user_id": 6728,
+      "username": "SSHD-Slicer8nk",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_81cc6dcbeba3419f93e13c116457cc9d",
+      "legacy_batch_number": 5,
+      "reason": "1. Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\n2. If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-15T03:25:11"
+    },
+    {
+      "event_id": "6896_ab_d30b376c29014f90b54d9258c9f99b7f_2026-09-14T22:15:53",
+      "user_id": 6896,
+      "username": "SSHD- Ranzo2",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_d30b376c29014f90b54d9258c9f99b7f",
+      "legacy_batch_number": 10,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-14T22:15:53"
+    },
+    {
+      "event_id": "6896_ab_d30b376c29014f90b54d9258c9f99b7f_2026-09-14T19:20:27",
+      "user_id": 6896,
+      "username": "SSHD- Ranzo2",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_d30b376c29014f90b54d9258c9f99b7f",
+      "legacy_batch_number": 10,
+      "reason": "If there is no hand action, you don't need to segment that portion\nmissing action",
+      "returned_at": "2026-09-14T19:20:27"
+    },
+    {
+      "event_id": "6740_ab_c258a6f8e9b046feb9e3b01aab360e11_2026-09-13T15:34:19",
+      "user_id": 6740,
+      "username": "SSHD-SlicerPS",
+      "canonical_user": "Priya",
+      "batch_id": "ab_c258a6f8e9b046feb9e3b01aab360e11",
+      "legacy_batch_number": 7,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-13T15:34:19"
+    },
+    {
+      "event_id": "7413_ab_78a3f8231ab248d2b7bf4f993e5ef3aa_2026-09-11T12:47:09",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_78a3f8231ab248d2b7bf4f993e5ef3aa",
+      "legacy_batch_number": 9,
+      "reason": "This video contains green/black flickering throughout, so it should be marked as an error task. No segments should be created.",
+      "returned_at": "2026-09-11T12:47:09"
+    },
+    {
+      "event_id": "7413_ab_78a3f8231ab248d2b7bf4f993e5ef3aa_2026-09-10T21:09:30",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_78a3f8231ab248d2b7bf4f993e5ef3aa",
+      "legacy_batch_number": 9,
+      "reason": "action missing",
+      "returned_at": "2026-09-10T21:09:30"
+    },
+    {
+      "event_id": "7413_ab_78a3f8231ab248d2b7bf4f993e5ef3aa_2026-09-10T18:00:27",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_78a3f8231ab248d2b7bf4f993e5ef3aa",
+      "legacy_batch_number": 9,
+      "reason": "Missing Action\nLeave the error video empty",
+      "returned_at": "2026-09-10T18:00:27"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-10T01:52:15",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "Multiple actions.  Hand must be visible at the start and at the end.",
+      "returned_at": "2026-09-10T01:52:15"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-08T15:12:36",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "error video reject",
+      "returned_at": "2026-09-08T15:12:36"
+    },
+    {
+      "event_id": "6530_ab_927607c780084ea080ffcfc023538b05_2026-09-08T01:07:09",
+      "user_id": 6530,
+      "username": "SSHD-Riya",
+      "canonical_user": "Riya",
+      "batch_id": "ab_927607c780084ea080ffcfc023538b05",
+      "legacy_batch_number": 7,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-08T01:07:09"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-08T00:48:00",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-08T00:48:00"
+    },
+    {
+      "event_id": "6530_ab_927607c780084ea080ffcfc023538b05_2026-09-07T19:10:27",
+      "user_id": 6530,
+      "username": "SSHD-Riya",
+      "canonical_user": "Riya",
+      "batch_id": "ab_927607c780084ea080ffcfc023538b05",
+      "legacy_batch_number": 7,
+      "reason": "When screen flickering occurs, segmentation shall be performed by skipping the position where the flickering appears, and under no circumstances shall the flickering part be included in the segmented content.\nIf there is no hand action, you",
+      "returned_at": "2026-09-07T19:10:27"
+    },
+    {
+      "event_id": "5061_ab_6d13a9bde88949a6aaba8ad8c1ecb6bd_2026-09-07T17:31:16",
+      "user_id": 5061,
+      "username": "SSHD-Slicer3",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_6d13a9bde88949a6aaba8ad8c1ecb6bd",
+      "legacy_batch_number": 7,
+      "reason": "Empty handed action recorded. Only touch is not an action.",
+      "returned_at": "2026-09-07T17:31:16"
+    },
+    {
+      "event_id": "6530_ab_927607c780084ea080ffcfc023538b05_2026-09-07T15:16:56",
+      "user_id": 6530,
+      "username": "SSHD-Riya",
+      "canonical_user": "Riya",
+      "batch_id": "ab_927607c780084ea080ffcfc023538b05",
+      "legacy_batch_number": 7,
+      "reason": "Missing action",
+      "returned_at": "2026-09-07T15:16:56"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-07T14:53:53",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "Task Error was marked, but valid clips are present in the video. Please review the video and process the valid portions instead of marking the entire task as an error.",
+      "returned_at": "2026-09-07T14:53:53"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-07T13:54:47",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "Action missing.",
+      "returned_at": "2026-09-07T13:54:47"
+    },
+    {
+      "event_id": "6737_ab_a78516f295a64069826c07203b29f98f_2026-09-03T22:20:51",
+      "user_id": 6737,
+      "username": "SSHD-Slicer9",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_a78516f295a64069826c07203b29f98f",
+      "legacy_batch_number": 6,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\nmissing action",
+      "returned_at": "2026-09-03T22:20:51"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-03T21:54:33",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\nWhen screen flickering occurs, segmentation shall be performed by skipping the position where the flickering appears, and under no",
+      "returned_at": "2026-09-03T21:54:33"
+    },
+    {
+      "event_id": "6737_ab_a78516f295a64069826c07203b29f98f_2026-09-03T21:24:00",
+      "user_id": 6737,
+      "username": "SSHD-Slicer9",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_a78516f295a64069826c07203b29f98f",
+      "legacy_batch_number": 6,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\nmissing action",
+      "returned_at": "2026-09-03T21:24:00"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-03T20:53:22",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "Action missing",
+      "returned_at": "2026-09-03T20:53:22"
+    },
+    {
+      "event_id": "863_ab_cbf42270ea77473699080f24963fb537_2026-09-03T19:53:53",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_cbf42270ea77473699080f24963fb537",
+      "legacy_batch_number": 20,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-03T19:53:53"
+    },
+    {
+      "event_id": "863_ab_4113d0c6a0904fbbbe8100196e70309f_2026-08-13T17:28:51",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_4113d0c6a0904fbbbe8100196e70309f",
+      "legacy_batch_number": 9,
+      "reason": "All quality parameters met requirements.",
+      "returned_at": "2026-08-13T17:28:51"
+    },
+    {
+      "event_id": "863_ab_4113d0c6a0904fbbbe8100196e70309f_2026-08-13T16:14:27",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_4113d0c6a0904fbbbe8100196e70309f",
+      "legacy_batch_number": 9,
+      "reason": "Please follow the required Hand + Action",
+      "returned_at": "2026-08-13T16:14:27"
+    },
+    {
+      "event_id": "4826_ab_139bb2cc90b84f658cf9d2818f8a9bb4_2026-08-12T16:29:53",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_139bb2cc90b84f658cf9d2818f8a9bb4",
+      "legacy_batch_number": 1,
+      "reason": "If there is no hand action, you don't need to segment that portion\nMultiple actions have been combined into a single clip. Each action should be segmented into a separate clip.\nThe actions were not identified correctly.",
+      "returned_at": "2026-08-12T16:29:53"
+    },
+    {
+      "event_id": "4826_ab_139bb2cc90b84f658cf9d2818f8a9bb4_2026-08-12T15:35:04",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_139bb2cc90b84f658cf9d2818f8a9bb4",
+      "legacy_batch_number": 1,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-08-12T15:35:04"
+    },
+    {
+      "event_id": "4826_ab_139bb2cc90b84f658cf9d2818f8a9bb4_2026-08-11T21:02:50",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_139bb2cc90b84f658cf9d2818f8a9bb4",
+      "legacy_batch_number": 1,
+      "reason": "Please follow the required Hand + Action + Object format.",
+      "returned_at": "2026-08-11T21:02:50"
+    },
+    {
+      "event_id": "863_ab_0b56d7e2fd4d42dda3b8c73d8f4ccd1a_2026-08-11T20:24:14",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_0b56d7e2fd4d42dda3b8c73d8f4ccd1a",
+      "legacy_batch_number": 8,
+      "reason": "Please follow the required Hand + Action + Object format.",
+      "returned_at": "2026-08-11T20:24:14"
+    },
+    {
+      "event_id": "863_ab_0b56d7e2fd4d42dda3b8c73d8f4ccd1a_2026-08-11T17:36:48",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_0b56d7e2fd4d42dda3b8c73d8f4ccd1a",
+      "legacy_batch_number": 8,
+      "reason": "action missing",
+      "returned_at": "2026-08-11T17:36:48"
+    },
+    {
+      "event_id": "863_ab_0b56d7e2fd4d42dda3b8c73d8f4ccd1a_2026-08-11T16:13:28",
+      "user_id": 863,
+      "username": "SSHD-Slicer1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_0b56d7e2fd4d42dda3b8c73d8f4ccd1a",
+      "legacy_batch_number": 8,
+      "reason": "action missing",
+      "returned_at": "2026-08-11T16:13:28"
+    },
+    {
+      "event_id": "809_ab_a6801b8fc18e437ca237ffb83f476dad_2026-07-20T17:49:58",
+      "user_id": 809,
+      "username": "SSHD-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_a6801b8fc18e437ca237ffb83f476dad",
+      "legacy_batch_number": 1,
+      "reason": "Missing Action , If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-07-20T17:49:58"
+    },
+    {
+      "event_id": "809_ab_a6801b8fc18e437ca237ffb83f476dad_2026-07-14T12:49:11",
+      "user_id": 809,
+      "username": "SSHD-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_a6801b8fc18e437ca237ffb83f476dad",
+      "legacy_batch_number": 1,
+      "reason": "Missing some points",
+      "returned_at": "2026-07-14T12:49:11"
+    }
+  ]
+}

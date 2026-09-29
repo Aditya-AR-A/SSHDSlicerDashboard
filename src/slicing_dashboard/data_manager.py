@@ -10,6 +10,7 @@ from slicing_dashboard.config import get_settings
 from slicing_dashboard.scraper.http_scraper import HTTPScraper
 
 
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -52,9 +53,20 @@ class DataManager:
         self._last_heartbeat_check: datetime | None = None
         self._snapshot_payload: dict = {}
 
+        # ── Persistent Batch Returns & Batches Master Tracking ───────
+        self._batch_returns_path = DATA_DIR / 'batch_returns_history.json'
+        self._batch_returns_cache: list[dict[str, Any]] = []
+        self._last_batch_returns_sync: datetime | None = None
+
+        self._batches_master_path = DATA_DIR / 'batches_master.json'
+        self._batches_master_cache: dict[str, dict[str, Any]] = {}
+        self._last_batches_sync: datetime | None = None
+
         # Always load master data and snapshot cache on startup
         self.load_data()
         self._load_snapshot()
+        self._load_batch_returns()
+        self._load_batches_master()
 
     def _load_snapshot(self) -> None:
         """Load cached snapshot from disk or database if available."""
@@ -86,6 +98,12 @@ class DataManager:
                 self._cache.update(snap["cache"])
             if "daily_cache" in snap and isinstance(snap["daily_cache"], dict):
                 self._daily_cache.update(snap["daily_cache"])
+            if "batches_master_records" in snap and isinstance(snap["batches_master_records"], list):
+                self._batches_master_cache = {
+                    b["batch_id"]: b for b in snap["batches_master_records"] if isinstance(b, dict) and b.get("batch_id")
+                }
+            if "batch_returns_records" in snap and isinstance(snap["batch_returns_records"], list):
+                self._batch_returns_cache = snap["batch_returns_records"]
             self.last_sync_time = snap.get("last_sync_time", self.last_sync_time)
 
     def _save_snapshot(self) -> None:
@@ -101,6 +119,8 @@ class DataManager:
                 "summary_kpis": self._snapshot_payload.get("summary_kpis", {}),
                 "user_breakdown_records": self._snapshot_payload.get("user_breakdown_records", []),
                 "available_users": self._snapshot_payload.get("available_users", []),
+                "batch_returns_records": self._batch_returns_cache,
+                "batches_master_records": list(self._batches_master_cache.values()),
             }
             self._snapshot_payload = payload
 
@@ -584,29 +604,313 @@ class DataManager:
         cumulative_pivot.index.name = 'Date'
         return cumulative_pivot.reset_index()
 
-    def get_batch_rework_ratio_df(self, start_date: str, end_date: str, force_refresh: bool = False) -> pd.DataFrame:
-        """Calculate the batch rework distribution across 0, 1, 2, 3, 4, 5+ reworks.
+    def _load_batch_returns(self) -> None:
+        """Load persistent batch return history from JSON dataset or snapshot cache."""
+        records = []
+        for p in [self._batch_returns_path, Path("/tmp/batch_returns_history.json")]:
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, dict) and "records" in data:
+                            records = data["records"]
+                        elif isinstance(data, list):
+                            records = data
+                        if records:
+                            break
+                except Exception:
+                    pass
+
+        if not records and "batch_returns_records" in self._snapshot_payload:
+            records = self._snapshot_payload.get("batch_returns_records", [])
+
+        self._batch_returns_cache = records
+
+    def _save_batch_returns(self, records: list[dict[str, Any]]) -> None:
+        """Persist batch return history dataset to disk and snapshot cache."""
+        self._batch_returns_cache = records
+        self._snapshot_payload["batch_returns_records"] = records
+        payload = {
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "total_records": len(records),
+            "records": records,
+        }
+        for target in [self._batch_returns_path, Path("/tmp/batch_returns_history.json")]:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with open(target, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                break
+            except Exception:
+                continue
+
+    def sync_batch_returns(self, force_refresh: bool = False) -> list[dict[str, Any]]:
+        """Sync live batch return history from upstream API and merge into persistent dataset.
         
-        Calculates realistic batch counts evaluating each individual work account / batch unit,
-        so users with multiple accounts (e.g. Akash 1 N, SSHD-Akash, SSHD-Akash2) have their 
-        reworked batches properly reflected without getting rounded away.
+        Uses an append-only merge strategy so historical batch return data is permanently
+        preserved even if upstream endpoints purge older history.
+        """
+        now = datetime.now()
+        if not force_refresh and self._batch_returns_cache:
+            if not self.server_is_live:
+                return self._batch_returns_cache
+            if self._last_batch_returns_sync and (now - self._last_batch_returns_sync).total_seconds() < 120:
+                return self._batch_returns_cache
+
+        try:
+            if not self.scraper.is_authenticated:
+                if not self.scraper.login():
+                    return self._batch_returns_cache
+
+            if not self.scraper._users:
+                self.scraper._fetch_users()
+
+            url = f"{self.scraper._base_url}/api/requests/batch-return-history"
+            existing_map = {r.get("event_id"): r for r in self._batch_returns_cache if r.get("event_id")}
+
+            def fetch_user_returns(u_tuple):
+                uid, uinfo = u_tuple
+                uname = uinfo.get("username", "") if isinstance(uinfo, dict) else str(uinfo)
+                canonical = self._get_canonical_name(uid, uname)
+                if canonical in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]:
+                    return []
+                try:
+                    r = self.scraper._client.get(
+                        url,
+                        params={"workflow_type": "slice", "limit": 100},
+                        headers={"x-user-id": str(uid)},
+                        timeout=4.0,
+                    )
+                    if r.status_code == 200:
+                        items = r.json().get("data", [])
+                        user_records = []
+                        for it in items:
+                            b_id = str(it.get("batch_id", "") or "")
+                            ret_at = str(it.get("returned_at", "") or "")
+                            leg_b = it.get("legacy_batch_number")
+                            reas = str(it.get("reason", "") or "")
+                            evt_id = f"{uid}_{b_id}_{ret_at}"
+                            user_records.append({
+                                "event_id": evt_id,
+                                "user_id": uid,
+                                "username": uname,
+                                "canonical_user": canonical,
+                                "batch_id": b_id,
+                                "legacy_batch_number": leg_b,
+                                "reason": reas,
+                                "returned_at": ret_at,
+                            })
+                        return user_records
+                except Exception:
+                    return []
+                return []
+
+            users_list = list(self.scraper._users.items())
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                results = executor.map(fetch_user_returns, users_list)
+                for res in results:
+                    for rec in res:
+                        existing_map[rec["event_id"]] = rec
+
+            merged_records = list(existing_map.values())
+            merged_records.sort(key=lambda x: x.get("returned_at", ""), reverse=True)
+            self._save_batch_returns(merged_records)
+            self._last_batch_returns_sync = now
+            return merged_records
+        except Exception as e:
+            print(f"Warning: Failed to sync batch return history: {e}")
+            return self._batch_returns_cache
+
+    def _load_batches_master(self) -> None:
+        """Load persistent batches master ledger from JSON dataset or snapshot cache."""
+        records = []
+        for p in [self._batches_master_path, Path("/tmp/batches_master.json")]:
+            if p.exists():
+                try:
+                    with open(p, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                        if isinstance(data, dict) and "batches" in data:
+                            records = data["batches"]
+                        elif isinstance(data, list):
+                            records = data
+                        if records:
+                            break
+                except Exception:
+                    pass
+
+        if not records and "batches_master_records" in self._snapshot_payload:
+            records = self._snapshot_payload.get("batches_master_records", [])
+
+        self._batches_master_cache = {
+            b["batch_id"]: b for b in records if isinstance(b, dict) and b.get("batch_id")
+        }
+
+    def _save_batches_master(self, batches_dict: dict[str, dict[str, Any]]) -> None:
+        """Persist batches master ledger to disk and snapshot cache."""
+        self._batches_master_cache = batches_dict
+        batches_list = list(batches_dict.values())
+        batches_list.sort(key=lambda x: (x.get("batch_date", ""), x.get("batch_id", "")))
+        self._snapshot_payload["batches_master_records"] = batches_list
+
+        payload = {
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "total_batches": len(batches_list),
+            "batches": batches_list,
+        }
+        for target in [self._batches_master_path, Path("/tmp/batches_master.json")]:
+            try:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with open(target, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2, ensure_ascii=False)
+                break
+            except Exception:
+                continue
+
+    def sync_batches_master(
+        self, start_date: str, end_date: str, force_refresh: bool = False
+    ) -> dict[str, dict[str, Any]]:
+        """Sync ground-truth batches from upstream API incrementally into persistent master ledger.
+        
+        Uses an append-only merge strategy with exact durations and return counts so historical
+        batches are permanently preserved even if upstream endpoints purge older history.
+        """
+        now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        if not force_refresh and self._batches_master_cache:
+            if not self.server_is_live:
+                return self._batches_master_cache
+            if self._last_batches_sync and (now - self._last_batches_sync).total_seconds() < 60:
+                return self._batches_master_cache
+
+        try:
+            if not self.scraper.is_authenticated:
+                if not self.scraper.login():
+                    return self._batches_master_cache
+
+            if not self.scraper._users:
+                self.scraper._fetch_users()
+
+            # Ensure batch return history is up-to-date to join return counts
+            returns = self.sync_batch_returns(force_refresh=force_refresh)
+            returns_by_batch_id = defaultdict(int)
+            for r in returns:
+                bid = r.get("batch_id")
+                if bid:
+                    returns_by_batch_id[bid] += 1
+
+            # Determine which dates in [start_date, end_date] require fetching
+            from datetime import datetime as dt_cls
+            fmt = "%Y-%m-%d"
+            s_dt = dt_cls.strptime(start_date, fmt)
+            e_dt = dt_cls.strptime(end_date, fmt)
+
+            cached_dates = set()
+            for b in self._batches_master_cache.values():
+                d = b.get("batch_date")
+                if d:
+                    cached_dates.add(d)
+
+            dates_to_fetch = []
+            cur = s_dt
+            while cur <= e_dt:
+                d_str = cur.strftime(fmt)
+                # Always refresh recent active days (today, yesterday) or any date not yet cached
+                if force_refresh or d_str in [today_str, yesterday_str] or d_str not in cached_dates:
+                    dates_to_fetch.append(d_str)
+                cur += timedelta(days=1)
+
+            if not dates_to_fetch:
+                return self._batches_master_cache
+
+            def fetch_day_batches(day_str):
+                try:
+                    r = self.scraper._client.get(
+                        f"{self.scraper._base_url}/api/dashboard/batches",
+                        params={"start_date": day_str, "end_date": day_str, "workflow_type": "slice"},
+                        timeout=8.0,
+                    )
+                    if r.status_code == 200:
+                        return day_str, r.json().get("breakdowns", {}).get("batches", [])
+                except Exception as e:
+                    print(f"Error fetching batches for {day_str}: {e}")
+                return day_str, []
+
+            with ThreadPoolExecutor(max_workers=min(10, max(1, len(dates_to_fetch)))) as ex:
+                results = list(ex.map(fetch_day_batches, dates_to_fetch))
+
+            now_str = now.strftime("%Y-%m-%d %H:%M:%S")
+            updated = False
+            for day_str, b_list in results:
+                for b in b_list:
+                    bid = b.get("batch_id")
+                    if not bid:
+                        continue
+                    uid = b.get("assignee_id")
+                    uinfo = self.scraper._users.get(uid, {}) if hasattr(self.scraper, "_users") else {}
+                    uname = uinfo.get("username", "") if isinstance(uinfo, dict) else str(uinfo)
+                    canon = self._get_canonical_name(uid, uname)
+
+                    dur_sec = float(b.get("total_duration_seconds", 0.0) or 0.0)
+                    dur_hrs = round(dur_sec / 3600.0, 4)
+                    ret_cnt = returns_by_batch_id.get(bid, 0)
+
+                    self._batches_master_cache[bid] = {
+                        "batch_id": bid,
+                        "batch_date": day_str,
+                        "assignee_id": uid,
+                        "username": uname,
+                        "canonical_user": canon,
+                        "status": b.get("status", ""),
+                        "total_duration_seconds": dur_sec,
+                        "duration_hours": dur_hrs,
+                        "task_count": int(b.get("task_count", 0) or 0),
+                        "production_task_count": int(b.get("production_task_count", 0) or 0),
+                        "benchmark_count": int(b.get("benchmark_count", 0) or 0),
+                        "completed_count": int(b.get("completed_count", 0) or 0),
+                        "rework_count": int(b.get("rework_count", 0) or 0),
+                        "pending_review_count": int(b.get("pending_review_count", 0) or 0),
+                        "return_count": ret_cnt,
+                        "last_updated": now_str,
+                    }
+                    updated = True
+
+            if updated or force_refresh:
+                self._save_batches_master(self._batches_master_cache)
+                self._last_batches_sync = now
+
+            return self._batches_master_cache
+        except Exception as e:
+            print(f"Warning: Failed to sync batches master: {e}")
+            return self._batches_master_cache
+
+    def get_batch_rework_ratio_df(self, start_date: str, end_date: str, force_refresh: bool = False) -> pd.DataFrame:
+        """Calculate verified batch rework distribution across 0, 1, 2, 3, 4, 5+ reworks.
+        
+        Combines exact batch entities and counts from persistent batches master ledger
+        with true completed/rework hours from the annotator efficiency API.
         """
         try:
-            _, items = self.fetch_annotator_efficiency(start_date, end_date, role=2, force_refresh=force_refresh)
-            
-            # Map known unique batches per raw slicer account from master data
-            raw_batches: dict[str, int] = {}
-            if self._data is not None and not self._data.empty and "slice_batch" in self._data.columns:
-                mdf = self._data
-                mask = pd.Series(True, index=mdf.index)
-                if "completed_date" in mdf.columns and start_date:
-                    mask = mask & (mdf["completed_date"] >= start_date)
-                if "completed_date" in mdf.columns and end_date:
-                    mask = mask & (mdf["completed_date"] <= end_date)
-                
-                date_mdf = mdf[mask]
-                if not date_mdf.empty:
-                    raw_batches = date_mdf.groupby("slicer")["slice_batch"].nunique().to_dict()
+            self.sync_batches_master(start_date, end_date, force_refresh=force_refresh)
+            summary, items = self.fetch_annotator_efficiency(start_date, end_date, role=2, force_refresh=force_refresh)
+
+            batches = list(self._batches_master_cache.values())
+            filtered = [
+                b for b in batches
+                if start_date <= b.get("batch_date", "") <= end_date
+                and b.get("canonical_user") not in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]
+            ]
+
+            raw_batches: dict[str, int] = defaultdict(int)
+            batch_returns_by_canon: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
+            for b in filtered:
+                u = b.get("username", "")
+                canon = b.get("canonical_user", "")
+                raw_batches[u] += 1
+                rc = b.get("return_count", 0)
+                if rc > 0:
+                    batch_returns_by_canon[canon][min(5, rc)] += 1
 
             def classify_ratio(r: float) -> int:
                 if r == 0:
@@ -624,59 +928,94 @@ class DataManager:
 
             user_results: dict[str, dict[str, Any]] = {}
             for it in items:
-                raw_u = it.get('username', '')
-                canonical = self._get_canonical_name(it.get('user_id'), raw_u)
-                
-                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                raw_u = it.get("username", "")
+                canonical = self._get_canonical_name(it.get("user_id"), raw_u)
+                if canonical in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]:
                     continue
-                    
-                comp = int(it.get('completed_count', 0) or 0)
-                rew = int(it.get('rework_count', 0) or 0)
-                if comp == 0 and rew == 0:
-                    continue
-                    
-                if canonical not in user_results:
-                    user_results[canonical] = {'tiers': [0] * 6, 'total_batches': 0}
-                    
+                comp = int(it.get("completed_count", 0) or 0)
+                rew = int(it.get("rework_count", 0) or 0)
+                comp_dur = float(it.get("completed_duration_seconds", 0) or 0.0)
+
                 b = raw_batches.get(raw_u, 0)
+                if b <= 0 and comp <= 0 and rew <= 0:
+                    continue
                 if b <= 0:
                     b = max(1, int(round(comp / 200.0)))
-                    
-                user_results[canonical]['total_batches'] += b
-                
+
+                if canonical not in user_results:
+                    user_results[canonical] = {
+                        "tiers": [0] * 6,
+                        "total_batches": 0,
+                        "comp_sec": 0.0,
+                    }
+                user_results[canonical]["total_batches"] += b
+                user_results[canonical]["comp_sec"] += comp_dur
+
                 if rew == 0:
-                    user_results[canonical]['tiers'][0] += b
+                    user_results[canonical]["tiers"][0] += b
                 elif b == 1:
                     t = classify_ratio(rew / max(comp, 1))
-                    user_results[canonical]['tiers'][t] += 1
+                    user_results[canonical]["tiers"][t] += 1
                 else:
                     r = rew / max(comp, 1)
-                    clean_b = max(0, int(round(b * max(0.15, 1.0 - r))))
-                    if r < 0.2:
-                        clean_b = max(clean_b, b - 1)
+                    clean_frac = max(0.0, 1.0 - r)
+                    clean_b = int(round(b * clean_frac))
                     clean_b = min(clean_b, b - 1)
-                    user_results[canonical]['tiers'][0] += clean_b
+                    user_results[canonical]["tiers"][0] += clean_b
                     rem_b = b - clean_b
                     t = classify_ratio(r)
-                    user_results[canonical]['tiers'][t] += rem_b
+                    user_results[canonical]["tiers"][t] += rem_b
+
+            # Incorporate known multi-return batches from batches master
+            for u, res in user_results.items():
+                known_ret = batch_returns_by_canon.get(u, {})
+                for tier_idx in range(5, 1, -1):
+                    k_cnt = known_ret.get(tier_idx, 0)
+                    if k_cnt > res["tiers"][tier_idx]:
+                        needed = k_cnt - res["tiers"][tier_idx]
+                        for donor_idx in [tier_idx - 1, 1, 0]:
+                            if donor_idx < 0:
+                                break
+                            avail = res["tiers"][donor_idx]
+                            take = min(needed, avail)
+                            res["tiers"][donor_idx] -= take
+                            res["tiers"][tier_idx] += take
+                            needed -= take
+                            if needed == 0:
+                                break
+
+            # If any canonical user in filtered batches was not in items
+            for b in filtered:
+                u = b.get("canonical_user")
+                if u and u not in user_results:
+                    user_results[u] = {
+                        "tiers": [1, 0, 0, 0, 0, 0],
+                        "total_batches": 1,
+                        "comp_sec": b.get("total_duration_seconds", 0.0),
+                    }
 
             records = []
-            for user, data in sorted(user_results.items()):
-                t = data['tiers']
+            for u, d in sorted(user_results.items()):
+                tot_b = d["total_batches"]
+                dur_hrs = round(d["comp_sec"] / 3600.0, 2)
+                avg_hrs = round(dur_hrs / max(1, tot_b), 2)
+                t = d["tiers"]
                 records.append({
-                    "User": user,
+                    "User": u,
                     "No Rework": t[0],
                     "1 Rework": t[1],
                     "2 Reworks": t[2],
                     "3 Reworks": t[3],
                     "4 Reworks": t[4],
                     "5+ Reworks": t[5],
-                    "Total Batches": data['total_batches'],
+                    "Total Batches": tot_b,
+                    "Total Duration (hrs)": dur_hrs,
+                    "Avg Batch Duration (hrs)": avg_hrs,
                 })
-                
+
             return pd.DataFrame(records)
-            
-        except Exception:
+        except Exception as e:
+            print(f"Error in get_batch_rework_ratio_df: {e}")
             return pd.DataFrame()
 
     def get_todays_work_df(self, target_date: (str | None)=None,

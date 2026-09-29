@@ -25,6 +25,7 @@ dependencies = [
     "sqlalchemy>=2.0.52",
     "psycopg2-binary>=2.9.12",
     "matplotlib>=3.11.1",
+    "pymongo>=4.18.2",
 ]
 
 [project.optional-dependencies]
