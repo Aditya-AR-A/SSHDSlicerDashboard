@@ -22,21 +22,39 @@ class DataManager:
         self.scraper = HTTPScraper(self.settings)
         self._cache = {}
         self._daily_cache = {}
-        mapping_path = Path(self.settings.user_mapping_path)
-        if not mapping_path.is_absolute():
-            from slicing_dashboard.config import PROJECT_ROOT
-            mapping_path = PROJECT_ROOT / self.settings.user_mapping_path
-        if mapping_path.exists():
-            with open(mapping_path) as f:
-                self.user_mapping = json.load(f)
-        else:
-            self.user_mapping = {}
+        from slicing_dashboard.db import DatabaseManager
+        self.db = DatabaseManager()
+        
+        # Load user mappings from MongoDB
+        db_mappings = self.db.load_user_mappings()
+        self.user_mapping_full = {m['id']: m for m in db_mappings}
+        self.user_mapping = {m['id']: m['mapped_user'] for m in db_mappings}
+        self.exempt_ids = {m['id'] for m in db_mappings if m.get('mapping_type') == 'Exempt'}
+        
+        if not self.user_mapping:
+            mapping_path = Path(self.settings.user_mapping_path)
+            if not mapping_path.is_absolute():
+                from slicing_dashboard.config import PROJECT_ROOT
+                mapping_path = PROJECT_ROOT / self.settings.user_mapping_path
+            if mapping_path.exists():
+                with open(mapping_path) as f:
+                    self.user_mapping = json.load(f)
+                    self.user_mapping_full = {k: {'id': k, 'mapped_user': v, 'mapping_type': 'Existing'} for k, v in self.user_mapping.items()}
+            else:
+                self.user_mapping = {}
+                self.user_mapping_full = {}
 
+        # Load settlement periods from MongoDB
+        self.settlement_periods = self.db.load_settlement_periods()
+        
         from slicing_dashboard.config import PROJECT_ROOT, DATA_DIR
-        settlement_path = PROJECT_ROOT / 'config' / 'settlement_history.json'
-        if settlement_path.exists():
-            with open(settlement_path) as f:
-                self.settlement_history = json.load(f)
+        if not self.settlement_periods:
+            settlement_path = PROJECT_ROOT / 'config' / 'settlement_history.json'
+            if settlement_path.exists():
+                with open(settlement_path) as f:
+                    self.settlement_history = json.load(f)
+            else:
+                self.settlement_history = {}
         else:
             self.settlement_history = {}
 
@@ -216,10 +234,66 @@ class DataManager:
 
     def _get_canonical_name(self, uid: int, username: str) -> str:
         u_str = str(username) if username is not None else ""
+        if u_str in getattr(self, 'exempt_ids', set()):
+            return "Exempt"
         for k, v in self.user_mapping.items():
             if k.lower() == u_str.lower():
+                if v == "Exempt":
+                    return "Exempt"
                 return v
         return u_str
+
+    def get_unassigned_users(self, force_refresh: bool = False, force_refresh_users: bool = False, **kwargs) -> list[str]:
+        """Find all usernames/IDs that appear in API or batches or records but are not in user_mapping."""
+        force_refresh = force_refresh or force_refresh_users
+        candidates = set()
+
+        # 1. Scraper users from API
+        try:
+            if not self.scraper._users or force_refresh:
+                self.scraper._fetch_users(force=force_refresh)
+            for u in self.scraper._users.values():
+                uname = u.get("username")
+                gname = u.get("group_name")
+                if uname:
+                    if gname == "SSHD TECHNOLOGIES" or uname.upper().startswith("SSHD"):
+                        candidates.add(uname)
+        except Exception:
+            pass
+
+        # 2. Batches master cache
+        for b in self._batches_master_cache.values():
+            u = b.get("username")
+            if u:
+                candidates.add(u)
+
+        # 3. Snapshot cache
+        if hasattr(self, "_snapshot_payload") and isinstance(self._snapshot_payload, dict):
+            for b in self._snapshot_payload.get("batches_master_records", []):
+                u = b.get("username")
+                if u:
+                    candidates.add(u)
+            for rec in self._snapshot_payload.get("user_breakdown_records", []):
+                u = rec.get("User")
+                if u:
+                    candidates.add(u)
+
+        # 4. Local master CSV if present
+        if self._data is not None and not self._data.empty and "user_name" in self._data.columns:
+            for u in self._data["user_name"].dropna().unique():
+                candidates.add(str(u))
+
+        ignore_names = {"All Slicers", "TOTAL", "Admin", "Test", "Dep", "user-None", "", "(unassigned)", "None"}
+        ignore_names.update(self.user_mapping.values())
+        mapped_keys = set(self.user_mapping_full.keys())
+
+        unassigned = sorted([
+            u for u in candidates
+            if u not in ignore_names and u not in mapped_keys and not u.startswith("user-None")
+        ])
+        return unassigned
+
+
 
     def fetch_dashboard_data(self, start_date: str, end_date: str,
         force_refresh: bool=False) -> dict:
@@ -447,8 +521,13 @@ class DataManager:
                 comp_dur = st['Completed Duration']
                 subm_dur = st['Submitted Duration']
                 rew_dur = st['Rework Duration']
-                worked_dur = max(comp_dur, subm_dur)
+                worked_dur = max(comp_dur, subm_dur, st['Total Duration'], rew_dur)
                 new_work_dur = max(0.0, worked_dur - rew_dur)
+                tot_tasks = st['Completed Tasks'] + st['Submitted Tasks'] + st['Rework Count']
+                tot_dur = worked_dur
+                # Exclude users who have no work or rework recorded in this period
+                if tot_tasks <= 0 and tot_dur <= 0 and rew_dur <= 0:
+                    continue
                 records.append({
                     'User': user,
                     'Completed Tasks': st['Completed Tasks'],
@@ -456,7 +535,7 @@ class DataManager:
                     'Submitted Tasks': st['Submitted Tasks'],
                     'Submitted Duration': subm_dur,
                     'Error Count': st['Error Count'],
-                    'Total Duration': st['Total Duration'],
+                    'Total Duration': tot_dur,
                     'Rework Duration': rew_dur,
                     'Rework Count': st['Rework Count'],
                     'New Work Duration': new_work_dur,
@@ -672,7 +751,7 @@ class DataManager:
                 uid, uinfo = u_tuple
                 uname = uinfo.get("username", "") if isinstance(uinfo, dict) else str(uinfo)
                 canonical = self._get_canonical_name(uid, uname)
-                if canonical in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]:
+                if canonical in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]:
                     return []
                 try:
                     r = self.scraper._client.get(
@@ -896,107 +975,182 @@ class DataManager:
             summary, items = self.fetch_annotator_efficiency(start_date, end_date, role=2, force_refresh=force_refresh)
 
             batches = list(self._batches_master_cache.values())
+            
+            returns = self.sync_batch_returns(force_refresh=force_refresh)
+            range_returns = [
+                r for r in returns
+                if start_date <= str(r.get("returned_at", ""))[:10] <= end_date
+            ]
+            returns_in_range_by_batch = defaultdict(int)
+            for r in range_returns:
+                bid = r.get("batch_id")
+                if bid:
+                    returns_in_range_by_batch[bid] += 1
+
+            returned_batch_ids = set(returns_in_range_by_batch.keys())
+
+            def is_batch_submitted(b: dict) -> bool:
+                """Return True only if batch has been submitted or has work activity / return history."""
+                status = b.get("status", "")
+                if status == "batch_member_assigned":
+                    if (
+                        (b.get("completed_count", 0) or 0) > 0
+                        or (b.get("pending_review_count", 0) or 0) > 0
+                        or (b.get("return_count", 0) or 0) > 0
+                        or (b.get("rework_count", 0) or 0) > 0
+                        or b.get("batch_id") in returned_batch_ids
+                    ):
+                        return True
+                    return False
+                return True
+
             filtered = [
                 b for b in batches
-                if start_date <= b.get("batch_date", "") <= end_date
-                and b.get("canonical_user") not in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]
+                if (start_date <= b.get("batch_date", "") <= end_date or b.get("batch_id") in returned_batch_ids)
+                and b.get("canonical_user") not in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]
+                and is_batch_submitted(b)
             ]
 
-            raw_batches: dict[str, int] = defaultdict(int)
-            batch_returns_by_canon: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
-            for b in filtered:
-                u = b.get("username", "")
-                canon = b.get("canonical_user", "")
-                raw_batches[u] += 1
-                rc = b.get("return_count", 0)
-                if rc > 0:
-                    batch_returns_by_canon[canon][min(5, rc)] += 1
-
-            def classify_ratio(r: float) -> int:
-                if r == 0:
-                    return 0
-                elif r <= 0.25:
-                    return 1
-                elif r <= 0.50:
-                    return 2
-                elif r <= 0.75:
-                    return 3
-                elif r <= 1.00:
-                    return 4
-                else:
-                    return 5
-
             user_results: dict[str, dict[str, Any]] = {}
-            for it in items:
-                raw_u = it.get("username", "")
-                canonical = self._get_canonical_name(it.get("user_id"), raw_u)
-                if canonical in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)"]:
+            for b in filtered:
+                raw_u = b.get("username", "")
+                canon = b.get("canonical_user") or self._get_canonical_name(b.get("assignee_id", 0), raw_u)
+                if not canon or canon in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]:
                     continue
-                comp = int(it.get("completed_count", 0) or 0)
-                rew = int(it.get("rework_count", 0) or 0)
-                comp_dur = float(it.get("completed_duration_seconds", 0) or 0.0)
-
-                b = raw_batches.get(raw_u, 0)
-                if b <= 0 and comp <= 0 and rew <= 0:
-                    continue
-                if b <= 0:
-                    b = max(1, int(round(comp / 200.0)))
-
-                if canonical not in user_results:
-                    user_results[canonical] = {
+                if canon not in user_results:
+                    user_results[canon] = {
                         "tiers": [0] * 6,
                         "total_batches": 0,
                         "comp_sec": 0.0,
                     }
-                user_results[canonical]["total_batches"] += b
-                user_results[canonical]["comp_sec"] += comp_dur
+                user_results[canon]["total_batches"] += 1
+                user_results[canon]["comp_sec"] += float(b.get("total_duration_seconds", 0) or 0.0)
 
-                if rew == 0:
-                    user_results[canonical]["tiers"][0] += b
-                elif b == 1:
-                    t = classify_ratio(rew / max(comp, 1))
-                    user_results[canonical]["tiers"][t] += 1
-                else:
-                    r = rew / max(comp, 1)
-                    clean_frac = max(0.0, 1.0 - r)
-                    clean_b = int(round(b * clean_frac))
-                    clean_b = min(clean_b, b - 1)
-                    user_results[canonical]["tiers"][0] += clean_b
-                    rem_b = b - clean_b
-                    t = classify_ratio(r)
-                    user_results[canonical]["tiers"][t] += rem_b
+            # --- TRUE RETURN COUNT CALCULATION FROM LIVE BATCHES & RETURNS ---
+            used_csv = False
+            if filtered:
+                for b in filtered:
+                    canon = b.get("canonical_user") or self._get_canonical_name(b.get("assignee_id", 0), b.get("username", ""))
+                    if canon in user_results:
+                        bid = b.get("batch_id")
+                        if bid in returns_in_range_by_batch:
+                            rc = returns_in_range_by_batch[bid]
+                        elif returns:
+                            rc = 0
+                        else:
+                            rc = b.get("return_count", 0) or 0
+                        if rc == 0 and (b.get("rework_count", 0) or 0) > 0:
+                            rc = 1
+                        tier = min(5, max(0, int(rc)))
+                        user_results[canon]["tiers"][tier] += 1
+            else:
+                # Fallback to historical CSVs if no batches are found in master cache
+                try:
+                    from slicing_dashboard.config import PROJECT_ROOT
+                    sm_path = PROJECT_ROOT / 'data' / 'processed' / 'slicing_master.csv'
+                    tm_path = PROJECT_ROOT / 'data' / 'processed' / 'transitions_master.csv'
+                    if sm_path.exists() and tm_path.exists():
+                        sm = pd.read_csv(sm_path, usecols=['id', 'slice_batch', 'status_normalized', 'user_id', 'completed_date'])
+                        sm = sm[(sm['completed_date'].astype(str) >= start_date) & (sm['completed_date'].astype(str) <= end_date)]
+                        if not sm.empty:
+                            tm = pd.read_csv(tm_path, usecols=['task_id', 'type', 'date'])
+                            task_to_batch = sm.set_index('id')['slice_batch'].to_dict()
+                            task_to_user = sm.set_index('id')['user_id'].to_dict()
+                            batch_in_rework = {}
+                            batch_to_user = {}
+                            for _, row in sm.iterrows():
+                                sb = row['slice_batch']
+                                if not pd.isna(sb):
+                                    uid = row['user_id']
+                                    canon = self._get_canonical_name(0, uid) if pd.notna(uid) else None
+                                    if canon:
+                                        batch_to_user[sb] = canon
+                                    if row['status_normalized'] == 'slice_rework':
+                                        batch_in_rework[sb] = True
+                            
+                            batch_return_dates = defaultdict(set)
+                            for _, row in tm.iterrows():
+                                if row['type'] in ['leader_returned', 'auditor_returned', 'admin_returned']:
+                                    sb = task_to_batch.get(row['task_id'])
+                                    if sb is not None and not pd.isna(sb):
+                                        batch_return_dates[sb].add(str(row['date'])[:10])
+                                        
+                            true_user_tiers = defaultdict(lambda: [0]*6)
+                            for sb in sm['slice_batch'].dropna().unique():
+                                canon = batch_to_user.get(sb)
+                                if not canon or canon not in user_results: continue
+                                
+                                ret_count = len(batch_return_dates.get(sb, set()))
+                                if ret_count == 0 and batch_in_rework.get(sb):
+                                    ret_count = 1
+                                    
+                                if ret_count > 0:
+                                    tier = min(5, max(0, ret_count))
+                                    true_user_tiers[canon][tier] += 1
+                                    
+                            for canon, d in user_results.items():
+                                tiers = true_user_tiers.get(canon, [0]*6)
+                                total_returned_batches = sum(tiers[1:])
+                                tot = d["total_batches"]
+                                zero_reworks = max(0, tot - total_returned_batches)
+                                tiers[0] = zero_reworks
+                                user_results[canon]["tiers"] = tiers
+                            used_csv = True
+                except Exception as e:
+                    print(f"Failed to calculate true returns from CSV: {e}")
+            # --------------------------------------------------------
 
-            # Incorporate known multi-return batches from batches master
-            for u, res in user_results.items():
-                known_ret = batch_returns_by_canon.get(u, {})
-                for tier_idx in range(5, 1, -1):
-                    k_cnt = known_ret.get(tier_idx, 0)
-                    if k_cnt > res["tiers"][tier_idx]:
-                        needed = k_cnt - res["tiers"][tier_idx]
-                        for donor_idx in [tier_idx - 1, 1, 0]:
-                            if donor_idx < 0:
-                                break
-                            avail = res["tiers"][donor_idx]
-                            take = min(needed, avail)
-                            res["tiers"][donor_idx] -= take
-                            res["tiers"][tier_idx] += take
-                            needed -= take
-                            if needed == 0:
-                                break
+            # Incorporate verified completed/submitted duration and rework counts from efficiency API
+            user_eff_dur: dict[str, float] = defaultdict(float)
+            user_eff_rew: dict[str, int] = defaultdict(int)
+            for it in items:
+                raw_u = it.get("username", "")
+                canon = self._get_canonical_name(it.get("user_id"), raw_u)
+                if not canon or canon in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]:
+                    continue
+                comp_d = float(it.get("completed_duration_seconds", 0) or 0.0)
+                sub_d = float(it.get("submitted_duration_seconds", 0) or 0.0)
+                work_d = float(it.get("work_duration_seconds", 0) or 0.0)
+                rew_c = int(it.get("rework_count", 0) or 0)
+                user_eff_dur[canon] += max(comp_d, sub_d, work_d)
+                user_eff_rew[canon] += rew_c
 
-            # If any canonical user in filtered batches was not in items
-            for b in filtered:
-                u = b.get("canonical_user")
-                if u and u not in user_results:
-                    user_results[u] = {
-                        "tiers": [1, 0, 0, 0, 0, 0],
-                        "total_batches": 1,
-                        "comp_sec": b.get("total_duration_seconds", 0.0),
-                    }
+            # Also incorporate live rework
+            live_rework = self.get_live_rework_by_user()
+            for canon, lr in live_rework.items():
+                if canon not in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]:
+                    user_eff_rew[canon] += lr.get("count", 0)
+                    user_eff_dur[canon] = max(user_eff_dur[canon], lr.get("duration", 0.0))
+
+            for canon, dur in user_eff_dur.items():
+                if dur > 0 or user_eff_rew[canon] > 0:
+                    if canon in user_results:
+                        if dur > 0:
+                            user_results[canon]["comp_sec"] = max(user_results[canon]["comp_sec"], dur)
+                        # If user has known reworks but all batches are in tier 0 (No Rework), reflect reworks
+                        if user_eff_rew[canon] > 0 and sum(user_results[canon]["tiers"][1:]) == 0:
+                            user_results[canon]["tiers"][1] = 1
+                            user_results[canon]["tiers"][0] = max(0, user_results[canon]["total_batches"] - 1)
+                    else:
+                        # User worked but wasn't in filtered batches
+                        b_count = max(1, round(dur / 3600.0)) if dur > 0 else 1
+                        t = [0] * 6
+                        if user_eff_rew[canon] > 0:
+                            t[1] = 1
+                            t[0] = max(0, b_count - 1)
+                        else:
+                            t[0] = b_count
+                        user_results[canon] = {
+                            "tiers": t,
+                            "total_batches": b_count,
+                            "comp_sec": dur,
+                        }
 
             records = []
             for u, d in sorted(user_results.items()):
                 tot_b = d["total_batches"]
+                if tot_b <= 0:
+                    continue
                 dur_hrs = round(d["comp_sec"] / 3600.0, 2)
                 avg_hrs = round(dur_hrs / max(1, tot_b), 2)
                 t = d["tiers"]
@@ -1024,103 +1178,6 @@ class DataManager:
         if not target_date:
             target_date = datetime.now().strftime('%Y-%m-%d')
 
-        # 1. Fetch TRUE live counts from efficiency API first to avoid overcounting admin-updated tasks
-        canonical_eff = {}
-        try:
-            _, items = self.fetch_annotator_efficiency(
-                start_date=target_date, end_date=target_date, role=2, force_refresh=force_refresh
-            )
-            for it in items:
-                raw_u = it.get('username', '')
-                canonical = self._get_canonical_name(it.get('user_id'), raw_u)
-                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
-                    continue
-                sub_cnt = int(it.get('submitted_count', 0) or 0)
-                sub_dur = float(it.get('submitted_duration_seconds', 0) or 0.0)
-                comp_cnt = int(it.get('completed_count', 0) or 0)
-                comp_dur = float(it.get('completed_duration_seconds', 0) or 0.0)
-                day_cnt = max(sub_cnt, comp_cnt)
-                day_dur = max(sub_dur, comp_dur)
-                
-                if day_cnt > 0 or day_dur > 0:
-                    if canonical not in canonical_eff:
-                        canonical_eff[canonical] = {'tasks': 0, 'total_dur': 0.0}
-                    canonical_eff[canonical]['tasks'] += day_cnt
-                    canonical_eff[canonical]['total_dur'] += day_dur
-        except Exception as e:
-            print(f"Warning: Failed to fetch efficiency API for true counts: {e}")
-
-        # 2. Batch-First Live Classifier using return comments & video timestamps to get Rework %
-        try:
-            from slicing_dashboard.processing.batch_work_classifier import get_batch_work_classifier
-            from slicing_dashboard.extraction.parsers import format_duration
-            bwc = get_batch_work_classifier(scraper=self.scraper)
-            b_df = bwc.classify_and_aggregate_daily_work(
-                target_date=target_date, force_refresh=force_refresh
-            )
-            
-            records = []
-            users_processed = set()
-            
-            if not b_df.empty:
-                for _, r in b_df.iterrows():
-                    user = r['User']
-                    users_processed.add(user)
-                    
-                    # Use true counts from efficiency API if available, else fallback to batch classifier
-                    eff = canonical_eff.get(user, {'tasks': int(r['Total Tasks']), 'total_dur': float(r['Total Duration'])})
-                    true_tasks = eff['tasks']
-                    true_dur = eff['total_dur']
-                    
-                    if true_dur <= 0 and true_tasks <= 0:
-                        continue
-                        
-                    rework_pct = float(r.get('Rework Pct', 0.0))
-                    rework_dur = (rework_pct / 100.0) * true_dur
-                    new_dur = true_dur - rework_dur
-                    
-                    # Formatting duration to HH:MM:SS
-                    h = int(true_dur // 3600)
-                    m = int((true_dur % 3600) // 60)
-                    s = int(true_dur % 60)
-                    wh_str = f"{h:02d}:{m:02d}:{s:02d}"
-
-                    records.append({
-                        'User': user,
-                        'Total Tasks': true_tasks,
-                        'Total Duration': true_dur,
-                        'New Videos (First Time)': new_dur,
-                        'Reworks': rework_dur,
-                        'Working Hours Seconds': true_dur,
-                        'Working Hours': wh_str,
-                        'Rework %': f"{rework_pct}%",
-                    })
-            
-            # Add users who had true counts in efficiency API but were missed by batch classifier
-            for user, eff in canonical_eff.items():
-                if user not in users_processed and (eff['tasks'] > 0 or eff['total_dur'] > 0):
-                    true_dur = eff['total_dur']
-                    h = int(true_dur // 3600)
-                    m = int((true_dur % 3600) // 60)
-                    s = int(true_dur % 60)
-                    wh_str = f"{h:02d}:{m:02d}:{s:02d}"
-                    records.append({
-                        'User': user,
-                        'Total Tasks': eff['tasks'],
-                        'Total Duration': true_dur,
-                        'New Videos (First Time)': true_dur,
-                        'Reworks': 0.0,
-                        'Working Hours Seconds': true_dur,
-                        'Working Hours': wh_str,
-                        'Rework %': "0.0%",
-                    })
-                    
-            if records:
-                return pd.DataFrame(records)
-        except Exception as e:
-            print(f'Warning: BatchWorkClassifier failed: {e}. Falling back to efficiency API.')
-
-        # 2. Real-time API calculation directly from annotator efficiency endpoint
         try:
             summary, items = self.fetch_annotator_efficiency(
                 start_date=target_date,
@@ -1128,45 +1185,98 @@ class DataManager:
                 role=2,
                 force_refresh=force_refresh,
             )
-            canonical_stats: dict[str, dict[str, Any]] = {}
+            live_rework = self.get_live_rework_by_user()
+
+            user_stats: dict[str, dict[str, Any]] = {}
             for it in items:
                 raw_u = it.get('username', '')
                 canonical = self._get_canonical_name(it.get('user_id'), raw_u)
-                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
+                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)', 'Exempt']:
                     continue
-                sub_cnt = int(it.get('submitted_count', 0) or 0)
-                sub_dur = float(it.get('submitted_duration_seconds', 0) or 0.0)
-                comp_cnt = int(it.get('completed_count', 0) or 0)
-                comp_dur = float(it.get('completed_duration_seconds', 0) or 0.0)
-                rew_cnt = int(it.get('rework_count', 0) or 0)
-                rew_dur = float(it.get('rework_duration_seconds', 0) or 0.0)
+                if canonical not in user_stats:
+                    user_stats[canonical] = {
+                        'sub_cnt': 0, 'sub_dur': 0.0,
+                        'comp_cnt': 0, 'comp_dur': 0.0,
+                        'rew_cnt': 0, 'rew_dur': 0.0,
+                        'work_dur': 0.0,
+                        'raw_ids': set()
+                    }
+                user_stats[canonical]['sub_cnt'] += int(it.get('submitted_count', 0) or 0)
+                user_stats[canonical]['sub_dur'] += float(it.get('submitted_duration_seconds', 0.0) or 0.0)
+                user_stats[canonical]['comp_cnt'] += int(it.get('completed_count', 0) or 0)
+                user_stats[canonical]['comp_dur'] += float(it.get('completed_duration_seconds', 0.0) or 0.0)
+                user_stats[canonical]['rew_cnt'] += int(it.get('rework_count', 0) or 0)
+                user_stats[canonical]['rew_dur'] += float(it.get('rework_duration_seconds', 0.0) or 0.0)
+                user_stats[canonical]['work_dur'] += float(it.get('work_duration_seconds', 0.0) or 0.0)
+                if raw_u:
+                    user_stats[canonical]['raw_ids'].add(raw_u)
 
-                day_cnt = max(sub_cnt, comp_cnt)
-                day_dur = max(sub_dur, comp_dur)
-
-                if day_cnt > 0 or day_dur > 0 or rew_dur > 0:
-                    if canonical not in canonical_stats:
-                        canonical_stats[canonical] = {'tasks': 0, 'total_dur': 0.0, 'rework_dur': 0.0, 'raw_ids': set()}
-                    canonical_stats[canonical]['tasks'] += day_cnt
-                    canonical_stats[canonical]['total_dur'] += day_dur
-                    canonical_stats[canonical]['rework_dur'] += rew_dur
-                    if raw_u:
-                        canonical_stats[canonical]['raw_ids'].add(raw_u)
+            # Blend live in-progress rework tasks (status == 'slice_rework')
+            for canon, lr in live_rework.items():
+                if canon in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)', 'Exempt']:
+                    continue
+                if canon not in user_stats:
+                    user_stats[canon] = {
+                        'sub_cnt': 0, 'sub_dur': 0.0,
+                        'comp_cnt': 0, 'comp_dur': 0.0,
+                        'rew_cnt': lr.get('count', 0),
+                        'rew_dur': lr.get('duration', 0.0),
+                        'work_dur': 0.0,
+                        'raw_ids': set(),
+                        'live_rew_cnt': lr.get('count', 0),
+                        'live_rew_dur': lr.get('duration', 0.0)
+                    }
+                else:
+                    user_stats[canon]['live_rew_cnt'] = lr.get('count', 0)
+                    user_stats[canon]['live_rew_dur'] = lr.get('duration', 0.0)
 
             records = []
-            for user, st in sorted(canonical_stats.items()):
-                new_dur = max(st['total_dur'] - st['rework_dur'], 0.0)
-                raw_ids_list = list(st['raw_ids'])
+            for user, st in sorted(user_stats.items()):
+                sub_cnt = st['sub_cnt']
+                comp_cnt = st['comp_cnt']
+                sub_dur = st['sub_dur']
+                comp_dur = st['comp_dur']
+                work_dur = st['work_dur']
+                rew_dur = st['rew_dur']
+                rew_cnt = st['rew_cnt']
+                live_cnt = st.get('live_rew_cnt', 0)
+                live_dur = st.get('live_rew_dur', 0.0)
+
+                # Rework is the maximum of server efficiency rework duration and live rework duration
+                eff_rew_dur = max(rew_dur, live_dur)
+                eff_rew_cnt = max(rew_cnt, live_cnt)
+
+                # Total duration is max of submitted, completed, or actual work duration
+                # If rework duration is larger (in-progress rework), ensure total duration covers it
+                total_dur = max(sub_dur, comp_dur, work_dur, eff_rew_dur)
+                new_dur = max(0.0, total_dur - eff_rew_dur)
+                total_cnt = max(sub_cnt, comp_cnt, eff_rew_cnt)
+
+                if total_dur <= 0 and total_cnt <= 0:
+                    continue
+
+                h = int(total_dur // 3600)
+                m = int((total_dur % 3600) // 60)
+                s = int(total_dur % 60)
+                wh_str = f"{h:02d}:{m:02d}:{s:02d}"
+
+                rework_pct_val = (eff_rew_dur / total_dur * 100.0) if total_dur > 0 else 0.0
+
+                raw_ids_list = sorted(list(st['raw_ids']))
                 raw_id_str = raw_ids_list[0] if len(raw_ids_list) == 1 else (",".join(raw_ids_list) if raw_ids_list else "")
-                
+
                 records.append({
                     'User': user,
-                    'Total Tasks': st['tasks'],
-                    'Total Duration': st['total_dur'],
+                    'Total Tasks': total_cnt,
+                    'Total Duration': total_dur,
                     'New Videos (First Time)': new_dur,
-                    'Reworks': st['rework_dur'],
+                    'Reworks': eff_rew_dur,
+                    'Working Hours Seconds': total_dur,
+                    'Working Hours': wh_str,
+                    'Rework %': f"{rework_pct_val:.1f}%",
                     'RawID': raw_id_str,
                 })
+
             if records:
                 return pd.DataFrame(records)
             return pd.DataFrame()
@@ -1187,7 +1297,7 @@ class DataManager:
                     (df['completed_date'] == target_date) &
                     (df['status'].isin(post_submit_statuses))
                 ].copy()
-                submitted_today = submitted_today[~submitted_today['user_name'].isin(['Admin', 'Test', 'Dep', 'user-None', ''])]
+                submitted_today = submitted_today[~submitted_today['user_name'].isin(['Admin', 'Test', 'Dep', 'user-None', '', 'Exempt'])]
                 if not submitted_today.empty:
                     task_ids = submitted_today['id'].tolist()
                     rework_by_ids = set(submitted_today[submitted_today['rework_by'].fillna('') != '']['id'])
@@ -1302,10 +1412,12 @@ class DataManager:
             u_info = users_settlement.get(user, {})
             b1_hours = float(u_info.get('batch_jul1_aug7', {}).get('total_hours', 0.0) or 0.0)
             b2_hours = float(u_info.get('batch_aug8_aug31', {}).get('total_hours', 0.0) or 0.0)
+            b3_hours = float(u_info.get('batch_sep1_sep30', {}).get('total_hours', 0.0) or 0.0)
             total_settled_hours = float(u_info.get('total_settled', {}).get('total_hours', 0.0) or 0.0)
 
             b1_sec = b1_hours * 3600.0
             b2_sec = b2_hours * 3600.0
+            b3_sec = b3_hours * 3600.0
             total_settled_sec = total_settled_hours * 3600.0
 
             curr_work_sec = current_work_map.get(user, 0.0)
@@ -1315,7 +1427,8 @@ class DataManager:
                 'User': user,
                 'Jul 1 - Aug 7 (Paid)': b1_sec,
                 'Aug 8 - Aug 31 (Paid)': b2_sec,
-                'Total Settled (Aug 31)': total_settled_sec,
+                'Sep 1 - Sep 30 (Paid)': b3_sec,
+                'Total Settled (Sep 30)': total_settled_sec,
                 'Current Work (Unsettled)': curr_work_sec,
                 'Remaining Payable': remaining_sec,
             })
@@ -1330,35 +1443,47 @@ class DataManager:
             'User': 'TOTAL',
             'Jul 1 - Aug 7 (Paid)': df['Jul 1 - Aug 7 (Paid)'].sum(),
             'Aug 8 - Aug 31 (Paid)': df['Aug 8 - Aug 31 (Paid)'].sum(),
-            'Total Settled (Aug 31)': df['Total Settled (Aug 31)'].sum(),
+            'Sep 1 - Sep 30 (Paid)': df['Sep 1 - Sep 30 (Paid)'].sum(),
+            'Total Settled (Sep 30)': df['Total Settled (Sep 30)'].sum(),
             'Current Work (Unsettled)': df['Current Work (Unsettled)'].sum(),
             'Remaining Payable': df['Remaining Payable'].sum(),
         }
         df = pd.concat([df, pd.DataFrame([total_row])], ignore_index=True)
         return df
 
-    def get_settlement_periods(self) -> tuple[tuple[str, str], tuple[str, str]]:
-        """Calculate date ranges for (current_settlement_period, previous_settlement_period).
+    def get_available_periods(self) -> list[dict]:
+        """Return all settlement periods plus an ongoing one if applicable."""
+        periods = []
+        if hasattr(self, 'settlement_periods'):
+            periods = sorted(self.settlement_periods, key=lambda x: x['start_date'])
+        
+        # Add an ongoing period if the last one is settled and its end date is before today
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        if not periods:
+            periods.append({'start_date': '2026-09-01', 'end_date': today_str, 'settled': False, 'is_current': True})
+        else:
+            last_period = periods[-1]
+            if last_period.get('settled', False):
+                try:
+                    last_end_dt = datetime.strptime(last_period['end_date'], "%Y-%m-%d")
+                    ongoing_start = (last_end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+                    # Only add if ongoing_start <= today_str
+                    if ongoing_start <= today_str:
+                        periods.append({'start_date': ongoing_start, 'end_date': today_str, 'settled': False, 'is_current': True})
+                except Exception:
+                    pass
+            else:
+                last_period['is_current'] = True
 
-        Returns:
-            ((curr_start, curr_end), (prev_start, prev_end))
-        """
-        today = datetime.now()
-        today_str = today.strftime("%Y-%m-%d")
+        for p in periods:
+            if 'label' not in p:
+                status = "(Settled)" if p.get('settled') else "(Ongoing)"
+                if p.get('is_current'):
+                    status = "(Current)"
+                p['label'] = f"{p['start_date']} to {p['end_date']} {status}"
+                p['value'] = f"{p['start_date']}|{p['end_date']}"
 
-        settlement_date_str = self.settlement_history.get("settlement_date", "2026-08-31")
-        try:
-            settlement_dt = datetime.strptime(settlement_date_str, "%Y-%m-%d")
-            curr_start = (settlement_dt + timedelta(days=1)).strftime("%Y-%m-%d")
-        except Exception:
-            curr_start = today.replace(day=1).strftime("%Y-%m-%d")
-        curr_end = today_str
-
-        # Previous settled batch from settlement history (Aug 8 to Aug 31)
-        prev_start = "2026-08-08"
-        prev_end = settlement_date_str
-
-        return (curr_start, curr_end), (prev_start, prev_end)
+        return periods
 
     def fetch_all_assigned_tasks_live(self) -> dict:
         """Fetch all assigned tasks directly to bypass the date-filtering flaw of the overview API."""
@@ -1494,92 +1619,108 @@ class DataManager:
         except Exception as e:
             print(f"Warning: Failed to fetch exact pending review from efficiency API: {e}")
 
-        # 3. Exact Real-time Assigned per user (bypassing overview API date limits)
-        live_rework = self.get_live_rework_by_user(force_refresh=force_refresh)
+        # 3. Exact Real-time Assigned per user segmented by ID
+        assigned_records = []
+        today = datetime.now().date()
+        active_batches = [
+            b for b in self._batches_master_cache.values()
+            if isinstance(b, dict) and b.get("status") in ["batch_member_assigned", "batch_rework"]
+        ] if self._batches_master_cache else []
 
-        canonical_assigned: dict[str, dict[str, Any]] = {}
-        try:
-            canonical_assigned = self.fetch_all_assigned_tasks_live()
-        except Exception as e:
-            print(f"Warning: Failed to fetch exact assigned tasks live: {e}")
-            # Fallback to flawed overview api breakdown if live fetch fails
-            user_breakdown = breakdowns.get('slice_user_breakdown', [])
-            for entry in user_breakdown:
-                uid = entry.get('user_id')
-                if uid is None:
+        if active_batches:
+            for b in active_batches:
+                c_user = b.get("canonical_user") or self._get_canonical_name(b.get("assignee_id", 0), b.get("username", ""))
+                if c_user in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
                     continue
-                username = self.scraper._get_username(uid)
-                canonical = self._get_canonical_name(uid, username)
-                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '']:
-                    continue
-
-                backlog_dur = float(entry.get('backlog_duration_seconds', 0) or 0)
-                backlog_cnt = int(entry.get('backlog_count', 0) or 0)
-                review_pend_dur = float(entry.get('review_pending_duration_seconds', 0) or 0)
-                review_pend_cnt = int(entry.get('review_pending_count', 0) or 0)
-                
-                # We need pure assigned because the old API mixes them
-                pure_assigned_dur = max(backlog_dur - review_pend_dur, 0.0)
-                pure_assigned_cnt = max(backlog_cnt - review_pend_cnt, 0)
-
-                if canonical not in canonical_assigned:
-                    canonical_assigned[canonical] = {
-                        'backlog_dur': 0.0,
-                        'backlog_cnt': 0,
-                        'raw_ids': set(),
-                    }
-                canonical_assigned[canonical]['backlog_dur'] += pure_assigned_dur
-                canonical_assigned[canonical]['backlog_cnt'] += pure_assigned_cnt
-                if username:
-                    canonical_assigned[canonical]['raw_ids'].add(username)
-
-        all_users = sorted(set(canonical_assigned.keys()) | set(live_rework.keys()))
-        for canonical in all_users:
-            stats = canonical_assigned.get(canonical, {
-                'backlog_dur': 0.0,
-                'backlog_cnt': 0,
-                'raw_ids': set(),
-            })
-            backlog_dur = stats['backlog_dur']
-            backlog_cnt = stats['backlog_cnt']
-            raw_ids = list(stats['raw_ids'])
-            
-            # Since assigned can have multiple IDs, we'll pick the first or join them
-            assigned_raw_id = raw_ids[0] if len(raw_ids) == 1 else (",".join(raw_ids) if raw_ids else "")
-
-            # backlog_dur is now purely assigned (status=slice_assigned) from our live API fetch!
-            pure_assigned_dur = backlog_dur
-            pure_assigned_cnt = backlog_cnt
-
-            rework_info = live_rework.get(canonical, {'count': 0, 'duration': 0.0})
-            rework_dur = float(rework_info.get('duration', 0.0))
-            rework_cnt = int(rework_info.get('count', 0))
-            # Live rework currently doesn't provide raw IDs, but it maps 1:1 with user breakdown mostly
-            # We will use assigned_raw_id for rework too if available
-            rework_raw_id = assigned_raw_id
-
-            new_dur = max(pure_assigned_dur - rework_dur, 0.0)
-            new_cnt = max(pure_assigned_cnt - rework_cnt, 0)
-
-            if new_dur > 0 or new_cnt > 0:
-                records.append({
-                    'User': canonical,
-                    'Stage': 'New Assigned',
-                    'Duration': new_dur,
-                    'Count': new_cnt,
-                    'RawID': assigned_raw_id,
+                raw_u = b.get("username") or c_user
+                b_date_str = b.get("batch_date") or today.strftime("%Y-%m-%d")
+                try:
+                    b_date = datetime.strptime(b_date_str, "%Y-%m-%d").date()
+                    days = max(0, (today - b_date).days)
+                except Exception:
+                    days = 0
+                stage = "Rework Assigned" if b.get("status") == "batch_rework" else "New Assigned"
+                dur = float(b.get("total_duration_seconds", 0) or 0)
+                cnt = int(b.get("task_count", 0) or 0)
+                assigned_records.append({
+                    "User": c_user,
+                    "ID": raw_u,
+                    "Stage": stage,
+                    "Duration": dur,
+                    "Count": cnt,
+                    "AssignedDate": b_date_str,
+                    "DaysAssigned": days,
+                    "BatchID": b.get("batch_id", ""),
+                    "IDs": raw_u,
                 })
-            if rework_dur > 0 or rework_cnt > 0:
-                records.append({
-                    'User': canonical,
-                    'Stage': 'Rework Assigned',
-                    'Duration': rework_dur,
-                    'Count': rework_cnt,
-                    'RawID': rework_raw_id,
-                })
+        else:
+            # Fallback to live API or user breakdown if batches master cache is empty
+            live_rework = self.get_live_rework_by_user(force_refresh=force_refresh)
+            canonical_assigned: dict[str, dict[str, Any]] = {}
+            try:
+                canonical_assigned = self.fetch_all_assigned_tasks_live()
+            except Exception as e:
+                print(f"Warning: Failed to fetch exact assigned tasks live: {e}")
+                user_breakdown = breakdowns.get('slice_user_breakdown', [])
+                for entry in user_breakdown:
+                    uid = entry.get('user_id')
+                    if uid is None:
+                        continue
+                    username = self.scraper._get_username(uid)
+                    canonical = self._get_canonical_name(uid, username)
+                    if canonical in ['Admin', 'Test', 'Dep', 'user-None', '']:
+                        continue
+                    backlog_dur = float(entry.get('backlog_duration_seconds', 0) or 0)
+                    backlog_cnt = int(entry.get('backlog_count', 0) or 0)
+                    review_pend_dur = float(entry.get('review_pending_duration_seconds', 0) or 0)
+                    review_pend_cnt = int(entry.get('review_pending_count', 0) or 0)
+                    pure_assigned_dur = max(backlog_dur - review_pend_dur, 0.0)
+                    pure_assigned_cnt = max(backlog_cnt - review_pend_cnt, 0)
+                    if canonical not in canonical_assigned:
+                        canonical_assigned[canonical] = {'backlog_dur': 0.0, 'backlog_cnt': 0, 'raw_ids': set()}
+                    canonical_assigned[canonical]['backlog_dur'] += pure_assigned_dur
+                    canonical_assigned[canonical]['backlog_cnt'] += pure_assigned_cnt
+                    if username:
+                        canonical_assigned[canonical]['raw_ids'].add(username)
 
-        res_df = pd.DataFrame(records)
-        if not res_df.empty:
+            all_users = sorted(set(canonical_assigned.keys()) | set(live_rework.keys()))
+            for canonical in all_users:
+                stats = canonical_assigned.get(canonical, {'backlog_dur': 0.0, 'backlog_cnt': 0, 'raw_ids': set()})
+                raw_ids = list(stats['raw_ids'])
+                assigned_raw_id = raw_ids[0] if len(raw_ids) == 1 else (",".join(raw_ids) if raw_ids else canonical)
+                rework_info = live_rework.get(canonical, {'count': 0, 'duration': 0.0})
+                rework_dur = float(rework_info.get('duration', 0.0))
+                rework_cnt = int(rework_info.get('count', 0))
+                new_dur = max(stats['backlog_dur'] - rework_dur, 0.0)
+                new_cnt = max(stats['backlog_cnt'] - rework_cnt, 0)
+                if new_dur > 0 or new_cnt > 0:
+                    assigned_records.append({
+                        'User': canonical,
+                        'ID': assigned_raw_id,
+                        'Stage': 'New Assigned',
+                        'Duration': new_dur,
+                        'Count': new_cnt,
+                        'AssignedDate': today.strftime('%Y-%m-%d'),
+                        'DaysAssigned': 0,
+                        'BatchID': '',
+                        'IDs': assigned_raw_id,
+                    })
+                if rework_dur > 0 or rework_cnt > 0:
+                    assigned_records.append({
+                        'User': canonical,
+                        'ID': assigned_raw_id,
+                        'Stage': 'Rework Assigned',
+                        'Duration': rework_dur,
+                        'Count': rework_cnt,
+                        'AssignedDate': today.strftime('%Y-%m-%d'),
+                        'DaysAssigned': 0,
+                        'BatchID': '',
+                        'IDs': assigned_raw_id,
+                    })
+
+        # Process pending reviews
+        pending_df = pd.DataFrame(records)
+        if not pending_df.empty:
             def _aggregate_raw_ids(ids_series):
                 all_ids = set()
                 for val in ids_series:
@@ -1591,7 +1732,7 @@ class DataManager:
                         all_ids.add(val)
                 return sorted(list(all_ids))
 
-            res_df = res_df.groupby(['User', 'Stage'], as_index=False).agg({
+            pending_df = pending_df.groupby(['User', 'Stage'], as_index=False).agg({
                 'Duration': 'sum',
                 'Count': 'sum',
                 'RawID': _aggregate_raw_ids
@@ -1602,11 +1743,27 @@ class DataManager:
                 chunks = [ids_list[i:i+3] for i in range(0, len(ids_list), 3)]
                 return '<br>'.join(', '.join(chunk) for chunk in chunks)
 
-            res_df['IDs'] = res_df['RawID'].apply(format_ids)
-            res_df = res_df.drop(columns=['RawID'])
+            pending_df['IDs'] = pending_df['RawID'].apply(format_ids)
+            pending_df = pending_df.drop(columns=['RawID'])
         else:
-            res_df['IDs'] = ''
+            pending_df = pd.DataFrame(columns=['User', 'Stage', 'Duration', 'Count', 'IDs'])
 
+        # Process assigned / rework segments by ID
+        if assigned_records:
+            assigned_df = pd.DataFrame(assigned_records)
+            assigned_df = assigned_df.groupby(
+                ['User', 'ID', 'Stage', 'AssignedDate', 'DaysAssigned'],
+                as_index=False
+            ).agg({
+                'Duration': 'sum',
+                'Count': 'sum',
+                'BatchID': lambda x: ', '.join([str(b) for b in x if b]),
+            })
+            assigned_df['IDs'] = assigned_df['ID']
+        else:
+            assigned_df = pd.DataFrame(columns=['User', 'ID', 'Stage', 'Duration', 'Count', 'AssignedDate', 'DaysAssigned', 'BatchID', 'IDs'])
+
+        res_df = pd.concat([pending_df, assigned_df], ignore_index=True)
         return res_df
 
     def run_sync_pipeline(self) -> bool:
@@ -1882,6 +2039,18 @@ class DataManager:
                 raw_user = it.get('username') or f"user-{it.get('user_id')}"
                 disp_user = raw_user if use_raw_names else self._get_canonical_name(it.get('user_id'), raw_user)
                 if not use_raw_names and disp_user in ['Admin', 'Test', 'Dep', 'user-None', '']:
+                    continue
+
+                # Exclude accounts with zero activity / unsubmitted work
+                tot_c = int(it.get('total_count', 0) or 0)
+                tot_d = float(it.get('total_duration_seconds', 0) or 0)
+                sub_c = int(it.get('submitted_count', 0) or 0)
+                comp_c = int(it.get('completed_count', 0) or 0)
+                rew_c = int(it.get('rework_count', 0) or 0)
+                lead_c = int(it.get('leader_review_count', 0) or 0)
+                aud_c = int(it.get('auditor_review_count', 0) or 0)
+                adm_c = int(it.get('admin_review_count', 0) or 0)
+                if tot_c <= 0 and tot_d <= 0 and sub_c <= 0 and comp_c <= 0 and rew_c <= 0 and lead_c <= 0 and aud_c <= 0 and adm_c <= 0:
                     continue
 
                 rows.append({

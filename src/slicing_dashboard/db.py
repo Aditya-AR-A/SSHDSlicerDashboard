@@ -325,3 +325,64 @@ class DatabaseManager:
                 print(f"Error loading snapshot from PostgreSQL: {e}")
 
         return None
+
+    def save_user_mappings(self, mappings_list: list[dict]) -> bool:
+        """Save user mappings to MongoDB collection 'user_mappings'."""
+        if not self.is_connected() or self.mongo_db is None:
+            return False
+        try:
+            coll = self.mongo_db['user_mappings']
+            valid_ids = [m['id'] for m in mappings_list if m.get('id')]
+            # Remove any docs no longer in mappings_list if table was edited/rows deleted
+            if valid_ids:
+                coll.delete_many({'_id': {'$nin': valid_ids}})
+            for m in mappings_list:
+                doc = dict(m)
+                doc['_id'] = doc['id']
+                coll.replace_one({'_id': doc['_id']}, doc, upsert=True)
+            return True
+        except Exception as e:
+            print(f"Error saving user mappings to MongoDB: {e}")
+            return False
+
+    def load_user_mappings(self) -> list[dict]:
+        """Load user mappings from MongoDB."""
+        if not self.is_connected() or self.mongo_db is None:
+            return []
+        try:
+            coll = self.mongo_db['user_mappings']
+            docs = list(coll.find())
+            return docs
+        except Exception as e:
+            print(f"Error loading user mappings from MongoDB: {e}")
+            return []
+
+    def save_settlement_periods(self, periods: list[dict]) -> bool:
+        """Save settlement periods to MongoDB collection 'settlement_periods'."""
+        if not self.is_connected() or self.mongo_db is None:
+            return False
+        try:
+            coll = self.mongo_db['settlement_periods']
+            valid_ids = [p.get('_id', f"{p.get('start_date')}_{p.get('end_date')}") for p in periods if p.get('start_date')]
+            if valid_ids:
+                coll.delete_many({'_id': {'$nin': valid_ids}})
+            for p in periods:
+                doc = dict(p)
+                doc['_id'] = doc.get('_id', f"{doc['start_date']}_{doc['end_date']}")
+                coll.replace_one({'_id': doc['_id']}, doc, upsert=True)
+            return True
+        except Exception as e:
+            print(f"Error saving settlement periods to MongoDB: {e}")
+            return False
+
+    def load_settlement_periods(self) -> list[dict]:
+        """Load settlement periods from MongoDB."""
+        if not self.is_connected() or self.mongo_db is None:
+            return []
+        try:
+            coll = self.mongo_db['settlement_periods']
+            docs = list(coll.find())
+            return docs
+        except Exception as e:
+            print(f"Error loading settlement periods from MongoDB: {e}")
+            return []

@@ -39,6 +39,7 @@ def build_transitions(master_df: pd.DataFrame, reviewed_tasks: list[dict]
             datetime.strptime(date_str, '%Y-%m-%d')
         except Exception:
             continue
+        timestamp = reviewed_at
         action = item.get('review_action')
         decision = item.get('review_decision')
         prev_status = item.get('review_previous_status')
@@ -46,31 +47,36 @@ def build_transitions(master_df: pd.DataFrame, reviewed_tasks: list[dict]
         if (action == 'CONFIRM_SLICE_LEADER' or decision == 'approved' and 
             curr_status == 'slice_pending_auditor_review'):
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'submitted'})
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'leader_passed'})
         elif (action == 'SLICE_REWORK' or decision == 'returned'
             ) and prev_status == 'slice_submitted':
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'submitted'})
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'leader_returned'})
         elif (action == 'SLICE_REWORK' or decision == 'returned'
             ) and prev_status == 'slice_pending_auditor_review':
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'auditor_returned'})
+        elif (action == 'SLICE_REWORK' or decision == 'returned'
+            ) and prev_status == 'slice_pending_admin_review':
+            events.append({'task_id': task_id, 'user_name': user_name,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
+                'type': 'admin_returned'})
         elif action == 'REJECT_VIDEO_ERROR' or decision == 'error_rejected':
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'auditor_returned'})
         elif action == 'CONFIRM_VIDEO_ERROR' or decision == 'error_confirmed':
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'auditor_passed'})
     events_set = {(e['task_id'], e['type']) for e in events}
     
@@ -83,58 +89,68 @@ def build_transitions(master_df: pd.DataFrame, reviewed_tasks: list[dict]
         rework_by = row.get('rework_by')
         if pd.isna(user_name) or pd.isna(date_str) or pd.isna(status_norm):
             continue
+            
+        timestamp = date_str + " 00:00:00"
+        
         if status_norm == 'slice_submitted':
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'submitted'})
             events_set.add((task_id, 'submitted'))
         elif status_norm == 'slice_pending_auditor_review':
             has_log = (task_id, 'leader_passed') in events_set
             if not has_log:
                 events.append({'task_id': task_id, 'user_name': user_name,
-                    'duration_seconds': duration_seconds, 'date': date_str,
+                    'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                     'type': 'submitted'})
                 events_set.add((task_id, 'submitted'))
                 events.append({'task_id': task_id, 'user_name': user_name,
-                    'duration_seconds': duration_seconds, 'date': date_str,
+                    'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                     'type': 'leader_passed'})
                 events_set.add((task_id, 'leader_passed'))
         elif status_norm == 'slice_pending_admin_review':
             has_log = (task_id, 'auditor_passed') in events_set
             if not has_log:
                 events.append({'task_id': task_id, 'user_name': user_name,
-                    'duration_seconds': duration_seconds, 'date': date_str,
+                    'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                     'type': 'auditor_passed'})
                 events_set.add((task_id, 'auditor_passed'))
         elif status_norm == 'slice_rework':
-            has_log = (task_id, 'leader_returned') in events_set or (task_id, 'auditor_returned') in events_set
+            has_log = (task_id, 'leader_returned') in events_set or (task_id, 'auditor_returned') in events_set or (task_id, 'admin_returned') in events_set
             if not has_log:
-                rtype = ('leader_returned' if rework_by == 'leader' else
-                    'auditor_returned')
+                if rework_by == 'leader':
+                    rtype = 'leader_returned'
+                elif rework_by == 'auditor':
+                    rtype = 'auditor_returned'
+                elif rework_by == 'admin':
+                    rtype = 'admin_returned'
+                else:
+                    # fallback to auditor if unknown but it's a rework since auditors do most
+                    rtype = 'auditor_returned' 
                 events.append({'task_id': task_id, 'user_name': user_name,
-                    'duration_seconds': duration_seconds, 'date': date_str,
+                    'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                     'type': rtype})
                 events_set.add((task_id, rtype))
         elif status_norm == 'slice_completed':
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'completed'})
             events_set.add((task_id, 'completed'))
             has_log = (task_id, 'auditor_passed') in events_set
             if not has_log:
                 events.append({'task_id': task_id, 'user_name': user_name,
-                    'duration_seconds': duration_seconds, 'date': date_str,
+                    'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                     'type': 'auditor_passed'})
                 events_set.add((task_id, 'auditor_passed'))
         elif status_norm == 'video_error_confirmed':
             events.append({'task_id': task_id, 'user_name': user_name,
-                'duration_seconds': duration_seconds, 'date': date_str,
+                'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                 'type': 'completed'})
             events_set.add((task_id, 'completed'))
             has_log = (task_id, 'auditor_passed') in events_set
             if not has_log:
                 events.append({'task_id': task_id, 'user_name': user_name,
-                    'duration_seconds': duration_seconds, 'date': date_str,
+                    'duration_seconds': duration_seconds, 'date': date_str, 'timestamp': timestamp,
                     'type': 'auditor_passed'})
                 events_set.add((task_id, 'auditor_passed'))
     return pd.DataFrame(events)

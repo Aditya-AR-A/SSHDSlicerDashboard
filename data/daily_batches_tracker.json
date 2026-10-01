@@ -3247,8 +3247,8 @@
         "manual_cut_18505515132_20260917_060911_00015_task_2",
         "manual_cut_18505515132_20260917_060911_00015_task_1"
       ],
-      "video_count": 23,
-      "total_duration": 1382.0
+      "video_count": 33,
+      "total_duration": 2202.0
     },
     "SSHD-Rajni3_batch_20": {
       "first_seen_at": "2026-09-29T11:42:39.380646",
@@ -3329,7 +3329,7 @@
         "manual_cut_18588975948_20260921_194144_00008_task_1"
       ],
       "video_count": 30,
-      "total_duration": 3840.0
+      "total_duration": 4128.0
     },
     "SSHD-Ranzo_batch_29": {
       "first_seen_at": "2026-09-29T11:42:39.380646",
@@ -3597,8 +3597,8 @@
       "video_ids": [
         "manual_cut_18563097398_20260919_075550_00006_task_0"
       ],
-      "video_count": 1,
-      "total_duration": 300.0
+      "video_count": 5,
+      "total_duration": 1482.0
     },
     "SSHD-Slicer 4_batch_23": {
       "first_seen_at": "2026-09-29T11:42:39.380646",
@@ -3717,8 +3717,8 @@
         "manual_cut_18588975948_20260921_135940_00002_task_5",
         "manual_cut_18588975948_20260921_135940_00002_task_4"
       ],
-      "video_count": 21,
-      "total_duration": 2463.0
+      "video_count": 28,
+      "total_duration": 3638.0
     },
     "SSHD-Akash2_batch_4": {
       "first_seen_at": "2026-09-29T12:07:44.400296",
@@ -3739,8 +3739,8 @@
       "video_ids": [
         "manual_cut_18579759021_20260922_080011_00010_task_0"
       ],
-      "video_count": 21,
-      "total_duration": 2111.0
+      "video_count": 30,
+      "total_duration": 3857.0
     },
     "SSHD-ranjeeta6_batch_9": {
       "first_seen_at": "2026-09-29T13:01:25.373603",
@@ -3761,8 +3761,8 @@
       "video_ids": [
         "manual_cut_18605433315_20260922_074528_00001_task_2"
       ],
-      "video_count": 35,
-      "total_duration": 3100.0
+      "video_count": 46,
+      "total_duration": 3601.0
     },
     "SSHD-Ranjeeta_batch_22": {
       "first_seen_at": "2026-09-29T13:24:35.763010",
@@ -3772,8 +3772,8 @@
       "video_ids": [
         "manual_cut_18456551840_20260918_115606_00000_task_4"
       ],
-      "video_count": 18,
-      "total_duration": 1970.0
+      "video_count": 37,
+      "total_duration": 4026.0
     },
     "SSHD-Slicer2_batch_31": {
       "first_seen_at": "2026-09-29T14:21:52.432626",
@@ -3784,8 +3784,8 @@
         "manual_cut_18605433315_20260917_155921_00001_task_5",
         "manual_cut_18605433315_20260917_155921_00001_task_4"
       ],
-      "video_count": 38,
-      "total_duration": 2179.0
+      "video_count": 53,
+      "total_duration": 3735.0
     },
     "SSHD-Slicer5_batch_34": {
       "first_seen_at": "2026-09-29T14:31:59.600258",
@@ -3806,8 +3806,8 @@
       "video_ids": [
         "manual_cut_15054078533_20260921_113525_00000_task_1"
       ],
-      "video_count": 14,
-      "total_duration": 2448.0
+      "video_count": 23,
+      "total_duration": 3646.0
     },
     "SSHD-Gurharleen2_batch_2": {
       "first_seen_at": "2026-09-29T15:14:02.174857",
@@ -3822,8 +3822,8 @@
         "manual_cut_11111111111_20260812_185545_00000_task_0",
         "manual_cut_13008893050_20260602_140913_00002_task_0"
       ],
-      "video_count": 77,
-      "total_duration": 5997.0
+      "video_count": 102,
+      "total_duration": 7009.0
     },
     "SSHD-Slicer3_batch_16": {
       "first_seen_at": "2026-09-29T15:31:58.484220",
@@ -3833,8 +3833,1870 @@
       "video_ids": [
         "manual_cut_18501715479_20260921_204047_00007_task_0"
       ],
-      "video_count": 1,
-      "total_duration": 300.0
+      "video_count": 24,
+      "total_duration": 2968.0
+    },
+    "SSHD-Slicer7_batch_20": {
+      "first_seen_at": "2026-09-29T15:56:53.221979",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer7",
+      "batch_num": "20",
+      "video_ids": [
+        "manual_cut_18606424417_20260917_160848_00011_task_1"
+      ],
+      "video_count": 33,
+      "total_duration": 3645.0
+    },
+    "SSHD- Ranzo2_batch_20": {
+      "first_seen_at": "2026-09-29T16:15:31.401042",
+      "classification": "New Video",
+      "slicer": "SSHD- Ranzo2",
+      "batch_num": "20",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_083210_00000_task_4"
+      ],
+      "video_count": 46,
+      "total_duration": 3641.0
+    },
+    "SSHD-Rajni2_batch_16": {
+      "first_seen_at": "2026-09-29T16:30:34.100816",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni2",
+      "batch_num": "16",
+      "video_ids": [
+        "manual_cut_18563097398_20260830_095641_00001_task_0",
+        "manual_cut_18563097398_20260830_095641_00000_task_0"
+      ],
+      "video_count": 20,
+      "total_duration": 3871.0
+    },
+    "SSHD-S-Priya_batch_2": {
+      "first_seen_at": "2026-09-29T16:30:34.100816",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_093319_00015_task_3"
+      ],
+      "video_count": 26,
+      "total_duration": 3829.0
+    },
+    "Akash 1_batch_2": {
+      "first_seen_at": "2026-09-29T16:36:40.594314",
+      "classification": "New Video",
+      "slicer": "Akash 1",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18579759021_20260922_080011_00023_task_1"
+      ],
+      "video_count": 26,
+      "total_duration": 2648.0
+    },
+    "SSHD-S-Aditya1_batch_3": {
+      "first_seen_at": "2026-09-29T16:42:08.284464",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Aditya1",
+      "batch_num": "3",
+      "video_ids": [
+        "manual_cut_18588975948_20260921_150240_00009_task_4",
+        "manual_cut_18588975948_20260921_150240_00009_task_2"
+      ],
+      "video_count": 21,
+      "total_duration": 2760.0
+    },
+    "SSHD-Rajni3_batch_21": {
+      "first_seen_at": "2026-09-29T17:26:22.307988",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni3",
+      "batch_num": "21",
+      "video_ids": [
+        "manual_cut_18605433315_20260918_135941_00001_task_0",
+        "manual_cut_18605433315_20260918_135941_00002_task_0"
+      ],
+      "video_count": 24,
+      "total_duration": 3612.0
+    },
+    "SSHD-komal1_batch_11": {
+      "first_seen_at": "2026-09-29T17:26:22.307988",
+      "classification": "New Video",
+      "slicer": "SSHD-komal1",
+      "batch_num": "11",
+      "video_ids": [
+        "manual_cut_18456551840_20260919_212140_00006_task_3",
+        "manual_cut_18456551840_20260919_212140_00006_task_0",
+        "manual_cut_18456551840_20260919_212140_00006_task_2"
+      ],
+      "video_count": 14,
+      "total_duration": 863.0
+    },
+    "SSHD-Riya2_batch_18": {
+      "first_seen_at": "2026-09-29T17:49:11.507928",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya2",
+      "batch_num": "18",
+      "video_ids": [
+        "manual_cut_18605433315_20260917_112035_00001_task_0"
+      ],
+      "video_count": 12,
+      "total_duration": 1003.0
+    },
+    "SSHD-S-Priya_batch_1": {
+      "first_seen_at": "2026-09-29T17:49:11.507928",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "1",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_093319_00010_task_4"
+      ],
+      "video_count": 18,
+      "total_duration": 1948.0
+    }
+  },
+  "2026-09-30": {
+    "Akash 1_batch_2": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "Akash 1",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18579759021_20260922_080011_00035_task_1",
+        "manual_cut_18579759021_20260922_080011_00032_task_3",
+        "manual_cut_18579759021_20260922_080011_00035_task_0",
+        "manual_cut_18579759021_20260922_080011_00033_task_0",
+        "manual_cut_18579759021_20260922_080011_00034_task_0",
+        "manual_cut_18579759021_20260922_080011_00034_task_2",
+        "manual_cut_18579759021_20260922_080011_00036_task_0",
+        "manual_cut_18579759021_20260922_080011_00034_task_3",
+        "manual_cut_18579759021_20260922_080011_00034_task_1"
+      ],
+      "video_count": 35,
+      "total_duration": 3643.0
+    },
+    "Akash 1 N_batch_6": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "Akash 1 N",
+      "batch_num": "6",
+      "video_ids": [
+        "manual_cut_18654398393_20260917_094817_00009_task_0",
+        "manual_cut_18654398393_20260917_094817_00008_task_0",
+        "manual_cut_18654398393_20260918_094345_00000_task_1",
+        "manual_cut_18654398393_20260917_094817_00011_task_0",
+        "manual_cut_18654398393_20260917_094817_00010_task_1",
+        "manual_cut_18654398393_20260917_094817_00009_task_2",
+        "manual_cut_18654398393_20260917_094817_00010_task_2",
+        "manual_cut_18654398393_20260917_094817_00009_task_1",
+        "manual_cut_18654398393_20260918_094345_00000_task_2",
+        "manual_cut_18654398393_20260917_094817_00010_task_0"
+      ],
+      "video_count": 30,
+      "total_duration": 3709.0
+    },
+    "SSHD- Ranzo2_batch_20": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD- Ranzo2",
+      "batch_num": "20",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_083210_00003_task_2",
+        "manual_cut_18620271214_20260917_083210_00006_task_2",
+        "manual_cut_18620271214_20260917_090756_00000_task_3",
+        "manual_cut_18620271214_20260917_093319_00001_task_1",
+        "manual_cut_18620271214_20260917_083210_00003_task_0",
+        "manual_cut_18620271214_20260917_083210_00005_task_1",
+        "manual_cut_18620271214_20260917_083210_00005_task_0",
+        "manual_cut_18620271214_20260917_090756_00002_task_7",
+        "manual_cut_18620271214_20260917_083210_00001_task_1",
+        "manual_cut_18620271214_20260917_090756_00002_task_6",
+        "manual_cut_18620271214_20260917_083210_00004_task_2",
+        "manual_cut_18620271214_20260917_090756_00001_task_2",
+        "manual_cut_18620271214_20260917_090756_00002_task_0",
+        "manual_cut_18620271214_20260917_090756_00001_task_4",
+        "manual_cut_18620271214_20260917_090756_00002_task_3",
+        "manual_cut_18620271214_20260917_090756_00002_task_1",
+        "manual_cut_18620271214_20260917_090756_00002_task_4",
+        "manual_cut_18620271214_20260917_090756_00001_task_5",
+        "manual_cut_18620271214_20260917_090756_00000_task_1",
+        "manual_cut_18620271214_20260917_093319_00000_task_2",
+        "manual_cut_18620271214_20260917_093319_00003_task_1",
+        "manual_cut_18620271214_20260917_083210_00006_task_5",
+        "manual_cut_18620271214_20260917_090756_00000_task_2",
+        "manual_cut_18620271214_20260917_093319_00001_task_0",
+        "manual_cut_18620271214_20260917_083210_00004_task_0",
+        "manual_cut_18620271214_20260917_083210_00006_task_0",
+        "manual_cut_18620271214_20260917_083210_00004_task_1",
+        "manual_cut_18620271214_20260917_083210_00002_task_0",
+        "manual_cut_18620271214_20260917_083210_00002_task_2",
+        "manual_cut_18620271214_20260917_093319_00002_task_0",
+        "manual_cut_18620271214_20260917_090756_00003_task_0",
+        "manual_cut_18620271214_20260917_083210_00006_task_1",
+        "manual_cut_18620271214_20260917_093319_00001_task_2",
+        "manual_cut_18620271214_20260917_090756_00002_task_5",
+        "manual_cut_18620271214_20260917_083210_00004_task_3",
+        "manual_cut_18620271214_20260917_093319_00003_task_2",
+        "manual_cut_18620271214_20260917_083210_00006_task_3",
+        "manual_cut_18620271214_20260917_083210_00006_task_4",
+        "manual_cut_18620271214_20260917_083210_00003_task_1",
+        "manual_cut_18620271214_20260917_083210_00001_task_2",
+        "manual_cut_18620271214_20260917_083210_00000_task_4",
+        "manual_cut_18620271214_20260917_083210_00002_task_1",
+        "manual_cut_18620271214_20260917_093319_00002_task_1",
+        "manual_cut_18620271214_20260917_090756_00001_task_3",
+        "manual_cut_18620271214_20260917_083210_00006_task_6",
+        "manual_cut_18620271214_20260917_083210_00001_task_0",
+        "manual_cut_18620271214_20260917_093319_00003_task_0"
+      ],
+      "video_count": 47,
+      "total_duration": 3677.0
+    },
+    "SSHD-Priya2_batch_15": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-Priya2",
+      "batch_num": "15",
+      "video_ids": [
+        "manual_cut_18505515132_20260919_060455_00002_task_7",
+        "manual_cut_18505515132_20260918_080708_00000_task_10",
+        "manual_cut_18505515132_20260918_080708_00001_task_7",
+        "manual_cut_18505515132_20260918_085655_00000_task_2",
+        "manual_cut_18505515132_20260919_060455_00000_task_4",
+        "manual_cut_18505515132_20260917_115631_00015_task_1",
+        "manual_cut_18505515132_20260918_083607_00001_task_4",
+        "manual_cut_18505515132_20260919_060455_00003_task_2",
+        "manual_cut_18505515132_20260917_115631_00014_task_3",
+        "manual_cut_18505515132_20260919_070937_00002_task_0",
+        "manual_cut_18505515132_20260918_083607_00000_task_5",
+        "manual_cut_18505515132_20260918_080708_00000_task_6",
+        "manual_cut_18505515132_20260918_083607_00001_task_2",
+        "manual_cut_18505515132_20260919_070937_00000_task_1",
+        "manual_cut_18505515132_20260919_060455_00005_task_1",
+        "manual_cut_18505515132_20260917_115631_00014_task_4",
+        "manual_cut_18505515132_20260919_060455_00005_task_3",
+        "manual_cut_18505515132_20260918_083607_00000_task_1",
+        "manual_cut_18505515132_20260919_060455_00003_task_1",
+        "manual_cut_18505515132_20260918_080708_00000_task_8",
+        "manual_cut_18505515132_20260918_080708_00001_task_5",
+        "manual_cut_18505515132_20260917_115631_00015_task_0",
+        "manual_cut_18505515132_20260918_080708_00002_task_3",
+        "manual_cut_18505515132_20260918_080708_00002_task_4",
+        "manual_cut_18505515132_20260917_115631_00014_task_6",
+        "manual_cut_18505515132_20260918_080708_00001_task_1",
+        "manual_cut_18505515132_20260919_060455_00005_task_0",
+        "manual_cut_18505515132_20260918_080708_00000_task_2",
+        "manual_cut_18505515132_20260918_083607_00001_task_0",
+        "manual_cut_18505515132_20260918_085655_00000_task_1",
+        "manual_cut_18505515132_20260918_080708_00002_task_0",
+        "manual_cut_18505515132_20260919_060455_00005_task_2",
+        "manual_cut_18505515132_20260919_060455_00006_task_1",
+        "manual_cut_18505515132_20260918_083607_00000_task_3",
+        "manual_cut_18505515132_20260918_080708_00000_task_12",
+        "manual_cut_18505515132_20260917_115631_00014_task_2",
+        "manual_cut_18505515132_20260919_060455_00005_task_4",
+        "manual_cut_18505515132_20260919_060455_00004_task_0",
+        "manual_cut_18505515132_20260918_080708_00001_task_3",
+        "manual_cut_18505515132_20260918_080708_00000_task_4",
+        "manual_cut_18505515132_20260917_115631_00015_task_3",
+        "manual_cut_18505515132_20260917_115631_00014_task_1",
+        "manual_cut_18505515132_20260919_060455_00002_task_9",
+        "manual_cut_18505515132_20260918_085655_00000_task_0",
+        "manual_cut_18505515132_20260919_060455_00006_task_0",
+        "manual_cut_18505515132_20260917_115631_00015_task_2",
+        "manual_cut_18505515132_20260919_060455_00003_task_0"
+      ],
+      "video_count": 47,
+      "total_duration": 3638.0
+    },
+    "SSHD-Psrdeep1_batch_2": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-Psrdeep1",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18505515132_20260917_090540_00008_task_1"
+      ],
+      "video_count": 55,
+      "total_duration": 3744.0
+    },
+    "SSHD-Rajni_batch_32": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni",
+      "batch_num": "32",
+      "video_ids": [
+        "manual_cut_15666679961_20260916_180046_00031_task_0",
+        "manual_cut_15666679961_20260916_180046_00031_task_2",
+        "manual_cut_15366828306_20260525_101605_00016_task_8",
+        "manual_cut_15666679961_20260916_180046_00034_task_0",
+        "manual_cut_15666679961_20260916_180046_00028_task_0",
+        "manual_cut_15666679961_20260916_180046_00033_task_0",
+        "manual_cut_15666679961_20260916_180046_00035_task_2",
+        "manual_cut_15666679961_20260916_180046_00026_task_1",
+        "manual_cut_15666679961_20260916_180046_00027_task_0",
+        "manual_cut_15054078533_20260921_113525_00000_task_1",
+        "manual_cut_15666679961_20260916_180046_00035_task_1",
+        "manual_cut_15575315728_20260630_173943_00002_task_0",
+        "manual_cut_15666679961_20260916_180046_00034_task_1",
+        "manual_cut_15156212551_20260618_192647_00004_task_2",
+        "manual_cut_15666679961_20260916_180046_00034_task_2",
+        "manual_cut_15666679961_20260916_180046_00032_task_0",
+        "manual_cut_15666679961_20260916_180046_00030_task_0",
+        "manual_cut_15666679961_20260916_180046_00031_task_1",
+        "manual_cut_15666679961_20260916_180046_00024_task_0",
+        "manual_cut_15666679961_20260916_180046_00023_task_0",
+        "manual_cut_15666679961_20260916_180046_00029_task_0",
+        "manual_cut_15666679961_20260916_180046_00035_task_3",
+        "manual_cut_15666679961_20260916_180046_00035_task_0"
+      ],
+      "video_count": 23,
+      "total_duration": 3646.0
+    },
+    "SSHD-Rajni3_batch_21": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni3",
+      "batch_num": "21",
+      "video_ids": [
+        "manual_cut_18605433315_20260922_074528_00000_task_4",
+        "manual_cut_18605433315_20260920_141136_00000_task_3",
+        "manual_cut_18605433315_20260922_074528_00000_task_0",
+        "manual_cut_18605433315_20260921_201512_00000_task_0",
+        "manual_cut_18605433315_20260922_074528_00001_task_1",
+        "manual_cut_18605433315_20260922_074528_00000_task_3",
+        "manual_cut_18605433315_20260918_135941_00003_task_0",
+        "manual_cut_18605433315_20260920_205005_00000_task_1",
+        "manual_cut_18605433315_20260918_135941_00002_task_1",
+        "manual_cut_18605433315_20260920_202417_00000_task_0",
+        "manual_cut_18605433315_20260920_205005_00000_task_0",
+        "manual_cut_18605433315_20260920_141136_00000_task_2",
+        "manual_cut_18605433315_20260922_074528_00000_task_2",
+        "manual_cut_18605433315_20260920_203936_00000_task_0",
+        "manual_cut_18605433315_20260920_141136_00000_task_0",
+        "manual_cut_18605433315_20260920_141136_00001_task_0",
+        "manual_cut_18605433315_20260920_202417_00002_task_0",
+        "manual_cut_18605433315_20260918_135941_00002_task_0",
+        "manual_cut_18605433315_20260921_201512_00001_task_0",
+        "manual_cut_18605433315_20260922_074528_00001_task_0",
+        "manual_cut_18605433315_20260918_135941_00001_task_0",
+        "manual_cut_18605433315_20260920_202417_00001_task_0",
+        "manual_cut_18605433315_20260922_074528_00000_task_1",
+        "manual_cut_18605433315_20260920_141136_00000_task_1"
+      ],
+      "video_count": 24,
+      "total_duration": 3612.0
+    },
+    "SSHD-Riya2_batch_18": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya2",
+      "batch_num": "18",
+      "video_ids": [
+        "manual_cut_18605433315_20260917_112035_00002_task_6",
+        "manual_cut_18605433315_20260917_105855_00001_task_0",
+        "manual_cut_18605433315_20260917_101618_00001_task_1",
+        "manual_cut_18605433315_20260917_112035_00001_task_2",
+        "manual_cut_18605433315_20260917_101618_00000_task_2",
+        "manual_cut_18605433315_20260917_155921_00000_task_1",
+        "manual_cut_18605433315_20260917_101618_00001_task_2",
+        "manual_cut_18605433315_20260917_101618_00000_task_4",
+        "manual_cut_18605433315_20260917_101618_00000_task_1",
+        "manual_cut_18605433315_20260917_155921_00000_task_0",
+        "manual_cut_18605433315_20260917_101618_00000_task_3",
+        "manual_cut_18605433315_20260917_101618_00001_task_0",
+        "manual_cut_18605433315_20260917_155921_00001_task_3",
+        "manual_cut_18605433315_20260917_112035_00002_task_4",
+        "manual_cut_18605433315_20260917_094930_00004_task_2",
+        "manual_cut_18605433315_20260917_141228_00000_task_0",
+        "manual_cut_18605433315_20260917_105855_00000_task_0",
+        "manual_cut_18605433315_20260917_112035_00001_task_1"
+      ],
+      "video_count": 39,
+      "total_duration": 3685.0
+    },
+    "SSHD-S-Priya_batch_1": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "1",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_093319_00012_task_3",
+        "manual_cut_18620271214_20260917_093319_00011_task_3",
+        "manual_cut_18620271214_20260917_093319_00012_task_1",
+        "manual_cut_18620271214_20260917_093319_00010_task_3",
+        "manual_cut_18620271214_20260917_093319_00012_task_2",
+        "manual_cut_18620271214_20260917_093319_00010_task_7",
+        "manual_cut_18620271214_20260917_093319_00010_task_2",
+        "manual_cut_18620271214_20260917_093319_00011_task_1",
+        "manual_cut_18620271214_20260917_093319_00011_task_0",
+        "manual_cut_18620271214_20260917_093319_00010_task_9",
+        "manual_cut_18620271214_20260917_093319_00010_task_6",
+        "manual_cut_18620271214_20260917_093319_00015_task_2",
+        "manual_cut_18620271214_20260917_093319_00012_task_0",
+        "manual_cut_18620271214_20260917_093319_00010_task_5",
+        "manual_cut_18620271214_20260917_093319_00011_task_2",
+        "manual_cut_18620271214_20260917_093319_00010_task_8"
+      ],
+      "video_count": 42,
+      "total_duration": 3602.0
+    },
+    "SSHD-S-Priya_batch_2": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_093319_00015_task_3",
+        "manual_cut_18620271214_20260917_142617_00008_task_0",
+        "manual_cut_18620271214_20260917_142617_00002_task_0",
+        "manual_cut_18620271214_20260917_142617_00005_task_0",
+        "manual_cut_18620271214_20260917_142617_00004_task_1",
+        "manual_cut_18620271214_20260917_142617_00009_task_2",
+        "manual_cut_18620271214_20260917_142617_00007_task_0",
+        "manual_cut_18620271214_20260917_142617_00009_task_0",
+        "manual_cut_18620271214_20260917_142617_00000_task_0",
+        "manual_cut_18620271214_20260917_142617_00004_task_0",
+        "manual_cut_18620271214_20260917_142617_00001_task_3",
+        "manual_cut_18620271214_20260917_093319_00016_task_4",
+        "manual_cut_18620271214_20260917_142617_00001_task_2",
+        "manual_cut_18620271214_20260917_142617_00001_task_1",
+        "manual_cut_18620271214_20260917_093319_00017_task_0",
+        "manual_cut_18620271214_20260917_093319_00016_task_2",
+        "manual_cut_18620271214_20260917_142617_00003_task_0",
+        "manual_cut_18620271214_20260917_142617_00010_task_0",
+        "manual_cut_18620271214_20260917_093319_00016_task_3",
+        "manual_cut_18620271214_20260917_142617_00009_task_1",
+        "manual_cut_18620271214_20260917_093319_00017_task_1",
+        "manual_cut_18620271214_20260917_093319_00017_task_2",
+        "manual_cut_18620271214_20260917_142617_00006_task_0",
+        "manual_cut_18620271214_20260917_142617_00001_task_0",
+        "manual_cut_18620271214_20260917_093319_00016_task_0",
+        "manual_cut_18620271214_20260917_093319_00016_task_1"
+      ],
+      "video_count": 26,
+      "total_duration": 3829.0
+    },
+    "SSHD-S-Rajni_batch_1": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Rajni",
+      "batch_num": "1",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_142617_00037_task_0",
+        "manual_cut_18620271214_20260918_081835_00001_task_0",
+        "manual_cut_18620271214_20260918_081835_00001_task_1",
+        "manual_cut_18620271214_20260917_194745_00003_task_0",
+        "manual_cut_18620271214_20260917_194745_00002_task_2",
+        "manual_cut_18620271214_20260917_194745_00000_task_1",
+        "manual_cut_18620271214_20260917_194745_00002_task_3",
+        "manual_cut_18620271214_20260917_194745_00005_task_5",
+        "manual_cut_18620271214_20260917_142617_00038_task_0",
+        "manual_cut_18620271214_20260917_142617_00038_task_4",
+        "manual_cut_18620271214_20260917_142617_00041_task_0",
+        "manual_cut_18620271214_20260917_194745_00005_task_0",
+        "manual_cut_18620271214_20260918_081835_00000_task_0",
+        "manual_cut_18620271214_20260917_194745_00005_task_2",
+        "manual_cut_18620271214_20260917_194745_00001_task_0",
+        "manual_cut_18620271214_20260917_142617_00040_task_0",
+        "manual_cut_18620271214_20260918_081835_00000_task_1",
+        "manual_cut_18620271214_20260917_142617_00040_task_1",
+        "manual_cut_18620271214_20260917_194745_00005_task_3",
+        "manual_cut_18620271214_20260917_142617_00038_task_3",
+        "manual_cut_18620271214_20260917_142617_00038_task_2",
+        "manual_cut_18620271214_20260917_142617_00040_task_2",
+        "manual_cut_18620271214_20260917_142617_00039_task_1",
+        "manual_cut_18620271214_20260917_194745_00005_task_4",
+        "manual_cut_18620271214_20260917_142617_00039_task_0",
+        "manual_cut_18620271214_20260917_194745_00005_task_1",
+        "manual_cut_18620271214_20260917_194745_00002_task_0",
+        "manual_cut_18620271214_20260917_142617_00038_task_5",
+        "manual_cut_18620271214_20260917_142617_00038_task_1",
+        "manual_cut_18620271214_20260917_194745_00002_task_1",
+        "manual_cut_18620271214_20260917_194745_00004_task_0"
+      ],
+      "video_count": 31,
+      "total_duration": 3689.0
+    },
+    "SSHD-S-Rajni_batch_2": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Rajni",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18620271214_20260918_081835_00006_task_0",
+        "manual_cut_18620271214_20260918_081835_00004_task_0",
+        "manual_cut_18620271214_20260918_081835_00004_task_1",
+        "manual_cut_18620271214_20260918_081835_00002_task_0",
+        "manual_cut_18620271214_20260918_081835_00003_task_2",
+        "manual_cut_18620271214_20260918_081835_00005_task_0",
+        "manual_cut_18620271214_20260918_081835_00003_task_0",
+        "manual_cut_18620271214_20260918_081835_00004_task_2",
+        "manual_cut_18620271214_20260918_081835_00003_task_3",
+        "manual_cut_18620271214_20260918_081835_00005_task_1",
+        "manual_cut_18620271214_20260918_081835_00003_task_1",
+        "manual_cut_18620271214_20260918_081835_00004_task_3"
+      ],
+      "video_count": 33,
+      "total_duration": 3711.0
+    },
+    "SSHD-Slicer3_batch_16": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer3",
+      "batch_num": "16",
+      "video_ids": [
+        "manual_cut_18501715479_20260921_204047_00016_task_0",
+        "manual_cut_18501715479_20260921_204047_00010_task_1",
+        "manual_cut_18501715479_20260921_204047_00015_task_1",
+        "manual_cut_18501715479_20260921_204047_00015_task_3",
+        "manual_cut_18501715479_20260921_204047_00009_task_0",
+        "manual_cut_18501715479_20260921_204047_00018_task_0",
+        "manual_cut_18501715479_20260921_204047_00007_task_0",
+        "manual_cut_18501715479_20260921_204047_00011_task_0",
+        "manual_cut_18501715479_20260922_061804_00000_task_3",
+        "manual_cut_18501715479_20260922_061804_00001_task_0",
+        "manual_cut_18501715479_20260921_204047_00017_task_3",
+        "manual_cut_18501715479_20260921_204047_00017_task_0",
+        "manual_cut_18501715479_20260921_204047_00013_task_4",
+        "manual_cut_18501715479_20260921_204047_00012_task_4",
+        "manual_cut_18501715479_20260921_204047_00017_task_1",
+        "manual_cut_18501715479_20260922_061804_00001_task_2",
+        "manual_cut_18501715479_20260922_061804_00001_task_1",
+        "manual_cut_18501715479_20260921_204047_00014_task_0",
+        "manual_cut_18501715479_20260921_204047_00013_task_1",
+        "manual_cut_18501715479_20260921_204047_00015_task_0",
+        "manual_cut_18501715479_20260921_204047_00010_task_0",
+        "manual_cut_18501715479_20260921_204047_00013_task_0",
+        "manual_cut_18501715479_20260921_204047_00012_task_2",
+        "manual_cut_18501715479_20260921_204047_00015_task_2",
+        "manual_cut_18501715479_20260922_061804_00000_task_1",
+        "manual_cut_18501715479_20260921_204047_00008_task_0",
+        "manual_cut_18501715479_20260921_204047_00009_task_1",
+        "manual_cut_18501715479_20260921_204047_00017_task_2",
+        "manual_cut_18501715479_20260921_204047_00013_task_2",
+        "manual_cut_18501715479_20260921_204047_00012_task_0"
+      ],
+      "video_count": 30,
+      "total_duration": 3638.0
+    },
+    "SSHD-komal1_batch_11": {
+      "first_seen_at": "2026-09-30T10:58:07.784835",
+      "classification": "New Video",
+      "slicer": "SSHD-komal1",
+      "batch_num": "11",
+      "video_ids": [
+        "manual_cut_18456551840_20260920_075504_00001_task_0",
+        "manual_cut_18456551840_20260920_075504_00003_task_1",
+        "manual_cut_18456551840_20260920_075504_00003_task_0",
+        "manual_cut_18456551840_20260920_075504_00001_task_1",
+        "manual_cut_18456551840_20260920_083408_00000_task_3",
+        "manual_cut_18456551840_20260920_100418_00000_task_1",
+        "manual_cut_18456551840_20260920_083408_00000_task_1",
+        "manual_cut_18456551840_20260920_075504_00002_task_2",
+        "manual_cut_18456551840_20260920_075504_00002_task_0",
+        "manual_cut_18456551840_20260920_075504_00003_task_2",
+        "manual_cut_18456551840_20260920_100418_00001_task_0",
+        "manual_cut_18456551840_20260920_100418_00000_task_0",
+        "manual_cut_18456551840_20260920_083408_00000_task_2",
+        "manual_cut_18456551840_20260920_075504_00000_task_0",
+        "manual_cut_18456551840_20260920_083408_00000_task_0",
+        "manual_cut_18456551840_20260920_075504_00002_task_1",
+        "manual_cut_18456551840_20260920_100418_00001_task_2",
+        "manual_cut_18456551840_20260920_075504_00003_task_3"
+      ],
+      "video_count": 38,
+      "total_duration": 3607.0
+    },
+    "SSHD-S-Aditya1_batch_3": {
+      "first_seen_at": "2026-09-30T11:14:05.928558",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Aditya1",
+      "batch_num": "3",
+      "video_ids": [
+        "manual_cut_18588975948_20260921_150240_00019_task_0"
+      ],
+      "video_count": 28,
+      "total_duration": 3813.0
+    },
+    "SSHD-Slicer2_batch_32": {
+      "first_seen_at": "2026-09-30T11:27:52.520983",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer2",
+      "batch_num": "32",
+      "video_ids": [
+        "manual_cut_18658759215_20260919_111753_00001_task_0"
+      ],
+      "video_count": 16,
+      "total_duration": 3743.0
+    },
+    "SSHD-Ranzo_batch_30": {
+      "first_seen_at": "2026-09-30T12:18:13.765885",
+      "classification": "New Video",
+      "slicer": "SSHD-Ranzo",
+      "batch_num": "30",
+      "video_ids": [
+        "manual_cut_18588975948_20260922_111522_00017_task_0"
+      ],
+      "video_count": 24,
+      "total_duration": 3656.0
+    },
+    "SSHD-Riya1_batch_24": {
+      "first_seen_at": "2026-09-30T12:18:13.765885",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya1",
+      "batch_num": "24",
+      "video_ids": [
+        "manual_cut_18656542063_20260920_191059_00002_task_2",
+        "manual_cut_18656542063_20260920_191059_00001_task_3",
+        "manual_cut_18656542063_20260920_191059_00005_task_0",
+        "manual_cut_18656542063_20260920_191059_00002_task_0"
+      ],
+      "video_count": 33,
+      "total_duration": 3724.0
+    },
+    "SSHD- Slicnner21_batch_13": {
+      "first_seen_at": "2026-09-30T12:21:16.880063",
+      "classification": "New Video",
+      "slicer": "SSHD- Slicnner21",
+      "batch_num": "13",
+      "video_ids": [
+        "manual_cut_18606424417_20260917_160848_00026_task_0",
+        "manual_cut_18606424417_20260917_160848_00027_task_3"
+      ],
+      "video_count": 15,
+      "total_duration": 1431.0
+    },
+    "SSHD-Slicer5_batch_36": {
+      "first_seen_at": "2026-09-30T12:34:16.465349",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer5",
+      "batch_num": "36",
+      "video_ids": [
+        "manual_cut_18579759021_20260921_103503_00012_task_2"
+      ],
+      "video_count": 43,
+      "total_duration": 3602.0
+    },
+    "SSHD-Ranzo_batch_31": {
+      "first_seen_at": "2026-09-30T12:42:29.299974",
+      "classification": "New Video",
+      "slicer": "SSHD-Ranzo",
+      "batch_num": "31",
+      "video_ids": [
+        "manual_cut_18598814819_20260902_170517_00005_task_0"
+      ],
+      "video_count": 23,
+      "total_duration": 3753.0
+    },
+    "SSHD-Komal21_batch_8": {
+      "first_seen_at": "2026-09-30T12:48:11.768463",
+      "classification": "New Video",
+      "slicer": "SSHD-Komal21",
+      "batch_num": "8",
+      "video_ids": [
+        "manual_cut_18562027597_20260917_113043_00008_task_0"
+      ],
+      "video_count": 28,
+      "total_duration": 3638.0
+    },
+    "SSHD-S-Aditya1_batch_4": {
+      "first_seen_at": "2026-09-30T12:49:44.192832",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Aditya1",
+      "batch_num": "4",
+      "video_ids": [
+        "manual_cut_18588975948_20260921_150240_00022_task_2"
+      ],
+      "video_count": 16,
+      "total_duration": 3629.0
+    },
+    "SSHD-Gurharleen4_batch_4": {
+      "first_seen_at": "2026-09-30T13:02:34.373921",
+      "classification": "New Video",
+      "slicer": "SSHD-Gurharleen4",
+      "batch_num": "4",
+      "video_ids": [
+        "manual_cut_18278269938_20260630_070135_00002_task_3"
+      ],
+      "video_count": 15,
+      "total_duration": 1930.0
+    },
+    "SSHD-Akash_batch_5": {
+      "first_seen_at": "2026-09-30T13:22:57.667049",
+      "classification": "New Video",
+      "slicer": "SSHD-Akash",
+      "batch_num": "5",
+      "video_ids": [
+        "manual_cut_18661388792_20260918_183303_00002_task_0"
+      ],
+      "video_count": 44,
+      "total_duration": 3624.0
+    },
+    "SSHD-Slicer2_batch_33": {
+      "first_seen_at": "2026-09-30T13:26:28.226402",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer2",
+      "batch_num": "33",
+      "video_ids": [
+        "manual_cut_18658759215_20260919_192410_00001_task_0",
+        "manual_cut_18658759215_20260919_192410_00000_task_0"
+      ],
+      "video_count": 33,
+      "total_duration": 3703.0
+    },
+    "SSHD-Pardeep_batch_2": {
+      "first_seen_at": "2026-09-30T13:34:38.144022",
+      "classification": "New Video",
+      "slicer": "SSHD-Pardeep",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18501715479_20260921_083342_00011_task_1"
+      ],
+      "video_count": 8,
+      "total_duration": 691.0
+    },
+    "SSHD-Riya3_batch_12": {
+      "first_seen_at": "2026-09-30T14:35:12.772707",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya3",
+      "batch_num": "12",
+      "video_ids": [
+        "manual_cut_18661388792_20260921_091721_00004_task_0"
+      ],
+      "video_count": 38,
+      "total_duration": 3600.0
+    },
+    "SSHD-Ranjeeta_batch_22": {
+      "first_seen_at": "2026-09-30T14:49:04.675740",
+      "classification": "New Video",
+      "slicer": "SSHD-Ranjeeta",
+      "batch_num": "22",
+      "video_ids": [
+        "manual_cut_18456551840_20260919_171157_00000_task_4"
+      ],
+      "video_count": 51,
+      "total_duration": 3293.0
+    },
+    "SSHD-ranjeeta6_batch_10": {
+      "first_seen_at": "2026-09-30T14:53:41.982815",
+      "classification": "New Video",
+      "slicer": "SSHD-ranjeeta6",
+      "batch_num": "10",
+      "video_ids": [
+        "manual_cut_18658759215_20260918_101853_00001_task_0"
+      ],
+      "video_count": 34,
+      "total_duration": 3811.0
+    },
+    "SSHD-Sanddep_batch_8": {
+      "first_seen_at": "2026-09-30T15:00:21.322574",
+      "classification": "New Video",
+      "slicer": "SSHD-Sanddep",
+      "batch_num": "8",
+      "video_ids": [
+        "manual_cut_18563097398_20260919_085103_00003_task_0"
+      ],
+      "video_count": 13,
+      "total_duration": 3882.0
+    },
+    "SSHD-Rajni_batch_33": {
+      "first_seen_at": "2026-09-30T15:02:15.035742",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni",
+      "batch_num": "33",
+      "video_ids": [
+        "manual_cut_18620271214_20260918_142437_00021_task_0"
+      ],
+      "video_count": 46,
+      "total_duration": 3660.0
+    },
+    "SSHD-Riya5_batch_11": {
+      "first_seen_at": "2026-09-30T16:10:08.836347",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya5",
+      "batch_num": "11",
+      "video_ids": [
+        "manual_cut_18663823667_20260917_075947_00001_task_1",
+        "manual_cut_18663823667_20260917_075947_00001_task_2",
+        "manual_cut_18663823667_20260917_075947_00001_task_0",
+        "manual_cut_18663823667_20260917_075947_00000_task_0"
+      ],
+      "video_count": 32,
+      "total_duration": 3315.0
+    },
+    "SSHD-S-Aditya1_batch_5": {
+      "first_seen_at": "2026-09-30T16:10:08.836347",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Aditya1",
+      "batch_num": "5",
+      "video_ids": [
+        "manual_cut_18588975948_20260921_150240_00044_task_0",
+        "manual_cut_18588975948_20260921_150240_00038_task_3",
+        "manual_cut_18588975948_20260921_150240_00036_task_0",
+        "manual_cut_18588975948_20260921_150240_00035_task_0",
+        "manual_cut_18588975948_20260921_150240_00046_task_0",
+        "manual_cut_18588975948_20260921_150240_00040_task_2",
+        "manual_cut_18588975948_20260921_150240_00039_task_2",
+        "manual_cut_18588975948_20260921_150240_00039_task_3",
+        "manual_cut_18588975948_20260921_150240_00045_task_0",
+        "manual_cut_18588975948_20260921_150240_00043_task_0",
+        "manual_cut_18588975948_20260921_150240_00043_task_4",
+        "manual_cut_18588975948_20260921_150240_00042_task_0",
+        "manual_cut_18588975948_20260921_150240_00038_task_2",
+        "manual_cut_18588975948_20260921_150240_00047_task_0",
+        "manual_cut_18588975948_20260921_150240_00039_task_1",
+        "manual_cut_18588975948_20260921_150240_00043_task_2",
+        "manual_cut_18588975948_20260921_150240_00040_task_0",
+        "manual_cut_18588975948_20260921_150240_00038_task_4",
+        "manual_cut_18588975948_20260921_150240_00037_task_0",
+        "manual_cut_18588975948_20260921_150240_00039_task_0",
+        "manual_cut_18588975948_20260921_150240_00041_task_1",
+        "manual_cut_18588975948_20260921_150240_00038_task_0",
+        "manual_cut_18588975948_20260921_150240_00041_task_0",
+        "manual_cut_18588975948_20260921_150240_00038_task_1",
+        "manual_cut_18588975948_20260921_150240_00045_task_1"
+      ],
+      "video_count": 25,
+      "total_duration": 3693.0
+    },
+    "SSHD-Sanddep_batch_9": {
+      "first_seen_at": "2026-09-30T16:10:08.836347",
+      "classification": "New Video",
+      "slicer": "SSHD-Sanddep",
+      "batch_num": "9",
+      "video_ids": [
+        "manual_cut_18563097398_20260919_085103_00010_task_0"
+      ],
+      "video_count": 10,
+      "total_duration": 2974.0
+    },
+    "SSHD-Slicer2_batch_34": {
+      "first_seen_at": "2026-09-30T16:10:08.836347",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer2",
+      "batch_num": "34",
+      "video_ids": [
+        "manual_cut_18658759215_20260920_125143_00005_task_5",
+        "manual_cut_18658759215_20260920_133736_00000_task_2",
+        "manual_cut_18658759215_20260920_125143_00006_task_0",
+        "manual_cut_18658759215_20260920_125143_00005_task_6",
+        "manual_cut_18661388792_20260916_215008_00001_task_1",
+        "manual_cut_18658759215_20260920_125143_00004_task_1",
+        "manual_cut_18658759215_20260920_125143_00004_task_0",
+        "manual_cut_18661388792_20260916_215008_00000_task_1",
+        "manual_cut_18661388792_20260916_215008_00000_task_2",
+        "manual_cut_18661388792_20260916_215008_00000_task_3",
+        "manual_cut_18661388792_20260916_215008_00001_task_0",
+        "manual_cut_18661388792_20260916_215008_00000_task_0",
+        "manual_cut_18658759215_20260920_125143_00005_task_2",
+        "manual_cut_18658759215_20260920_125143_00005_task_0",
+        "manual_cut_18658759215_20260920_125143_00003_task_1",
+        "manual_cut_18658759215_20260921_102226_00000_task_1",
+        "manual_cut_18658759215_20260920_125143_00003_task_2",
+        "manual_cut_18658759215_20260920_125143_00005_task_4"
+      ],
+      "video_count": 44,
+      "total_duration": 3878.0
+    },
+    "SSHD-Komal_batch_30": {
+      "first_seen_at": "2026-09-30T16:32:59.340844",
+      "classification": "New Video",
+      "slicer": "SSHD-Komal",
+      "batch_num": "30",
+      "video_ids": [
+        "manual_cut_18356045235_20260919_160509_00000_task_3",
+        "manual_cut_18355162598_20260516_192601_00002_task_1",
+        "manual_cut_18331635036_20260922_150258_00000_task_0",
+        "manual_cut_18356045235_20260918_224559_00006_task_3",
+        "manual_cut_18356045235_20260919_160509_00001_task_3",
+        "manual_cut_18331635036_20260922_143635_00002_task_0",
+        "manual_cut_18356045235_20260918_175508_00001_task_0",
+        "manual_cut_18356045235_20260919_160509_00001_task_0",
+        "manual_cut_18356045235_20260918_175508_00001_task_1",
+        "manual_cut_18331635036_20260922_150258_00000_task_1",
+        "manual_cut_18331635036_20260922_143635_00002_task_1",
+        "manual_cut_18355162598_20260516_192601_00002_task_3",
+        "manual_cut_18331635036_20260922_143635_00002_task_2",
+        "manual_cut_18355162598_20260516_192601_00002_task_0",
+        "manual_cut_18356045235_20260917_195237_00001_task_1",
+        "manual_cut_18356045235_20260918_182021_00003_task_0"
+      ],
+      "video_count": 19,
+      "total_duration": 1544.0
+    },
+    "SSHD-Adi_batch_20": {
+      "first_seen_at": "2026-09-30T16:35:35.997353",
+      "classification": "New Video",
+      "slicer": "SSHD-Adi",
+      "batch_num": "20",
+      "video_ids": [
+        "manual_cut_18656542063_20260919_090507_00002_task_4"
+      ],
+      "video_count": 8,
+      "total_duration": 1578.0
+    },
+    "SSHD-Slicer9_batch_15": {
+      "first_seen_at": "2026-09-30T16:48:27.299932",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer9",
+      "batch_num": "15",
+      "video_ids": [
+        "manual_cut_18554645553_20260921_143143_00006_task_3"
+      ],
+      "video_count": 21,
+      "total_duration": 2437.0
+    },
+    "SSHD-Rajni_batch_34": {
+      "first_seen_at": "2026-09-30T17:06:14.201198",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni",
+      "batch_num": "34",
+      "video_ids": [
+        "manual_cut_18620271214_20260919_185520_00004_task_0",
+        "manual_cut_18620271214_20260919_185520_00004_task_1"
+      ],
+      "video_count": 8,
+      "total_duration": 765.0
+    },
+    "SSHD-S-Priya_batch_3": {
+      "first_seen_at": "2026-09-30T17:17:31.286291",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "3",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_142617_00011_task_0"
+      ],
+      "video_count": 3,
+      "total_duration": 599.0
+    }
+  },
+  "2026-10-01": {
+    "Akash 1 N_batch_7": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "Akash 1 N",
+      "batch_num": "7",
+      "video_ids": [
+        "manual_cut_18890130608_20260928_223142_00001_task_0",
+        "manual_cut_18890130608_20260929_063632_00000_task_1",
+        "manual_cut_18890130608_20260928_220103_00005_task_0",
+        "manual_cut_18890130608_20260928_225324_00003_task_1",
+        "manual_cut_18890130608_20260929_112408_00001_task_0",
+        "manual_cut_18870706258_20260929_170230_00001_task_0",
+        "manual_cut_18890130608_20260929_112408_00000_task_1",
+        "manual_cut_18890130608_20260929_102255_00000_task_0",
+        "manual_cut_18890130608_20260928_220103_00003_task_2",
+        "manual_cut_18890130608_20260929_063632_00000_task_5",
+        "manual_cut_18890130608_20260929_125022_00000_task_0",
+        "manual_cut_18872566688_20260701_214405_00008_task_0",
+        "manual_cut_18890130608_20260929_122800_00001_task_1",
+        "manual_cut_18871012650_20260930_095555_00000_task_1",
+        "manual_cut_18870706258_20260929_170230_00000_task_1",
+        "manual_cut_18871012650_20260930_101656_00001_task_0",
+        "manual_cut_18890130608_20260928_213120_00002_task_3",
+        "manual_cut_18871012650_20260930_083549_00000_task_1",
+        "manual_cut_18890130608_20260929_063632_00000_task_2",
+        "manual_cut_18871012650_20260930_073801_00000_task_0",
+        "manual_cut_18890130608_20260929_122800_00002_task_1",
+        "manual_cut_18871012650_20260930_095555_00000_task_2",
+        "manual_cut_18890130608_20260928_213120_00001_task_1",
+        "manual_cut_18890130608_20260928_213120_00002_task_2",
+        "manual_cut_18890130608_20260928_220103_00000_task_1",
+        "manual_cut_18870706258_20260929_160129_00009_task_1"
+      ],
+      "video_count": 26,
+      "total_duration": 3721.0
+    },
+    "SSHD- Slicnner21_batch_13": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD- Slicnner21",
+      "batch_num": "13",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_083210_00000_task_3",
+        "manual_cut_18620271214_20260917_063232_00009_task_3",
+        "manual_cut_18620271214_20260917_083210_00000_task_1",
+        "manual_cut_18620271214_20260917_063232_00007_task_3",
+        "manual_cut_18620271214_20260917_083210_00000_task_0",
+        "manual_cut_18620271214_20260917_063232_00009_task_1",
+        "manual_cut_18620271214_20260917_063232_00010_task_1",
+        "manual_cut_18620271214_20260917_063232_00010_task_0",
+        "manual_cut_18620271214_20260917_063232_00010_task_2",
+        "manual_cut_18620271214_20260917_063232_00009_task_2"
+      ],
+      "video_count": 43,
+      "total_duration": 3629.0
+    },
+    "SSHD-Adi_batch_20": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Adi",
+      "batch_num": "20",
+      "video_ids": [
+        "manual_cut_18656542063_20260919_090507_00004_task_0",
+        "manual_cut_18656542063_20260919_095508_00000_task_3",
+        "manual_cut_18656542063_20260919_095508_00001_task_1",
+        "manual_cut_18656542063_20260919_095508_00005_task_4",
+        "manual_cut_18656542063_20260919_095508_00001_task_6",
+        "manual_cut_18656542063_20260919_095508_00005_task_5",
+        "manual_cut_18656542063_20260919_095508_00002_task_0",
+        "manual_cut_18656542063_20260919_095508_00002_task_1",
+        "manual_cut_18656542063_20260919_095508_00003_task_2",
+        "manual_cut_18656542063_20260919_095508_00005_task_2",
+        "manual_cut_18656542063_20260919_090507_00006_task_0",
+        "manual_cut_18656542063_20260919_095508_00004_task_1",
+        "manual_cut_18656542063_20260919_095508_00004_task_0",
+        "manual_cut_18656542063_20260919_090507_00006_task_1",
+        "manual_cut_18656542063_20260919_095508_00000_task_1",
+        "manual_cut_18656542063_20260919_095508_00000_task_5",
+        "manual_cut_18656542063_20260919_090507_00003_task_0",
+        "manual_cut_18656542063_20260919_095508_00002_task_3",
+        "manual_cut_18656542063_20260919_095508_00000_task_2",
+        "manual_cut_18656542063_20260919_095508_00001_task_0",
+        "manual_cut_18656542063_20260919_095508_00001_task_3",
+        "manual_cut_18656542063_20260919_095508_00001_task_5",
+        "manual_cut_18656542063_20260919_095508_00001_task_4",
+        "manual_cut_18656542063_20260919_090507_00008_task_0",
+        "manual_cut_18656542063_20260919_095508_00002_task_2",
+        "manual_cut_18656542063_20260919_095508_00003_task_3",
+        "manual_cut_18656542063_20260919_095508_00005_task_3",
+        "manual_cut_18656542063_20260919_090507_00002_task_4",
+        "manual_cut_18656542063_20260919_095508_00003_task_0",
+        "manual_cut_18656542063_20260919_090507_00006_task_2",
+        "manual_cut_18656542063_20260919_095508_00001_task_2",
+        "manual_cut_18656542063_20260919_095508_00005_task_0",
+        "manual_cut_18656542063_20260919_090507_00005_task_0",
+        "manual_cut_18656542063_20260919_090507_00009_task_0"
+      ],
+      "video_count": 34,
+      "total_duration": 3600.0
+    },
+    "SSHD-GURHARLEEN1_batch_4": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-GURHARLEEN1",
+      "batch_num": "4",
+      "video_ids": [
+        "manual_cut_15730580499_20260630_055622_00020_task_8",
+        "manual_cut_15730580499_20260630_055622_00020_task_6"
+      ],
+      "video_count": 3,
+      "total_duration": 160.0
+    },
+    "SSHD-Gurharleen_batch_2": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Gurharleen",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_13829181088_20260619_213041_00002_task_2",
+        "manual_cut_15056076319_20260921_103337_00005_task_2",
+        "manual_cut_13924272685_20260501_180028_00019_task_0",
+        "manual_cut_15056076319_20260921_103337_00006_task_2",
+        "manual_cut_15056076319_20260921_103337_00005_task_0",
+        "manual_cut_15056076319_20260921_103337_00006_task_4",
+        "manual_cut_15666679961_20260916_180046_00037_task_0",
+        "manual_cut_15666679961_20260916_180046_00025_task_0",
+        "manual_cut_13792269721_20260630_150359_00003_task_2",
+        "manual_cut_13864788836_20260605_045546_00001_task_1",
+        "manual_cut_15056076319_20260921_103337_00005_task_3",
+        "manual_cut_15666679961_20260916_180046_00026_task_0",
+        "manual_cut_15065289167_20260619_201306_00010_task_3"
+      ],
+      "video_count": 13,
+      "total_duration": 1388.0
+    },
+    "SSHD-Rajni2_batch_16": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni2",
+      "batch_num": "16",
+      "video_ids": [
+        "manual_cut_18563097398_20260830_095641_00003_task_0",
+        "manual_cut_18563097398_20260917_065040_00003_task_1",
+        "manual_cut_18563097398_20260917_065040_00005_task_0",
+        "manual_cut_18563097398_20260830_095641_00001_task_0",
+        "manual_cut_18563097398_20260917_065040_00004_task_1",
+        "manual_cut_18563097398_20260917_062322_00000_task_1",
+        "manual_cut_18563097398_20260917_065040_00000_task_2",
+        "manual_cut_18563097398_20260830_095641_00002_task_0",
+        "manual_cut_18563097398_20260917_062322_00001_task_0",
+        "manual_cut_18563097398_20260917_065040_00003_task_2",
+        "manual_cut_18563097398_20260917_065040_00003_task_0",
+        "manual_cut_18563097398_20260917_080127_00000_task_0",
+        "manual_cut_18563097398_20260917_065040_00000_task_1",
+        "manual_cut_18563097398_20260917_065040_00000_task_3",
+        "manual_cut_18563097398_20260917_065040_00005_task_1",
+        "manual_cut_18563097398_20260830_095641_00000_task_0",
+        "manual_cut_18563097398_20260917_065040_00004_task_2",
+        "manual_cut_18563097398_20260917_065040_00004_task_0",
+        "manual_cut_18563097398_20260917_065040_00002_task_0",
+        "manual_cut_18563097398_20260917_065040_00001_task_0"
+      ],
+      "video_count": 20,
+      "total_duration": 3871.0
+    },
+    "SSHD-Rajni3_batch_22": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Rajni3",
+      "batch_num": "22",
+      "video_ids": [
+        "manual_cut_18620271214_20260919_102053_00013_task_0",
+        "manual_cut_18620271214_20260919_102053_00015_task_1",
+        "manual_cut_18620271214_20260919_102053_00014_task_2",
+        "manual_cut_18620271214_20260919_102053_00016_task_0",
+        "manual_cut_18620271214_20260919_102053_00014_task_0",
+        "manual_cut_18620271214_20260919_102053_00014_task_1",
+        "manual_cut_18620271214_20260919_102053_00015_task_0"
+      ],
+      "video_count": 9,
+      "total_duration": 1332.0
+    },
+    "SSHD-Ranjeeta_batch_22": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Ranjeeta",
+      "batch_num": "22",
+      "video_ids": [
+        "manual_cut_18456551840_20260919_123656_00001_task_0",
+        "manual_cut_18456551840_20260919_175005_00000_task_5",
+        "manual_cut_18456551840_20260919_124731_00000_task_1",
+        "manual_cut_18456551840_20260918_170951_00000_task_2",
+        "manual_cut_18456551840_20260919_170009_00000_task_0",
+        "manual_cut_18456551840_20260919_171157_00003_task_1",
+        "manual_cut_18456551840_20260919_182150_00000_task_4",
+        "manual_cut_18456551840_20260919_183003_00000_task_4",
+        "manual_cut_18456551840_20260919_182150_00001_task_0",
+        "manual_cut_18456551840_20260919_171157_00000_task_4",
+        "manual_cut_18456551840_20260919_170009_00000_task_1",
+        "manual_cut_18456551840_20260918_122426_00000_task_2",
+        "manual_cut_18456551840_20260919_171157_00006_task_0",
+        "manual_cut_18456551840_20260919_170009_00001_task_0",
+        "manual_cut_18456551840_20260918_170951_00001_task_4",
+        "manual_cut_18456551840_20260919_171157_00005_task_2",
+        "manual_cut_18456551840_20260919_171157_00000_task_0",
+        "manual_cut_18456551840_20260918_123646_00000_task_0",
+        "manual_cut_18456551840_20260919_175005_00000_task_3",
+        "manual_cut_18456551840_20260918_170951_00001_task_8",
+        "manual_cut_18456551840_20260918_123646_00001_task_0",
+        "manual_cut_18456551840_20260919_171157_00005_task_1",
+        "manual_cut_18456551840_20260918_170951_00002_task_2",
+        "manual_cut_18456551840_20260918_123212_00000_task_1",
+        "manual_cut_18456551840_20260919_184756_00001_task_1",
+        "manual_cut_18456551840_20260919_171157_00002_task_0",
+        "manual_cut_18456551840_20260919_120437_00000_task_0",
+        "manual_cut_18456551840_20260919_170009_00002_task_0",
+        "manual_cut_18456551840_20260919_171157_00004_task_0",
+        "manual_cut_18456551840_20260919_184756_00001_task_0",
+        "manual_cut_18456551840_20260919_184756_00000_task_2",
+        "manual_cut_18456551840_20260919_170009_00001_task_1",
+        "manual_cut_18456551840_20260918_130313_00000_task_0",
+        "manual_cut_18456551840_20260919_171157_00002_task_3",
+        "manual_cut_18456551840_20260919_201240_00000_task_0",
+        "manual_cut_18456551840_20260919_171157_00004_task_1",
+        "manual_cut_18456551840_20260919_171157_00001_task_0",
+        "manual_cut_18456551840_20260918_122426_00000_task_1",
+        "manual_cut_18456551840_20260919_184756_00000_task_3",
+        "manual_cut_18456551840_20260919_171157_00003_task_0",
+        "manual_cut_18456551840_20260918_170951_00000_task_1",
+        "manual_cut_18456551840_20260919_175005_00000_task_6",
+        "manual_cut_18456551840_20260918_170951_00002_task_4",
+        "manual_cut_18456551840_20260919_182150_00000_task_0",
+        "manual_cut_18456551840_20260919_171157_00003_task_2",
+        "manual_cut_18456551840_20260919_183003_00000_task_0",
+        "manual_cut_18456551840_20260919_171157_00000_task_5",
+        "manual_cut_18456551840_20260919_171157_00000_task_3",
+        "manual_cut_18456551840_20260918_170951_00001_task_7",
+        "manual_cut_18456551840_20260919_123656_00000_task_1",
+        "manual_cut_18456551840_20260918_122426_00000_task_0",
+        "manual_cut_18456551840_20260918_170951_00002_task_0",
+        "manual_cut_18456551840_20260919_182150_00000_task_6",
+        "manual_cut_18456551840_20260918_170951_00001_task_5",
+        "manual_cut_18456551840_20260919_171157_00006_task_1",
+        "manual_cut_18456551840_20260919_182150_00000_task_5",
+        "manual_cut_18456551840_20260919_175005_00000_task_4",
+        "manual_cut_18456551840_20260919_171157_00002_task_5",
+        "manual_cut_18456551840_20260918_170951_00001_task_3",
+        "manual_cut_18456551840_20260919_184756_00001_task_2",
+        "manual_cut_18456551840_20260919_184756_00000_task_0",
+        "manual_cut_18456551840_20260918_170951_00002_task_1",
+        "manual_cut_18456551840_20260919_171157_00004_task_3",
+        "manual_cut_18456551840_20260919_183003_00000_task_3",
+        "manual_cut_18456551840_20260919_182150_00000_task_2",
+        "manual_cut_18456551840_20260919_171157_00003_task_3",
+        "manual_cut_18456551840_20260919_171157_00005_task_4",
+        "manual_cut_18456551840_20260919_175005_00000_task_0",
+        "manual_cut_18456551840_20260919_171157_00007_task_0",
+        "manual_cut_18456551840_20260918_115606_00000_task_4",
+        "manual_cut_18456551840_20260919_183003_00000_task_1",
+        "manual_cut_18456551840_20260918_170951_00002_task_3",
+        "manual_cut_18456551840_20260918_115606_00001_task_0",
+        "manual_cut_18456551840_20260918_121907_00000_task_1",
+        "manual_cut_18456551840_20260919_171157_00004_task_2",
+        "manual_cut_18456551840_20260919_171157_00000_task_2",
+        "manual_cut_18456551840_20260919_184756_00000_task_1",
+        "manual_cut_18456551840_20260919_201240_00000_task_1",
+        "manual_cut_18456551840_20260919_184756_00000_task_6",
+        "manual_cut_18456551840_20260919_175005_00000_task_7",
+        "manual_cut_18456551840_20260919_120950_00000_task_0",
+        "manual_cut_18456551840_20260919_171157_00001_task_1",
+        "manual_cut_18456551840_20260918_130313_00001_task_0",
+        "manual_cut_18456551840_20260919_171157_00000_task_1",
+        "manual_cut_18456551840_20260919_175005_00000_task_2",
+        "manual_cut_18456551840_20260918_170951_00000_task_0",
+        "manual_cut_18456551840_20260919_183003_00000_task_2",
+        "manual_cut_18456551840_20260919_171157_00002_task_4",
+        "manual_cut_18456551840_20260919_171157_00005_task_3"
+      ],
+      "video_count": 89,
+      "total_duration": 7338.0
+    },
+    "SSHD-Riya2_batch_18": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya2",
+      "batch_num": "18",
+      "video_ids": [
+        "manual_cut_18605433315_20260917_112035_00002_task_0",
+        "manual_cut_18605433315_20260917_094930_00002_task_1",
+        "manual_cut_18605433315_20260917_101618_00000_task_1",
+        "manual_cut_18605433315_20260917_101618_00001_task_2",
+        "manual_cut_18605433315_20260917_112035_00000_task_0",
+        "manual_cut_18605433315_20260917_094930_00002_task_0",
+        "manual_cut_18605433315_20260917_094930_00002_task_2",
+        "manual_cut_18605433315_20260917_094930_00004_task_2",
+        "manual_cut_18605433315_20260917_101618_00001_task_1",
+        "manual_cut_18605433315_20260917_112035_00003_task_0",
+        "manual_cut_18605433315_20260917_094930_00004_task_0",
+        "manual_cut_18605433315_20260917_094930_00003_task_1",
+        "manual_cut_18605433315_20260917_101618_00000_task_2",
+        "manual_cut_18605433315_20260917_094930_00002_task_3",
+        "manual_cut_18605433315_20260917_112035_00002_task_2",
+        "manual_cut_18605433315_20260917_101618_00001_task_0",
+        "manual_cut_18605433315_20260917_155921_00000_task_0",
+        "manual_cut_18605433315_20260917_141228_00000_task_0",
+        "manual_cut_18605433315_20260917_094930_00003_task_2",
+        "manual_cut_18605433315_20260917_141228_00002_task_0",
+        "manual_cut_18605433315_20260917_141228_00002_task_1",
+        "manual_cut_18605433315_20260917_155921_00000_task_1",
+        "manual_cut_18605433315_20260917_105855_00001_task_0",
+        "manual_cut_18605433315_20260917_155921_00001_task_0",
+        "manual_cut_18605433315_20260917_101618_00000_task_0",
+        "manual_cut_18605433315_20260917_112035_00002_task_3",
+        "manual_cut_18605433315_20260917_112035_00002_task_4",
+        "manual_cut_18605433315_20260917_141228_00001_task_0",
+        "manual_cut_18605433315_20260917_101618_00000_task_3",
+        "manual_cut_18605433315_20260917_094930_00003_task_0",
+        "manual_cut_18605433315_20260917_112035_00002_task_5",
+        "manual_cut_18605433315_20260917_155921_00001_task_3",
+        "manual_cut_18605433315_20260917_094930_00004_task_1",
+        "manual_cut_18605433315_20260917_101618_00000_task_4",
+        "manual_cut_18605433315_20260917_112035_00001_task_0",
+        "manual_cut_18605433315_20260917_105855_00000_task_0",
+        "manual_cut_18605433315_20260917_112035_00002_task_6",
+        "manual_cut_18605433315_20260917_112035_00001_task_1",
+        "manual_cut_18605433315_20260917_112035_00001_task_2"
+      ],
+      "video_count": 39,
+      "total_duration": 3685.0
+    },
+    "SSHD-S-Aditya1_batch_4": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Aditya1",
+      "batch_num": "4",
+      "video_ids": [
+        "manual_cut_18588975948_20260921_150240_00034_task_1",
+        "manual_cut_18588975948_20260921_150240_00030_task_0",
+        "manual_cut_18588975948_20260921_150240_00023_task_0",
+        "manual_cut_18588975948_20260921_150240_00028_task_0",
+        "manual_cut_18588975948_20260921_150240_00031_task_2",
+        "manual_cut_18588975948_20260921_150240_00024_task_0",
+        "manual_cut_18588975948_20260921_150240_00022_task_3",
+        "manual_cut_18588975948_20260921_150240_00025_task_0",
+        "manual_cut_18588975948_20260921_150240_00029_task_0",
+        "manual_cut_18588975948_20260921_150240_00026_task_0",
+        "manual_cut_18588975948_20260921_150240_00032_task_0",
+        "manual_cut_18588975948_20260921_150240_00033_task_0",
+        "manual_cut_18588975948_20260921_150240_00027_task_0",
+        "manual_cut_18588975948_20260921_150240_00022_task_2",
+        "manual_cut_18588975948_20260921_150240_00034_task_0",
+        "manual_cut_18588975948_20260921_150240_00031_task_0"
+      ],
+      "video_count": 16,
+      "total_duration": 3629.0
+    },
+    "SSHD-S-Priya_batch_2": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_093319_00016_task_3",
+        "manual_cut_18620271214_20260917_142617_00003_task_0",
+        "manual_cut_18620271214_20260917_142617_00008_task_0",
+        "manual_cut_18620271214_20260917_142617_00001_task_3",
+        "manual_cut_18620271214_20260917_093319_00016_task_1",
+        "manual_cut_18620271214_20260917_142617_00005_task_0",
+        "manual_cut_18620271214_20260917_142617_00004_task_1",
+        "manual_cut_18620271214_20260917_142617_00001_task_0",
+        "manual_cut_18620271214_20260917_093319_00016_task_2",
+        "manual_cut_18620271214_20260917_093319_00017_task_1",
+        "manual_cut_18620271214_20260917_142617_00004_task_0",
+        "manual_cut_18620271214_20260917_142617_00009_task_2",
+        "manual_cut_18620271214_20260917_093319_00017_task_2",
+        "manual_cut_18620271214_20260917_093319_00016_task_4",
+        "manual_cut_18620271214_20260917_142617_00001_task_1",
+        "manual_cut_18620271214_20260917_093319_00017_task_0",
+        "manual_cut_18620271214_20260917_093319_00016_task_0",
+        "manual_cut_18620271214_20260917_142617_00007_task_0",
+        "manual_cut_18620271214_20260917_142617_00002_task_0",
+        "manual_cut_18620271214_20260917_142617_00009_task_0",
+        "manual_cut_18620271214_20260917_142617_00000_task_0",
+        "manual_cut_18620271214_20260917_142617_00009_task_1",
+        "manual_cut_18620271214_20260917_142617_00001_task_2",
+        "manual_cut_18620271214_20260917_142617_00010_task_0",
+        "manual_cut_18620271214_20260917_093319_00015_task_3",
+        "manual_cut_18620271214_20260917_142617_00006_task_0"
+      ],
+      "video_count": 26,
+      "total_duration": 3829.0
+    },
+    "SSHD-S-Priya_batch_3": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "3",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_142617_00018_task_1",
+        "manual_cut_18620271214_20260917_142617_00016_task_0",
+        "manual_cut_18620271214_20260917_142617_00014_task_0",
+        "manual_cut_18620271214_20260917_142617_00017_task_0",
+        "manual_cut_18620271214_20260917_142617_00011_task_0",
+        "manual_cut_18620271214_20260917_142617_00013_task_0",
+        "manual_cut_18620271214_20260917_142617_00012_task_0",
+        "manual_cut_18620271214_20260917_142617_00022_task_0",
+        "manual_cut_18620271214_20260917_142617_00022_task_2",
+        "manual_cut_18620271214_20260917_142617_00019_task_0",
+        "manual_cut_18620271214_20260917_142617_00023_task_0",
+        "manual_cut_18620271214_20260917_142617_00022_task_3",
+        "manual_cut_18620271214_20260917_142617_00015_task_0",
+        "manual_cut_18620271214_20260917_142617_00012_task_1",
+        "manual_cut_18620271214_20260917_142617_00021_task_0",
+        "manual_cut_18620271214_20260917_142617_00018_task_0",
+        "manual_cut_18620271214_20260917_142617_00018_task_2",
+        "manual_cut_18620271214_20260917_142617_00020_task_0",
+        "manual_cut_18620271214_20260917_142617_00022_task_1"
+      ],
+      "video_count": 19,
+      "total_duration": 3896.0
+    },
+    "SSHD-S-Priya_batch_4": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya",
+      "batch_num": "4",
+      "video_ids": [
+        "manual_cut_18620271214_20260917_142617_00027_task_2",
+        "manual_cut_18620271214_20260917_142617_00027_task_0",
+        "manual_cut_18620271214_20260917_142617_00029_task_3",
+        "manual_cut_18620271214_20260917_142617_00029_task_0",
+        "manual_cut_18620271214_20260917_142617_00025_task_0",
+        "manual_cut_18620271214_20260917_142617_00030_task_0",
+        "manual_cut_18620271214_20260917_142617_00026_task_0",
+        "manual_cut_18620271214_20260917_142617_00024_task_0",
+        "manual_cut_18620271214_20260917_142617_00029_task_2",
+        "manual_cut_18620271214_20260917_142617_00029_task_4",
+        "manual_cut_18620271214_20260917_142617_00029_task_1",
+        "manual_cut_18620271214_20260917_142617_00026_task_2",
+        "manual_cut_18620271214_20260917_142617_00027_task_1",
+        "manual_cut_18620271214_20260917_142617_00030_task_1",
+        "manual_cut_18620271214_20260917_142617_00028_task_0",
+        "manual_cut_18620271214_20260917_142617_00028_task_1"
+      ],
+      "video_count": 30,
+      "total_duration": 3879.0
+    },
+    "SSHD-Slicer 4_batch_24": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer 4",
+      "batch_num": "24",
+      "video_ids": [
+        "manual_cut_18658759215_20260917_113938_00002_task_0",
+        "manual_cut_18658759215_20260917_121412_00000_task_0",
+        "manual_cut_18658759215_20260917_131105_00001_task_0",
+        "manual_cut_18658759215_20260917_131105_00003_task_0",
+        "manual_cut_18658759215_20260917_133858_00000_task_0",
+        "manual_cut_18658759215_20260917_112733_00000_task_0",
+        "manual_cut_18658759215_20260917_112733_00001_task_0",
+        "manual_cut_18658759215_20260917_113938_00001_task_0",
+        "manual_cut_18658759215_20260917_133150_00000_task_1",
+        "manual_cut_18658759215_20260917_133858_00001_task_0",
+        "manual_cut_18658759215_20260917_131105_00000_task_1",
+        "manual_cut_18658759215_20260917_131105_00002_task_0",
+        "manual_cut_18658759215_20260917_121412_00001_task_0",
+        "manual_cut_18658759215_20260917_113938_00000_task_1"
+      ],
+      "video_count": 14,
+      "total_duration": 3781.0
+    },
+    "SSHD-Slicer3_batch_17": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer3",
+      "batch_num": "17",
+      "video_ids": [
+        "manual_cut_18658759215_20260917_170802_00004_task_0",
+        "manual_cut_18658759215_20260917_173233_00000_task_1",
+        "manual_cut_18658759215_20260917_170802_00002_task_0",
+        "manual_cut_18658759215_20260917_151328_00000_task_0",
+        "manual_cut_18658759215_20260917_144423_00002_task_0",
+        "manual_cut_18658759215_20260918_100610_00000_task_0",
+        "manual_cut_18658759215_20260918_095859_00000_task_0",
+        "manual_cut_18658759215_20260918_101853_00000_task_0",
+        "manual_cut_18658759215_20260917_170244_00000_task_1",
+        "manual_cut_18658759215_20260918_100610_00001_task_0",
+        "manual_cut_18658759215_20260917_133858_00002_task_0",
+        "manual_cut_18658759215_20260917_151328_00002_task_1",
+        "manual_cut_18658759215_20260917_170802_00003_task_0",
+        "manual_cut_18658759215_20260917_170802_00000_task_0",
+        "manual_cut_18658759215_20260917_144423_00001_task_0",
+        "manual_cut_18658759215_20260917_170802_00001_task_0",
+        "manual_cut_18658759215_20260917_144423_00000_task_0",
+        "manual_cut_18658759215_20260917_145612_00000_task_1",
+        "manual_cut_18658759215_20260917_191144_00000_task_1"
+      ],
+      "video_count": 19,
+      "total_duration": 3639.0
+    },
+    "SSHD-Slicer3_batch_18": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer3",
+      "batch_num": "18",
+      "video_ids": [
+        "manual_cut_18658759215_20260919_110244_00002_task_0",
+        "manual_cut_18658759215_20260918_215942_00001_task_2",
+        "manual_cut_18658759215_20260918_215942_00001_task_4",
+        "manual_cut_18658759215_20260918_175347_00001_task_0",
+        "manual_cut_18658759215_20260918_174339_00000_task_0",
+        "manual_cut_18658759215_20260918_145744_00000_task_1",
+        "manual_cut_18658759215_20260918_215556_00000_task_1",
+        "manual_cut_18658759215_20260918_215942_00002_task_1",
+        "manual_cut_18658759215_20260918_150032_00001_task_0",
+        "manual_cut_18658759215_20260918_215942_00000_task_1",
+        "manual_cut_18658759215_20260918_174339_00001_task_0",
+        "manual_cut_18658759215_20260919_110244_00000_task_0",
+        "manual_cut_18658759215_20260918_215942_00001_task_5",
+        "manual_cut_18658759215_20260918_175347_00000_task_1",
+        "manual_cut_18658759215_20260918_150032_00000_task_1",
+        "manual_cut_18658759215_20260919_111753_00000_task_0",
+        "manual_cut_18658759215_20260918_144507_00002_task_0",
+        "manual_cut_18658759215_20260918_215942_00001_task_0",
+        "manual_cut_18658759215_20260919_110244_00001_task_0",
+        "manual_cut_18658759215_20260918_215942_00002_task_0"
+      ],
+      "video_count": 20,
+      "total_duration": 3764.0
+    },
+    "SSHD-Slicer7_batch_21": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer7",
+      "batch_num": "21",
+      "video_ids": [
+        "manual_cut_18707460535_20260623_170522_00015_task_4",
+        "manual_cut_18680114637_20260629_070114_00008_task_4",
+        "manual_cut_18707460535_20260617_190739_00030_task_1",
+        "manual_cut_18680114637_20260629_070114_00044_task_2",
+        "manual_cut_18680114637_20260629_070114_00022_task_2",
+        "manual_cut_18680114637_20260629_070114_00017_task_4",
+        "manual_cut_18680114637_20260629_070114_00019_task_1",
+        "manual_cut_18680114637_20260629_070110_00006_task_3",
+        "manual_cut_18689222053_20260617_233517_00015_task_3",
+        "manual_cut_18663823667_20260918_110808_00001_task_1",
+        "manual_cut_18715113725_20260901_194203_00002_task_5",
+        "manual_cut_18680114637_20260629_070110_00012_task_0",
+        "manual_cut_18707460535_20260617_190739_00041_task_10",
+        "manual_cut_18715110526_20260619_181113_00000_task_0",
+        "manual_cut_18680114637_20260629_070114_00044_task_0",
+        "manual_cut_18680114637_20260629_070114_00022_task_0",
+        "manual_cut_18707460535_20260617_190739_00041_task_2",
+        "manual_cut_18663823667_20260918_110808_00000_task_3",
+        "manual_cut_18680114637_20260629_070114_00007_task_1",
+        "manual_cut_18680114637_20260626_221845_00008_task_2",
+        "manual_cut_18663823667_20260918_110808_00000_task_2",
+        "manual_cut_18707460535_20260617_053705_00000_task_1",
+        "manual_cut_18715113725_20260901_142713_00002_task_2",
+        "manual_cut_18715113725_20260901_194203_00004_task_1",
+        "manual_cut_18663823667_20260918_110808_00001_task_0"
+      ],
+      "video_count": 57,
+      "total_duration": 3630.0
+    },
+    "SSHD-Slicer8nk_batch_10": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer8nk",
+      "batch_num": "10",
+      "video_ids": [
+        "manual_cut_18959614716_20260930_021052_00002_task_3",
+        "manual_cut_18959614716_20260930_033922_00000_task_2",
+        "manual_cut_18959614716_20260930_062258_00000_task_1",
+        "manual_cut_18959614716_20260930_041356_00001_task_3",
+        "manual_cut_18959614716_20260930_021052_00002_task_6",
+        "manual_cut_18959614716_20260930_021052_00000_task_4",
+        "manual_cut_18959614716_20260930_041356_00001_task_4",
+        "manual_cut_18959614716_20260930_010343_00005_task_0",
+        "manual_cut_18959614716_20260930_010343_00004_task_3",
+        "manual_cut_18959614716_20260930_041356_00001_task_0",
+        "manual_cut_18959614716_20260930_021052_00002_task_1",
+        "manual_cut_18959614716_20260930_021052_00002_task_0"
+      ],
+      "video_count": 65,
+      "total_duration": 3634.0
+    },
+    "SSHD-Slicer9_batch_16": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer9",
+      "batch_num": "16",
+      "video_ids": [
+        "manual_cut_19179708268_20260929_173130_00020_task_0",
+        "manual_cut_19179708268_20260929_173130_00020_task_3",
+        "manual_cut_19179708268_20260929_173130_00019_task_0",
+        "manual_cut_19179708268_20260929_173130_00018_task_1",
+        "manual_cut_19179708268_20260929_173130_00017_task_1"
+      ],
+      "video_count": 38,
+      "total_duration": 3881.0
+    },
+    "SSHD-komal1_batch_12": {
+      "first_seen_at": "2026-10-01T11:05:51.859764",
+      "classification": "New Video",
+      "slicer": "SSHD-komal1",
+      "batch_num": "12",
+      "video_ids": [
+        "manual_cut_18356045235_20260920_223128_00002_task_2",
+        "manual_cut_18356045235_20260920_153805_00002_task_5",
+        "manual_cut_18356045235_20260920_220543_00000_task_4",
+        "manual_cut_18356045235_20260920_222007_00000_task_5",
+        "manual_cut_18356045235_20260920_222007_00000_task_6",
+        "manual_cut_18356045235_20260920_153805_00004_task_2",
+        "manual_cut_18356045235_20260920_153805_00001_task_3",
+        "manual_cut_18356045235_20260920_223128_00001_task_0",
+        "manual_cut_18356045235_20260920_222007_00000_task_4",
+        "manual_cut_18356045235_20260920_153805_00002_task_4"
+      ],
+      "video_count": 108,
+      "total_duration": 7266.0
+    },
+    "SSHD-Akash2_batch_5": {
+      "first_seen_at": "2026-10-01T11:20:44.211814",
+      "classification": "New Video",
+      "slicer": "SSHD-Akash2",
+      "batch_num": "5",
+      "video_ids": [
+        "manual_cut_18824260214_20260701_124835_00002_task_5",
+        "manual_cut_18824260214_20260701_131907_00004_task_0",
+        "manual_cut_18824260214_20260701_124835_00002_task_2"
+      ],
+      "video_count": 40,
+      "total_duration": 3633.0
+    },
+    "SSHD-Riya1_batch_25": {
+      "first_seen_at": "2026-10-01T11:46:20.743473",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya1",
+      "batch_num": "25",
+      "video_ids": [
+        "manual_cut_18827511062_20260930_084306_00006_task_2"
+      ],
+      "video_count": 38,
+      "total_duration": 3664.0
+    },
+    "SSHD-Psrdeep1_batch_2": {
+      "first_seen_at": "2026-10-01T12:05:10.334539",
+      "classification": "New Video",
+      "slicer": "SSHD-Psrdeep1",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18505515132_20260917_090540_00001_task_8"
+      ],
+      "video_count": 55,
+      "total_duration": 3744.0
+    },
+    "SSHD-S-Priya1_batch_1": {
+      "first_seen_at": "2026-10-01T12:05:10.334539",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Priya1",
+      "batch_num": "1",
+      "video_ids": [
+        "manual_cut_19235289873_20260601_175810_00006_task_6"
+      ],
+      "video_count": 53,
+      "total_duration": 3665.0
+    },
+    "SSHD-Slicer9_batch_17": {
+      "first_seen_at": "2026-10-01T13:08:48.305275",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer9",
+      "batch_num": "17",
+      "video_ids": [
+        "manual_cut_19188322242_20260929_183506_00002_task_2"
+      ],
+      "video_count": 22,
+      "total_duration": 3891.0
+    },
+    "SSHD-Ranzo_batch_31": {
+      "first_seen_at": "2026-10-01T13:17:36.444000",
+      "classification": "Rework",
+      "slicer": "SSHD-Ranzo",
+      "batch_num": "31",
+      "video_ids": [
+        "manual_cut_18598814819_20260902_190519_00004_task_0",
+        "manual_cut_18598814819_20260902_203218_00004_task_0",
+        "manual_cut_18598814819_20260902_221640_00001_task_1",
+        "manual_cut_18598814819_20260902_221640_00002_task_1",
+        "manual_cut_18598814819_20260902_190519_00007_task_1",
+        "manual_cut_18598814819_20260902_190519_00005_task_0",
+        "manual_cut_18598814819_20260902_190519_00004_task_1",
+        "manual_cut_18598814819_20260902_190519_00006_task_0",
+        "manual_cut_18598814819_20260902_221640_00002_task_0",
+        "manual_cut_18598814819_20260902_182423_00005_task_0",
+        "manual_cut_18598814819_20260902_190519_00007_task_0",
+        "manual_cut_18598814819_20260902_221640_00001_task_0",
+        "manual_cut_18598814819_20260902_221640_00001_task_2",
+        "manual_cut_18598814819_20260902_203218_00003_task_0",
+        "manual_cut_18598814819_20260902_182423_00006_task_0",
+        "manual_cut_18598814819_20260902_182423_00007_task_0"
+      ],
+      "video_count": 23,
+      "total_duration": 3753.0
+    },
+    "SSHD-ranjeeta6_batch_10": {
+      "first_seen_at": "2026-10-01T13:22:33.425497",
+      "classification": "Rework",
+      "slicer": "SSHD-ranjeeta6",
+      "batch_num": "10",
+      "video_ids": [
+        "manual_cut_18658759215_20260918_105847_00000_task_1",
+        "manual_cut_18658759215_20260918_104855_00000_task_1",
+        "manual_cut_18658759215_20260918_104253_00001_task_0",
+        "manual_cut_18658759215_20260918_112349_00000_task_0",
+        "manual_cut_18658759215_20260918_105847_00000_task_3",
+        "manual_cut_18658759215_20260918_101853_00001_task_0",
+        "manual_cut_18658759215_20260918_104855_00000_task_0",
+        "manual_cut_18658759215_20260918_104253_00000_task_0",
+        "manual_cut_18658759215_20260918_105847_00000_task_4",
+        "manual_cut_18658759215_20260918_104855_00000_task_2",
+        "manual_cut_18658759215_20260918_103649_00000_task_0",
+        "manual_cut_18658759215_20260918_104855_00000_task_4",
+        "manual_cut_18658759215_20260918_105847_00001_task_0",
+        "manual_cut_18658759215_20260918_104253_00000_task_1",
+        "manual_cut_18658759215_20260918_104855_00001_task_0",
+        "manual_cut_18658759215_20260918_112654_00000_task_0",
+        "manual_cut_18658759215_20260918_104855_00000_task_3",
+        "manual_cut_18658759215_20260918_105847_00000_task_5"
+      ],
+      "video_count": 34,
+      "total_duration": 3811.0
+    },
+    "SSHD-Pardeep_batch_2": {
+      "first_seen_at": "2026-10-01T13:40:59.093814",
+      "classification": "Rework",
+      "slicer": "SSHD-Pardeep",
+      "batch_num": "2",
+      "video_ids": [
+        "manual_cut_18501715479_20260921_083342_00012_task_1",
+        "manual_cut_18501715479_20260921_083342_00014_task_0",
+        "manual_cut_18501715479_20260921_083342_00010_task_3",
+        "manual_cut_18501715479_20260921_103225_00002_task_1",
+        "manual_cut_18501715479_20260921_103225_00000_task_2",
+        "manual_cut_18501715479_20260921_083342_00014_task_2",
+        "manual_cut_18501715479_20260921_083342_00013_task_5",
+        "manual_cut_18501715479_20260921_103225_00005_task_2",
+        "manual_cut_18501715479_20260921_083342_00013_task_6",
+        "manual_cut_18501715479_20260921_083342_00014_task_3",
+        "manual_cut_18501715479_20260921_083342_00011_task_6",
+        "manual_cut_18501715479_20260921_103225_00002_task_2",
+        "manual_cut_18501715479_20260921_103225_00002_task_0",
+        "manual_cut_18501715479_20260921_103225_00001_task_0",
+        "manual_cut_18501715479_20260921_103225_00002_task_6",
+        "manual_cut_18501715479_20260921_083342_00014_task_1",
+        "manual_cut_18501715479_20260921_103225_00005_task_1",
+        "manual_cut_18501715479_20260921_083342_00011_task_3",
+        "manual_cut_18501715479_20260921_083342_00012_task_0",
+        "manual_cut_18501715479_20260921_083342_00015_task_2",
+        "manual_cut_18501715479_20260921_083342_00011_task_8",
+        "manual_cut_18501715479_20260921_103225_00000_task_3",
+        "manual_cut_18501715479_20260921_103225_00000_task_1",
+        "manual_cut_18501715479_20260921_083342_00015_task_0",
+        "manual_cut_18501715479_20260921_083342_00013_task_2",
+        "manual_cut_18501715479_20260921_103225_00002_task_5",
+        "manual_cut_18501715479_20260921_083342_00013_task_0",
+        "manual_cut_18501715479_20260921_103225_00004_task_4",
+        "manual_cut_18501715479_20260921_083342_00010_task_2",
+        "manual_cut_18501715479_20260921_083342_00011_task_4",
+        "manual_cut_18501715479_20260921_103225_00003_task_0",
+        "manual_cut_18501715479_20260921_103225_00004_task_0",
+        "manual_cut_18501715479_20260921_083342_00011_task_5",
+        "manual_cut_18501715479_20260921_083342_00014_task_4",
+        "manual_cut_18501715479_20260921_083342_00013_task_3",
+        "manual_cut_18501715479_20260921_083342_00013_task_4",
+        "manual_cut_18501715479_20260921_103225_00001_task_1",
+        "manual_cut_18501715479_20260921_083342_00015_task_1",
+        "manual_cut_18501715479_20260921_083342_00012_task_2",
+        "manual_cut_18501715479_20260921_103225_00003_task_1",
+        "manual_cut_18501715479_20260921_103225_00005_task_0",
+        "manual_cut_18501715479_20260921_103225_00002_task_3",
+        "manual_cut_18501715479_20260921_083342_00010_task_4"
+      ],
+      "video_count": 51,
+      "total_duration": 3627.0
+    },
+    "SSHD-Riya2_batch_19": {
+      "first_seen_at": "2026-10-01T14:29:08.950943",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya2",
+      "batch_num": "19",
+      "video_ids": [
+        "manual_cut_19235289873_20260605_000143_00004_task_6"
+      ],
+      "video_count": 42,
+      "total_duration": 3206.0
+    },
+    "SSHD-Akash4_batch_1": {
+      "first_seen_at": "2026-10-01T14:40:27.526589",
+      "classification": "New Video",
+      "slicer": "SSHD-Akash4",
+      "batch_num": "1",
+      "video_ids": [
+        "manual_cut_19235289873_20260606_014950_00001_task_0",
+        "manual_cut_19235289873_20260606_015758_00000_task_1",
+        "manual_cut_19235289873_20260606_014950_00001_task_2"
+      ],
+      "video_count": 27,
+      "total_duration": 2017.0
+    },
+    "SSHD-Slicer2_batch_32": {
+      "first_seen_at": "2026-10-01T14:49:43.039563",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer2",
+      "batch_num": "32",
+      "video_ids": [
+        "manual_cut_18658759215_20260919_130336_00004_task_0",
+        "manual_cut_18658759215_20260919_112948_00001_task_0",
+        "manual_cut_18658759215_20260919_125125_00000_task_0",
+        "manual_cut_18658759215_20260919_130336_00001_task_0",
+        "manual_cut_18658759215_20260919_130336_00003_task_0",
+        "manual_cut_18658759215_20260919_130336_00000_task_0",
+        "manual_cut_18658759215_20260919_160627_00002_task_0",
+        "manual_cut_18658759215_20260919_125125_00001_task_0",
+        "manual_cut_18658759215_20260919_112948_00000_task_1",
+        "manual_cut_18658759215_20260919_160627_00003_task_0",
+        "manual_cut_18658759215_20260919_160627_00001_task_0",
+        "manual_cut_18658759215_20260919_130336_00002_task_0",
+        "manual_cut_18658759215_20260919_162416_00000_task_0",
+        "manual_cut_18658759215_20260919_130336_00005_task_0",
+        "manual_cut_18658759215_20260919_111753_00001_task_0",
+        "manual_cut_18658759215_20260919_160627_00000_task_0"
+      ],
+      "video_count": 16,
+      "total_duration": 3743.0
+    },
+    "SSHD-Slicer8nk_batch_11": {
+      "first_seen_at": "2026-10-01T14:49:43.039563",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer8nk",
+      "batch_num": "11",
+      "video_ids": [
+        "manual_cut_18996512190_20260603_085248_00000_task_11",
+        "manual_cut_18996512190_20260602_103115_00001_task_2",
+        "manual_cut_18996512190_20260602_103115_00000_task_5",
+        "manual_cut_18996512190_20260602_103115_00000_task_7"
+      ],
+      "video_count": 25,
+      "total_duration": 2642.0
+    },
+    "SSHD-Slicer 4_batch_25": {
+      "first_seen_at": "2026-10-01T15:02:53.374610",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer 4",
+      "batch_num": "25",
+      "video_ids": [
+        "manual_cut_19235289873_20260604_082127_00001_task_2",
+        "manual_cut_19235289873_20260604_082127_00001_task_1",
+        "manual_cut_19235289873_20260604_082127_00001_task_0"
+      ],
+      "video_count": 38,
+      "total_duration": 2816.0
+    },
+    "SSHD-ranjo2_batch_17": {
+      "first_seen_at": "2026-10-01T15:20:42.598347",
+      "classification": "New Video",
+      "slicer": "SSHD-ranjo2",
+      "batch_num": "17",
+      "video_ids": [
+        "manual_cut_18501715479_20260920_202604_00009_task_0",
+        "manual_cut_18501715479_20260920_202604_00007_task_2",
+        "manual_cut_18501715479_20260920_202604_00007_task_3",
+        "manual_cut_18501715479_20260920_202604_00008_task_0",
+        "manual_cut_18501715479_20260920_202604_00007_task_4",
+        "manual_cut_18501715479_20260920_202604_00006_task_2",
+        "manual_cut_18501715479_20260920_202604_00008_task_1",
+        "manual_cut_18501715479_20260920_202604_00007_task_5",
+        "manual_cut_18501715479_20260920_202604_00007_task_0",
+        "manual_cut_18501715479_20260920_202604_00007_task_1"
+      ],
+      "video_count": 36,
+      "total_duration": 3710.0
+    },
+    "SSHD-Riya2_batch_20": {
+      "first_seen_at": "2026-10-01T15:53:31.669820",
+      "classification": "New Video",
+      "slicer": "SSHD-Riya2",
+      "batch_num": "20",
+      "video_ids": [
+        "manual_cut_19235289873_20260605_013611_00000_task_7",
+        "manual_cut_19235289873_20260605_013611_00000_task_15"
+      ],
+      "video_count": 14,
+      "total_duration": 1172.0
+    },
+    "SSHD-komal1_batch_13": {
+      "first_seen_at": "2026-10-01T16:02:29.768197",
+      "classification": "New Video",
+      "slicer": "SSHD-komal1",
+      "batch_num": "13",
+      "video_ids": [
+        "manual_cut_18715113725_20260904_140911_00003_task_1",
+        "manual_cut_18715113725_20260904_140911_00002_task_2"
+      ],
+      "video_count": 10,
+      "total_duration": 607.0
+    },
+    "SSHD-S-Rajni_batch_3": {
+      "first_seen_at": "2026-10-01T16:07:30.372328",
+      "classification": "New Video",
+      "slicer": "SSHD-S-Rajni",
+      "batch_num": "3",
+      "video_ids": [
+        "manual_cut_18620271214_20260918_081835_00014_task_2"
+      ],
+      "video_count": 15,
+      "total_duration": 1002.0
+    },
+    "SSHD-Slicer3_batch_19": {
+      "first_seen_at": "2026-10-01T16:22:22.330751",
+      "classification": "New Video",
+      "slicer": "SSHD-Slicer3",
+      "batch_num": "19",
+      "video_ids": [
+        "manual_cut_19279672004_20260726_215542_00011_task_3"
+      ],
+      "video_count": 8,
+      "total_duration": 286.0
     }
   }
 }

@@ -25,12 +25,16 @@ from slicing_dashboard.plots import (
     create_table,
 )
 from slicing_dashboard.plots.theme import CHART_HEIGHT
+from slicing_dashboard.management.ui import layout_settlement_management, layout_user_mapping, register_management_callbacks
 
 # ── Bootstrap / initialise ───────────────────────────────────────────────
 dm = DataManager()
-end_dt = datetime.now()
-default_start = f"{end_dt.year}-09-01"
-default_end = end_dt.strftime("%Y-%m-%d")
+periods = dm.get_available_periods()
+default_period = next((p for p in periods if p.get('is_current')), periods[-1] if periods else {'start_date': '2026-09-01', 'end_date': datetime.now().strftime("%Y-%m-%d")})
+default_start = default_period['start_date']
+default_end = default_period['end_date']
+default_period_value = f"{default_start}|{default_end}"
+
 
 app = dash.Dash(
     __name__,
@@ -96,6 +100,14 @@ app.layout = html.Div(
                         dbc.Col(
                             dbc.ButtonGroup(
                                 [
+                                    dcc.Dropdown(
+                                        id="settlement-dropdown",
+                                        options=[{"label": p["label"], "value": p.get("value", f"{p['start_date']}|{p['end_date']}")} for p in periods],
+                                        value=default_period_value,
+                                        clearable=False,
+                                        className="dropdown-glass",
+                                        style={"minWidth": "260px", "marginRight": "10px"},
+                                    ),
                                     dbc.Button(
                                         "Today",
                                         id="btn-today",
@@ -103,22 +115,8 @@ app.layout = html.Div(
                                         size="sm",
                                         title="Today's performance",
                                     ),
-                                    dbc.Button(
-                                        "Current Period",
-                                        id="btn-curr-period",
-                                        color="outline-primary",
-                                        size="sm",
-                                        title="Current settlement period (Sep 1 - Today)",
-                                    ),
-                                    dbc.Button(
-                                        "Previous Period",
-                                        id="btn-prev-period",
-                                        color="outline-primary",
-                                        size="sm",
-                                        title="Previous settlement period (Aug 8 - Aug 31)",
-                                    ),
                                 ],
-                                className="me-2",
+                                className="me-2 d-flex align-items-center",
                             ),
                             width="auto",
                         ),
@@ -222,7 +220,7 @@ app.layout = html.Div(
                     n_intervals=0,
                 ),
 
-                # ── Chart row 1: Cumulative + Individual + Legend ─────
+                # ── Chart row 1: Rework Ratio (50%) + Completed Duration (50%) ─────
                 dbc.Row(
                     [
                         dbc.Col(
@@ -234,7 +232,7 @@ app.layout = html.Div(
                                 style=_graph_style,
                             ),
                             width=12,
-                            lg=7,
+                            lg=6,
                             className="mb-2 mb-lg-0",
                         ),
                         dbc.Col(
@@ -246,19 +244,7 @@ app.layout = html.Div(
                                 style=_graph_style,
                             ),
                             width=12,
-                            lg=4,
-                            className="mb-2 mb-lg-0",
-                        ),
-                        dbc.Col(
-                            dcc.Graph(
-                                id="universal-legend",
-                                figure=_initial_fig,
-                                config=_graph_cfg,
-                                className="glass-panel p-1 rounded shadow-sm chart-compact",
-                                style=_graph_style,
-                            ),
-                            width=12,
-                            lg=1,
+                            lg=6,
                             className="mb-2 mb-lg-0",
                         ),
                     ],
@@ -266,7 +252,7 @@ app.layout = html.Div(
                     style={"display": "flex", "alignItems": "stretch"},
                 ),
 
-                # ── Chart row 2: Pending + New Work + Assigned ───────
+                # ── Chart row 2: Pending + New Work + Legend ─────────
                 dbc.Row(
                     [
                         dbc.Col(
@@ -295,7 +281,7 @@ app.layout = html.Div(
                         ),
                         dbc.Col(
                             dcc.Graph(
-                                id="assigned-chart",
+                                id="universal-legend",
                                 figure=_initial_fig,
                                 config=_graph_cfg,
                                 className="glass-panel p-1 rounded shadow-sm chart-compact",
@@ -310,6 +296,24 @@ app.layout = html.Div(
                     style={"display": "flex", "alignItems": "stretch"},
                 ),
 
+                # ── Chart row 3: Assigned & Rework by ID (Dynamic Height) ──
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dcc.Graph(
+                                id="assigned-chart",
+                                figure=_initial_fig,
+                                config=_graph_cfg,
+                                className="glass-panel p-1 rounded shadow-sm chart-compact",
+                                style={"minHeight": "260px", "height": "auto"},
+                            ),
+                            width=12,
+                            className="mb-2 mb-lg-0",
+                        ),
+                    ],
+                    className="mb-2",
+                ),
+
                 # ── Tabs + Table ─────────────────────────────────────
                 dbc.Row(
                     [
@@ -320,18 +324,32 @@ app.layout = html.Div(
                                         dbc.Tab(
                                             label="Today's Work",
                                             tab_id="tab-today",
+                                            label_class_name="d-flex align-items-center gap-2",
                                         ),
                                         dbc.Tab(
                                             label="Yesterday's Work",
                                             tab_id="tab-yesterday",
+                                            label_class_name="d-flex align-items-center gap-2",
                                         ),
                                         dbc.Tab(
-                                            label="Settlement Overview (Since Aug 31)",
+                                            label="Settlement Overview",
                                             tab_id="tab-settlement",
+                                            label_class_name="d-flex align-items-center gap-2",
                                         ),
                                         dbc.Tab(
                                             label="Slice Data Overview",
                                             tab_id="tab-overview",
+                                            label_class_name="d-flex align-items-center gap-2",
+                                        ),
+                                        dbc.Tab(
+                                            label="Settlement Management",
+                                            tab_id="tab-manage-settlement",
+                                            label_class_name="d-flex align-items-center gap-2",
+                                        ),
+                                        dbc.Tab(
+                                            label="User Mapping",
+                                            tab_id="tab-manage-mapping",
+                                            label_class_name="d-flex align-items-center gap-2",
                                         ),
                                     ],
                                     id="tabs",
@@ -366,27 +384,25 @@ app.clientside_callback(
     [Output("date-from", "value"), Output("date-to", "value")],
     [
         Input("btn-today", "n_clicks"),
-        Input("btn-curr-period", "n_clicks"),
-        Input("btn-prev-period", "n_clicks"),
+        Input("settlement-dropdown", "value"),
     ],
     prevent_initial_call=True,
 )
-def quick_filters(btn_today, btn_curr, btn_prev):
+def quick_filters(btn_today, dropdown_val):
     ctx = dash.callback_context
     if not ctx.triggered:
         raise dash.exceptions.PreventUpdate
-    button_id = ctx.triggered[0]["prop_id"].split(".")[0]
-    now = datetime.now()
-    today_str = now.strftime("%Y-%m-%d")
-
-    if button_id == "btn-today":
+    
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+    
+    if trigger_id == "btn-today":
+        now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
         return today_str, today_str
-    elif button_id == "btn-curr-period":
-        (curr_start, curr_end), _ = dm.get_settlement_periods()
-        return curr_start, curr_end
-    elif button_id == "btn-prev-period":
-        _, (prev_start, prev_end) = dm.get_settlement_periods()
-        return prev_start, prev_end
+    
+    if trigger_id == "settlement-dropdown" and dropdown_val:
+        start, end = dropdown_val.split("|")
+        return start, end
 
     return default_start, default_end
 
@@ -513,9 +529,9 @@ def update_dashboard(
     # ── Theme ────────────────────────────────────────────────────────
     is_dark = True if theme_clicks is None else theme_clicks % 2 == 0
     toggle_label = (
-        html.I(className="bi bi-moon-stars")
+        html.I(className="bi bi-sun-fill text-warning fs-5", title="Switch to Light Theme")
         if is_dark
-        else html.I(className="bi bi-sun")
+        else html.I(className="bi bi-moon-stars-fill text-primary fs-5", title="Switch to Dark Theme")
     )
 
     if not start_date or not end_date:
@@ -636,8 +652,8 @@ def update_dashboard(
 
     # ── Pending + Assigned charts ────────────────────────────────────
     detailed_df = dm.get_detailed_pending_assigned_df(
-        start_date=start_date,
-        end_date=end_date,
+        start_date="2020-01-01",
+        end_date=datetime.now().strftime("%Y-%m-%d"),
         force_refresh=force_refresh,
     )
     if is_filtering and effective_users and not detailed_df.empty:
@@ -738,14 +754,7 @@ def _build_work_chart(
         else:
             d = datetime.strptime(start_date, "%Y-%m-%d")
             chart_date_label = f"{d.strftime('%b')} {d.day}"
-    else:
-        target_work_date = today_str
-        chart_date_label = "Today"
-
-    work_df = pd.DataFrame()
-    if start_date == end_date:
         try:
-            # get_todays_work_df fetches accurate completed/submitted efficiency data directly from backend
             t_df = dm.get_todays_work_df(
                 target_work_date,
                 force_refresh=force_refresh,
@@ -763,21 +772,32 @@ def _build_work_chart(
         except Exception:
             work_df = breakdown_df.copy()
     else:
-        try:
-            t_df = dm.get_todays_work_df(
-                target_work_date,
-                force_refresh=force_refresh,
-            )
-            if not t_df.empty:
-                work_df = pd.DataFrame({
-                    "User": t_df["User"],
-                    "New Work Duration": t_df["New Videos (First Time)"],
-                    "Rework Duration": t_df.get("Reworks", 0.0),
-                    "Total Work Duration": t_df["Total Duration"],
-                    "RawID": t_df.get("RawID", ""),
-                })
-        except Exception:
-            work_df = pd.DataFrame()
+        chart_date_label = "Selected Period"
+        if not breakdown_df.empty and "New Work Duration" in breakdown_df.columns:
+            work_df = pd.DataFrame({
+                "User": breakdown_df["User"],
+                "New Work Duration": breakdown_df["New Work Duration"],
+                "Rework Duration": breakdown_df.get("Rework Duration", 0.0),
+                "Total Work Duration": breakdown_df.get("Total Duration", 0.0),
+                "RawID": "",
+            })
+        else:
+            try:
+                t_df = dm.get_todays_work_df(
+                    today_str,
+                    force_refresh=force_refresh,
+                )
+                if not t_df.empty:
+                    chart_date_label = "Today"
+                    work_df = pd.DataFrame({
+                        "User": t_df["User"],
+                        "New Work Duration": t_df["New Videos (First Time)"],
+                        "Rework Duration": t_df.get("Reworks", 0.0),
+                        "Total Work Duration": t_df["Total Duration"],
+                        "RawID": t_df.get("RawID", ""),
+                    })
+            except Exception:
+                work_df = pd.DataFrame()
 
     if not work_df.empty:
         if "New Work Duration" not in work_df.columns:
@@ -862,6 +882,8 @@ def _render_tab(
                 tot_dur = raw_full_df["Total Duration"].sum() if not raw_full_df.empty else 0
                 tot_rew = raw_full_df["Reworks"].sum() if not raw_full_df.empty else 0
                 total_row["Rework %"] = f"{round(tot_rew / tot_dur * 100, 1)}%" if tot_dur > 0 else "0.0%"
+            if "RawID" in today_df.columns:
+                total_row["RawID"] = ""
             if "Working Hours Seconds" in today_df.columns:
                 today_df = today_df.drop(columns=["Working Hours Seconds"])
             today_df = pd.concat(
@@ -898,6 +920,11 @@ def _render_tab(
                 else pd.DataFrame(columns=overview_df.columns)
             )
         return create_table(overview_df, is_dark)
+    elif active_tab == "tab-manage-settlement":
+        return layout_settlement_management(is_dark=is_dark)
+        
+    elif active_tab == "tab-manage-mapping":
+        return layout_user_mapping(is_dark=is_dark)
 
     else:
         # Settlement tab
@@ -943,6 +970,7 @@ def _render_tab(
                     )
         return create_table(settlement_df, is_dark)
 
+register_management_callbacks(app, dm)
 
 if __name__ == "__main__":
     app.run(debug=True, port=8050)

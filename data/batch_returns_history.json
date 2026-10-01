@@ -1,7 +1,207 @@
 {
-  "last_updated": "2026-09-29 15:31:47",
-  "total_records": 137,
+  "last_updated": "2026-10-01 17:41:44",
+  "total_records": 163,
   "records": [
+    {
+      "event_id": "7498_ab_7b1d2929642b4cd2a852b78498ff0460_2026-10-01T19:26:37",
+      "user_id": 7498,
+      "username": "SSHD-Riya2",
+      "canonical_user": "Riya",
+      "batch_id": "ab_7b1d2929642b4cd2a852b78498ff0460",
+      "legacy_batch_number": 19,
+      "reason": "empty",
+      "returned_at": "2026-10-01T19:26:37"
+    },
+    {
+      "event_id": "6690_ab_5d7d8deaf5954b13ae72eb41c8aeae7c_2026-10-01T18:37:44",
+      "user_id": 6690,
+      "username": "SSHD-ranjo2",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_5d7d8deaf5954b13ae72eb41c8aeae7c",
+      "legacy_batch_number": 17,
+      "reason": "phone use",
+      "returned_at": "2026-10-01T18:37:44"
+    },
+    {
+      "event_id": "4806_ab_7e5c0c8c38d349c5b3b75fb39dbe3cd2_2026-10-01T18:28:37",
+      "user_id": 4806,
+      "username": "SSHD-Slicer2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_7e5c0c8c38d349c5b3b75fb39dbe3cd2",
+      "legacy_batch_number": 32,
+      "reason": "Action missing.",
+      "returned_at": "2026-10-01T18:28:37"
+    },
+    {
+      "event_id": "6728_ab_918824e949ec42ef9ce4f7f19afc5a11_2026-10-01T17:17:26",
+      "user_id": 6728,
+      "username": "SSHD-Slicer8nk",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_918824e949ec42ef9ce4f7f19afc5a11",
+      "legacy_batch_number": 10,
+      "reason": "EMPTY",
+      "returned_at": "2026-10-01T17:17:26"
+    },
+    {
+      "event_id": "13526_ab_e92686791ff144f68c3d053ccb1d6304_2026-10-01T13:21:23",
+      "user_id": 13526,
+      "username": "Akash 1 N",
+      "canonical_user": "Akash",
+      "batch_id": "ab_e92686791ff144f68c3d053ccb1d6304",
+      "legacy_batch_number": 7,
+      "reason": "missing clips",
+      "returned_at": "2026-10-01T13:21:23"
+    },
+    {
+      "event_id": "3969_ab_8f2a5966ed0e4c3682e188d1473cba84_2026-10-01T09:57:51",
+      "user_id": 3969,
+      "username": "SSHD-Ranjeeta",
+      "canonical_user": "Komal",
+      "batch_id": "ab_8f2a5966ed0e4c3682e188d1473cba84",
+      "legacy_batch_number": 22,
+      "reason": "action missing",
+      "returned_at": "2026-10-01T09:57:51"
+    },
+    {
+      "event_id": "5205_ab_94d3a428bca340f2aa9a88198cd496de_2026-10-01T03:11:36",
+      "user_id": 5205,
+      "username": "SSHD-Slicer 4",
+      "canonical_user": "Priya",
+      "batch_id": "ab_94d3a428bca340f2aa9a88198cd496de",
+      "legacy_batch_number": 24,
+      "reason": "Do not create segments for phone use or laptop use.",
+      "returned_at": "2026-10-01T03:11:36"
+    },
+    {
+      "event_id": "7498_ab_71728d48d51646159e286fbb0e77ab66_2026-10-01T01:44:31",
+      "user_id": 7498,
+      "username": "SSHD-Riya2",
+      "canonical_user": "Riya",
+      "batch_id": "ab_71728d48d51646159e286fbb0e77ab66",
+      "legacy_batch_number": 18,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-10-01T01:44:31"
+    },
+    {
+      "event_id": "16085_ab_e15e175cab4a4f699c53d553733a9830_2026-10-01T01:31:27",
+      "user_id": 16085,
+      "username": "SSHD-S-Aditya1",
+      "canonical_user": "Aditya",
+      "batch_id": "ab_e15e175cab4a4f699c53d553733a9830",
+      "legacy_batch_number": 4,
+      "reason": "Action missing.",
+      "returned_at": "2026-10-01T01:31:27"
+    },
+    {
+      "event_id": "5205_ab_94d3a428bca340f2aa9a88198cd496de_2026-10-01T01:18:12",
+      "user_id": 5205,
+      "username": "SSHD-Slicer 4",
+      "canonical_user": "Priya",
+      "batch_id": "ab_94d3a428bca340f2aa9a88198cd496de",
+      "legacy_batch_number": 24,
+      "reason": "missing action",
+      "returned_at": "2026-10-01T01:18:12"
+    },
+    {
+      "event_id": "14445_ab_7920a60d28b84f3e945e709687f851c9_2026-09-30T23:59:38",
+      "user_id": 14445,
+      "username": "SSHD-Psrdeep1",
+      "canonical_user": "Pardeep",
+      "batch_id": "ab_7920a60d28b84f3e945e709687f851c9",
+      "legacy_batch_number": 2,
+      "reason": "If there is no hand action, you don't need to segment that portion\"",
+      "returned_at": "2026-09-30T23:59:38"
+    },
+    {
+      "event_id": "4826_ab_1702548769f548789a6b867ad3715f67_2026-09-30T23:25:56",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_1702548769f548789a6b867ad3715f67",
+      "legacy_batch_number": 31,
+      "reason": "action missing",
+      "returned_at": "2026-09-30T23:25:56"
+    },
+    {
+      "event_id": "16437_ab_ba1d267091734212b851161d299b4d63_2026-09-30T23:22:27",
+      "user_id": 16437,
+      "username": "SSHD-S-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_ba1d267091734212b851161d299b4d63",
+      "legacy_batch_number": 3,
+      "reason": "Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-30T23:22:27"
+    },
+    {
+      "event_id": "9644_ab_daadf63eeb0b460caa0e1343f5fba41e_2026-09-30T22:42:26",
+      "user_id": 9644,
+      "username": "SSHD-ranjeeta6",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_daadf63eeb0b460caa0e1343f5fba41e",
+      "legacy_batch_number": 10,
+      "reason": "action missing",
+      "returned_at": "2026-09-30T22:42:26"
+    },
+    {
+      "event_id": "11494_ab_eeac2f0ded2949e8adc3d0d3caf22c0c_2026-09-30T22:24:30",
+      "user_id": 11494,
+      "username": "SSHD-Gurharleen4",
+      "canonical_user": "Gurharleen",
+      "batch_id": "ab_eeac2f0ded2949e8adc3d0d3caf22c0c",
+      "legacy_batch_number": 4,
+      "reason": "This action was unnecessarily split into multiple clips. Please keep one meaningful action in a single clip.",
+      "returned_at": "2026-09-30T22:24:30"
+    },
+    {
+      "event_id": "4826_ab_1702548769f548789a6b867ad3715f67_2026-09-30T19:40:55",
+      "user_id": 4826,
+      "username": "SSHD-Ranzo",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_1702548769f548789a6b867ad3715f67",
+      "legacy_batch_number": 31,
+      "reason": "This action was unnecessarily split into multiple clips. Please keep one meaningful action in a single clip.",
+      "returned_at": "2026-09-30T19:40:55"
+    },
+    {
+      "event_id": "16441_ab_d74455fff8614b0d90181ea0e9c50a86_2026-09-30T16:40:19",
+      "user_id": 16441,
+      "username": "SSHD-S-Rajni",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_d74455fff8614b0d90181ea0e9c50a86",
+      "legacy_batch_number": 2,
+      "reason": "The operating hand is incorrect. Please use the correct hand.",
+      "returned_at": "2026-09-30T16:40:19"
+    },
+    {
+      "event_id": "16441_ab_8e3c943029ae44b19753f0561aaf705b_2026-09-30T16:39:56",
+      "user_id": 16441,
+      "username": "SSHD-S-Rajni",
+      "canonical_user": "Rajni",
+      "batch_id": "ab_8e3c943029ae44b19753f0561aaf705b",
+      "legacy_batch_number": 1,
+      "reason": "Multiple actions have been combined into a single clip.",
+      "returned_at": "2026-09-30T16:39:56"
+    },
+    {
+      "event_id": "16437_ab_afc8b3c6b7af493db75dd23cad09cc3a_2026-09-30T11:09:55",
+      "user_id": 16437,
+      "username": "SSHD-S-Priya",
+      "canonical_user": "Priya",
+      "batch_id": "ab_afc8b3c6b7af493db75dd23cad09cc3a",
+      "legacy_batch_number": 2,
+      "reason": "Do not create segments for phone use or laptop use.Multiple actions have been combined into a single clip. Each action should be segmented into a separate clip.",
+      "returned_at": "2026-09-30T11:09:55"
+    },
+    {
+      "event_id": "9640_ab_2d08ccd9b40d4b48a04efdc700940821_2026-09-29T19:49:03",
+      "user_id": 9640,
+      "username": "SSHD-Priya2",
+      "canonical_user": "Priya",
+      "batch_id": "ab_2d08ccd9b40d4b48a04efdc700940821",
+      "legacy_batch_number": 15,
+      "reason": "If there is no hand action, you don't need to segment that portion",
+      "returned_at": "2026-09-29T19:49:03"
+    },
     {
       "event_id": "5205_ab_f93c44808fbc488bb87c4892c7fd91d4_2026-09-29T16:58:15",
       "user_id": 5205,
@@ -773,6 +973,26 @@
       "returned_at": "2026-09-18T19:47:08"
     },
     {
+      "event_id": "7413_ab_8f9a9dd6b51f486bbadc1ffe84745ff6_2026-09-18T17:33:21",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_8f9a9dd6b51f486bbadc1ffe84745ff6",
+      "legacy_batch_number": 2,
+      "reason": "",
+      "returned_at": "2026-09-18T17:33:21"
+    },
+    {
+      "event_id": "14234_ab_8f9a9dd6b51f486bbadc1ffe84745ff6_2026-09-18T17:33:21",
+      "user_id": 14234,
+      "username": "SSHD-Akash2",
+      "canonical_user": "Akash",
+      "batch_id": "ab_8f9a9dd6b51f486bbadc1ffe84745ff6",
+      "legacy_batch_number": 2,
+      "reason": "",
+      "returned_at": "2026-09-18T17:33:21"
+    },
+    {
       "event_id": "9160_ab_2c881ad171044860981591f6c1f1def4_2026-09-18T13:21:53",
       "user_id": 9160,
       "username": "SSHD-Komal14",
@@ -1123,6 +1343,16 @@
       "returned_at": "2026-09-10T21:09:30"
     },
     {
+      "event_id": "6737_ab_4372e8003c894a12a4539206ada09e7e_2026-09-10T18:39:20",
+      "user_id": 6737,
+      "username": "SSHD-Slicer9",
+      "canonical_user": "Ranjeeta",
+      "batch_id": "ab_4372e8003c894a12a4539206ada09e7e",
+      "legacy_batch_number": 1,
+      "reason": "",
+      "returned_at": "2026-09-10T18:39:20"
+    },
+    {
       "event_id": "7413_ab_78a3f8231ab248d2b7bf4f993e5ef3aa_2026-09-10T18:00:27",
       "user_id": 7413,
       "username": "SSHD-Riya1",
@@ -1273,6 +1503,26 @@
       "returned_at": "2026-09-03T19:53:53"
     },
     {
+      "event_id": "6689_ab_f5a193bfdb18456f88b1216ea19afa88_2026-08-15T17:23:26",
+      "user_id": 6689,
+      "username": "SSHD-komal1",
+      "canonical_user": "Komal",
+      "batch_id": "ab_f5a193bfdb18456f88b1216ea19afa88",
+      "legacy_batch_number": 2,
+      "reason": "",
+      "returned_at": "2026-08-15T17:23:26"
+    },
+    {
+      "event_id": "6689_ab_f5a193bfdb18456f88b1216ea19afa88_2026-08-15T14:33:47",
+      "user_id": 6689,
+      "username": "SSHD-komal1",
+      "canonical_user": "Komal",
+      "batch_id": "ab_f5a193bfdb18456f88b1216ea19afa88",
+      "legacy_batch_number": 2,
+      "reason": "",
+      "returned_at": "2026-08-15T14:33:47"
+    },
+    {
       "event_id": "863_ab_4113d0c6a0904fbbbe8100196e70309f_2026-08-13T17:28:51",
       "user_id": 863,
       "username": "SSHD-Slicer1",
@@ -1351,6 +1601,16 @@
       "legacy_batch_number": 8,
       "reason": "action missing",
       "returned_at": "2026-08-11T16:13:28"
+    },
+    {
+      "event_id": "6689_ab_279c114451e941a6813636ce7902a8db_2026-08-09T23:13:39",
+      "user_id": 6689,
+      "username": "SSHD-komal1",
+      "canonical_user": "Komal",
+      "batch_id": "ab_279c114451e941a6813636ce7902a8db",
+      "legacy_batch_number": 26,
+      "reason": "",
+      "returned_at": "2026-08-09T23:13:39"
     },
     {
       "event_id": "809_ab_a6801b8fc18e437ca237ffb83f476dad_2026-07-20T17:49:58",

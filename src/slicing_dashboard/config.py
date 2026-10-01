@@ -16,6 +16,13 @@ PROCESSED_DIR = DATA_DIR / 'processed'
 REPORTS_DIR = DATA_DIR / 'reports'
 LOGS_DIR = PROJECT_ROOT / 'logs'
 
+# Load environment variables into os.environ
+try:
+    from dotenv import load_dotenv
+    load_dotenv(PROJECT_ROOT / '.env')
+except Exception:
+    pass
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment / .env file."""
@@ -25,6 +32,7 @@ class Settings(BaseSettings):
         description='Base URL of the video slicing dashboard')
     admin_username: str = Field(..., env='ADMIN_USERNAME')
     admin_password: str = Field(..., env='ADMIN_PASSWORD')
+    slicer_admin_password: str | None = Field(None, env='SLICER_ADMIN_PASSWORD')
     database_url: str | None = Field(None, env='DATABASE_URL')
     mongo_uri: str | None = Field(None, env='MONGO_URI')
     timezone: str = Field(default='Asia/Kolkata', description=

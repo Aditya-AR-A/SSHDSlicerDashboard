@@ -42,7 +42,27 @@ def build_rework_ratio_chart(
         df = ratio_df.copy()
         if is_filtering and effective_users:
             df = df[df["User"].isin(effective_users)]
-            
+
+        # Exclude any user records with zero submitted batches to avoid misleading 100% no-rework stats
+        if "Total Batches" in df.columns:
+            df = df[df["Total Batches"] > 0]
+
+        if df.empty:
+            fig.add_annotation(
+                text="No submitted batch data available",
+                showarrow=False,
+                font={"size": 14, "color": t["font_color"]},
+            )
+            fig.update_layout(
+                title=f"Batch Rework Ratio (From {start_date})",
+                template=t["template"],
+                paper_bgcolor=t["bg_color"],
+                plot_bgcolor=t["bg_color"],
+                font=dict(family="Inter, sans-serif", color=t["font_color"]),
+                height=CHART_HEIGHT,
+            )
+            return fig
+
         # Sort by Total Batches descending or alphabetical
         df = df.sort_values("User", ascending=True)
 
@@ -51,9 +71,9 @@ def build_rework_ratio_chart(
 
         # Define 6 tiers: (column_name, dark_color, light_color)
         tiers = [
-            ("No Rework", "#10b981", "#059669"),   # Emerald
-            ("1 Rework",  "#84cc16", "#65a30d"),   # Lime
-            ("2 Reworks", "#eab308", "#ca8a04"),   # Amber
+            ("No Rework", "#10b981", "#059669"),   # Emerald Green
+            ("1 Rework",  "#facc15", "#eab308"),   # Vibrant Yellow (clear contrast against green)
+            ("2 Reworks", "#f59e0b", "#d97706"),   # Warm Amber
             ("3 Reworks", "#f97316", "#ea580c"),   # Orange
             ("4 Reworks", "#ef4444", "#dc2626"),   # Coral Red
             ("5+ Reworks","#991b1b", "#7f1d1d"),   # Deep Red

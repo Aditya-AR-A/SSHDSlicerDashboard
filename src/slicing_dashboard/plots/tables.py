@@ -17,66 +17,63 @@ def create_table(df, is_dark: bool):
     if df.empty:
         return html.Div("No data available")
 
-    font_color = "#e0e0e0" if is_dark else "#333333"
-    header_bg = (
-        "rgba(40, 40, 40, 0.9)" if is_dark else "rgba(230, 230, 230, 0.9)"
-    )
-    cell_bg = (
-        "rgba(20, 20, 20, 0.5)" if is_dark else "rgba(255, 255, 255, 0.5)"
-    )
-    odd_bg = (
-        "rgba(30, 30, 30, 0.5)" if is_dark else "rgba(240, 240, 240, 0.5)"
-    )
-    border_col = (
-        "rgba(255,255,255,0.05)" if is_dark else "rgba(0,0,0,0.05)"
-    )
+    font_color = "#f8fafc" if is_dark else "#0f172a"
+    header_bg = "#1e293b" if is_dark else "#f1f5f9"
+    header_color = "#f8fafc" if is_dark else "#1e293b"
+    cell_bg = "rgba(15, 23, 42, 0.7)" if is_dark else "rgba(255, 255, 255, 0.85)"
+    odd_bg = "rgba(30, 41, 59, 0.45)" if is_dark else "rgba(241, 245, 249, 0.6)"
+    border_col = "rgba(255,255,255,0.08)" if is_dark else "rgba(0,0,0,0.08)"
 
     return dash_table.DataTable(
         data=df.to_dict("records"),
         columns=[{"name": str(i), "id": str(i)} for i in df.columns],
+        sort_action="native",
         style_header={
             "backgroundColor": header_bg,
-            "color": font_color,
-            "fontWeight": "bold",
+            "color": header_color,
+            "fontWeight": "700",
             "border": "none",
             "textAlign": "left",
             "fontFamily": "Inter, sans-serif",
-            "fontSize": "13px",
+            "fontSize": "12px",
+            "textTransform": "uppercase",
+            "letterSpacing": "0.5px",
+            "padding": "10px 12px",
         },
         style_cell={
             "backgroundColor": cell_bg,
             "color": font_color,
             "border": f"1px solid {border_col}",
-            "padding": "8px 10px",
+            "padding": "8px 12px",
             "textAlign": "left",
             "fontFamily": "Inter, sans-serif",
-            "fontSize": "12px",
+            "fontSize": "12.5px",
         },
         style_data_conditional=[
             {"if": {"row_index": "odd"}, "backgroundColor": odd_bg},
             {
                 "if": {"filter_query": '{Username} = "All Slicers"'},
                 "backgroundColor": (
-                    "rgba(45, 125, 246, 0.25)"
+                    "rgba(59, 130, 246, 0.25)"
                     if is_dark
-                    else "rgba(45, 125, 246, 0.15)"
+                    else "rgba(37, 99, 235, 0.15)"
                 ),
                 "fontWeight": "bold",
             },
             {
                 "if": {"filter_query": '{User} = "TOTAL"'},
                 "backgroundColor": (
-                    "rgba(45, 125, 246, 0.25)"
+                    "rgba(59, 130, 246, 0.25)"
                     if is_dark
-                    else "rgba(45, 125, 246, 0.15)"
+                    else "rgba(37, 99, 235, 0.15)"
                 ),
                 "fontWeight": "bold",
             },
         ],
         style_table={
-            "borderRadius": "8px",
+            "borderRadius": "10px",
             "overflow": "hidden",
-            "maxHeight": "220px",
+            "maxHeight": "320px",
             "overflowY": "auto",
         },
     )
