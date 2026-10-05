@@ -75,7 +75,7 @@ def assert_historical_daily_chart_bypasses_api_cache_on_refresh():
     ))
     result = dm.get_cumulative_df("2026-09-01", "2026-09-01", force_refresh=True)
     dm.fetch_annotator_efficiency.assert_called_once_with(
-        start_date="2026-09-01", end_date="2026-09-01", role=2, force_refresh=True
+        start_date="2026-09-01", end_date="2026-09-01", role=2, force_refresh=True, include_summary=False
     )
     assert result.set_index("Date").loc["2026-09-01", "Aditya"] == 20
 

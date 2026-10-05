@@ -3,6 +3,10 @@ Data manager for the Dash dashboard.
 Fetches data from the dashboard API and structures it into Pandas DataFrames.
 """
 import json
+import inspect
+from contextlib import contextmanager
+from contextvars import ContextVar
+from functools import wraps
 from pathlib import Path
 from datetime import datetime, timedelta
 import pandas as pd
@@ -11,11 +15,131 @@ from slicing_dashboard.scraper.http_scraper import HTTPScraper
 
 
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
+from threading import Lock
+from time import perf_counter
 from typing import Any
 
 
+_REFRESH_SCOPE = ContextVar('dashboard_refresh_scope', default=None)
+
+
+def _per_refresh(function):
+    """Share identical reads, including concurrent readers, within one refresh."""
+    signature = inspect.signature(function)
+
+    @wraps(function)
+    def wrapper(self, *args, **kwargs):
+        scope = _REFRESH_SCOPE.get()
+        if scope is None or scope['manager'] is not self:
+            return function(self, *args, **kwargs)
+        arguments = signature.bind(self, *args, **kwargs)
+        arguments.apply_defaults()
+        key = (function.__name__, tuple((name, value) for name, value in arguments.arguments.items() if name != 'self'))
+        with scope['lock']:
+            future = scope['reads'].get(key)
+            first_reader = future is None
+            if first_reader:
+                future = scope['reads'][key] = Future()
+            else:
+                scope['memoized_hits'] += 1
+        if first_reader:
+            started = perf_counter()
+            outcome = 'ok'
+            try:
+                future.set_result(function(self, *args, **kwargs))
+            except BaseException as error:
+                outcome = type(error).__name__
+                future.set_exception(error)
+                raise
+            finally:
+                safe_arguments = {name: value for name, value in arguments.arguments.items()
+                                  if name in {'start_date', 'end_date', 'target_date', 'role', 'force_refresh', 'include_summary'}}
+                with scope['lock']:
+                    scope['timings'].append({'method': function.__name__, 'arguments': safe_arguments,
+                                             'seconds': round(perf_counter() - started, 4), 'outcome': outcome})
+        return future.result()
+
+    return wrapper
+
+
 class DataManager:
+
+    @contextmanager
+    def refresh_scope(self):
+        """Reuse reads and persist once per callback; independent callbacks stay isolated."""
+        existing = _REFRESH_SCOPE.get()
+        if existing is not None and existing['manager'] is self:
+            yield
+            return
+        scope = {'manager': self, 'reads': {}, 'lock': Lock(), 'snapshot_dirty': False,
+                 'started': perf_counter(), 'timings': [], 'memoized_hits': 0}
+        token = _REFRESH_SCOPE.set(scope)
+        try:
+            yield
+        finally:
+            _REFRESH_SCOPE.reset(token)
+            snapshot_started = perf_counter()
+            if scope['snapshot_dirty']:
+                self._save_snapshot()
+            snapshot_seconds = perf_counter() - snapshot_started if scope['snapshot_dirty'] else 0.0
+            if scope.get('daily_source') is not None:
+                scope['daily_source'].invalidate()
+            self.last_refresh_profile = {
+                'captured_at': datetime.now().isoformat(),
+                'elapsed_seconds': round(perf_counter() - scope['started'], 4),
+                'snapshot_seconds': round(snapshot_seconds, 4),
+                'memoized_hits': scope['memoized_hits'],
+                'reads': sorted(scope['timings'], key=lambda timing: timing['seconds'], reverse=True),
+                'database': {},
+                'snapshot_persistence': {'attempted': False},
+            }
+            database_profile = getattr(self.db, 'last_snapshot_profile', None)
+            if isinstance(database_profile, dict) and scope['snapshot_dirty']:
+                self.last_refresh_profile['database'] = database_profile
+            persistence = getattr(self, 'last_snapshot_save_result', None)
+            if isinstance(persistence, dict) and scope['snapshot_dirty']:
+                self.last_refresh_profile['snapshot_persistence'] = persistence
+            try:
+                from slicing_dashboard.config import DATA_DIR
+                target = DATA_DIR / 'reports' / 'performance-audit' / 'last-refresh-profile.json'
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text(json.dumps(self.last_refresh_profile, indent=2), encoding='utf-8')
+            except OSError:
+                pass
+
+    def _refresh_worker(self, function):
+        """Carry the callback's read cache into explicitly created worker threads."""
+        scope = _REFRESH_SCOPE.get()
+
+        @wraps(function)
+        def worker(*args, **kwargs):
+            token = _REFRESH_SCOPE.set(scope)
+            try:
+                return function(*args, **kwargs)
+            finally:
+                _REFRESH_SCOPE.reset(token)
+
+        return worker
+
+    def _daily_work_reader(self):
+        """Keep the complete submission inventory only for the current callback."""
+        from slicing_dashboard.processing.daily_work_source import DailyWorkSource
+        scope = _REFRESH_SCOPE.get()
+        if scope is None or scope['manager'] is not self:
+            return DailyWorkSource(self.scraper, self._get_canonical_name)
+        with scope['lock']:
+            reader = scope.get('daily_source')
+            if reader is None:
+                reader = scope['daily_source'] = DailyWorkSource(
+                    self.scraper, self._get_canonical_name, group_id=scope.get('group_id'))
+            seed_returns = dict(scope.get('return_responses', {}))
+        reader.seed_returns(seed_returns)
+        return reader
+
+    def prepare_daily_work(self, target_date):
+        """Prefetch submission inventory while independent aggregates are loading."""
+        return self._daily_work_reader().prepare(target_date)
 
     def __init__(self):
         self.settings = get_settings()
@@ -78,6 +202,7 @@ class DataManager:
 
         self._batches_master_path = DATA_DIR / 'batches_master.json'
         self._batches_master_cache: dict[str, dict[str, Any]] = {}
+        self._batches_master_synced_dates: set[str] = set()
         self._last_batches_sync: datetime | None = None
 
         # Always load master data and snapshot cache on startup
@@ -102,9 +227,7 @@ class DataManager:
 
         # 2. Try loading from database if connected (persists across Vercel serverless functions)
         try:
-            from slicing_dashboard.db import DatabaseManager
-            db = DatabaseManager()
-            db_snap = db.load_dashboard_snapshot()
+            db_snap = self.db.load_dashboard_snapshot()
             if db_snap and isinstance(db_snap, dict):
                 snap = db_snap
         except Exception:
@@ -122,10 +245,16 @@ class DataManager:
                 }
             if "batch_returns_records" in snap and isinstance(snap["batch_returns_records"], list):
                 self._batch_returns_cache = snap["batch_returns_records"]
+            self._batches_master_synced_dates.update(snap.get('batches_master_synced_dates', []))
             self.last_sync_time = snap.get("last_sync_time", self.last_sync_time)
 
     def _save_snapshot(self) -> None:
         """Persist current cache to disk and database as snapshot."""
+        scope = _REFRESH_SCOPE.get()
+        if scope is not None and scope['manager'] is self:
+            scope['snapshot_dirty'] = True
+            return
+        self.last_snapshot_save_result = {'attempted': True, 'local_saved': False, 'database_saved': False}
         try:
             self.last_sync_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cache_copy = dict(list(self._cache.items()))
@@ -139,6 +268,7 @@ class DataManager:
                 "available_users": self._snapshot_payload.get("available_users", []),
                 "batch_returns_records": self._batch_returns_cache,
                 "batches_master_records": list(self._batches_master_cache.values()),
+                "batches_master_synced_dates": sorted(getattr(self, '_batches_master_synced_dates', set())),
             }
             self._snapshot_payload = payload
 
@@ -148,18 +278,18 @@ class DataManager:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     with open(target, "w", encoding="utf-8") as f:
                         json.dump(payload, f, indent=2)
+                    self.last_snapshot_save_result['local_saved'] = True
                     break
                 except Exception:
                     continue
 
             # 2. Save to database if connected (for Vercel persistence across all lambdas)
             try:
-                from slicing_dashboard.db import DatabaseManager
-                db = DatabaseManager()
-                db.save_dashboard_snapshot(payload)
-            except Exception:
-                pass
+                self.last_snapshot_save_result['database_saved'] = bool(self.db.save_dashboard_snapshot(payload))
+            except Exception as error:
+                self.last_snapshot_save_result['database_error_class'] = type(error).__name__
         except Exception as e:
+            self.last_snapshot_save_result['snapshot_error_class'] = type(e).__name__
             print(f"Warning: Failed to save snapshot: {e}")
 
     def check_server_heartbeat(self, timeout: float = 2.5) -> bool:
@@ -243,6 +373,13 @@ class DataManager:
                 return v
         return u_str
 
+    def _batch_canonical_name(self, batch: dict) -> str:
+        """Resolve current mappings rather than the name saved in an old ledger."""
+        username = batch.get('username')
+        if username:
+            return self._get_canonical_name(batch.get('assignee_id', 0), username)
+        return batch.get('canonical_user', '')
+
     def get_unassigned_users(self, force_refresh: bool = False, force_refresh_users: bool = False, **kwargs) -> list[str]:
         """Find all usernames/IDs that appear in API or batches or records but are not in user_mapping."""
         force_refresh = force_refresh or force_refresh_users
@@ -295,6 +432,7 @@ class DataManager:
 
 
 
+    @_per_refresh
     def fetch_dashboard_data(self, start_date: str, end_date: str,
         force_refresh: bool=False) -> dict:
         """Fetches overview dashboard data with safe snapshot fallback."""
@@ -319,6 +457,13 @@ class DataManager:
             response.raise_for_status()
             data = response.json()
             self._cache[cache_key] = data
+            scope = _REFRESH_SCOPE.get()
+            if scope is not None and scope['manager'] is self:
+                api_scope = data.get('scope', {})
+                if api_scope.get('group_id') is not None:
+                    scope['group_id'] = api_scope['group_id']
+                if isinstance(api_scope.get('member_ids'), list):
+                    scope['member_ids'] = set(api_scope['member_ids'])
             self.server_is_live = True
             self.is_using_snapshot = False
             self.last_sync_error = None
@@ -489,7 +634,7 @@ class DataManager:
                 start_date=start_date,
                 end_date=end_date,
                 role=2,
-                force_refresh=force_refresh,
+                force_refresh=force_refresh, include_summary=False,
             )
             canonical_stats: dict[str, dict[str, Any]] = {}
             for it in items:
@@ -648,7 +793,7 @@ class DataManager:
                         start_date=dt_str,
                         end_date=dt_str,
                         role=2,
-                        force_refresh=force_refresh,
+                        force_refresh=force_refresh, include_summary=False,
                     )
                     day_users = {}
                     for it in items:
@@ -663,7 +808,7 @@ class DataManager:
 
             workers = min(len(dates_to_fetch), 5)
             with ThreadPoolExecutor(max_workers=workers) as executor:
-                results = dict(executor.map(fetch_single_day, dates_to_fetch))
+                results = dict(executor.map(self._refresh_worker(fetch_single_day), dates_to_fetch))
 
             for d, users in results.items():
                 self._daily_cache[d] = users
@@ -724,6 +869,7 @@ class DataManager:
             except Exception:
                 continue
 
+    @_per_refresh
     def sync_batch_returns(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         """Sync live batch return history from upstream API and merge into persistent dataset.
         
@@ -731,11 +877,8 @@ class DataManager:
         preserved even if upstream endpoints purge older history.
         """
         now = datetime.now()
-        if not force_refresh and self._batch_returns_cache:
-            if not self.server_is_live:
-                return self._batch_returns_cache
-            if self._last_batch_returns_sync and (now - self._last_batch_returns_sync).total_seconds() < 120:
-                return self._batch_returns_cache
+        if not force_refresh and (self._batch_returns_cache or self._last_batch_returns_sync is not None):
+            return self._batch_returns_cache
 
         try:
             if not self.scraper.is_authenticated:
@@ -747,6 +890,11 @@ class DataManager:
 
             url = f"{self.scraper._base_url}/api/requests/batch-return-history"
             existing_map = {r.get("event_id"): r for r in self._batch_returns_cache if r.get("event_id")}
+            scope = _REFRESH_SCOPE.get()
+            if scope is not None and scope['manager'] is self:
+                scope.setdefault('return_responses', {})
+            else:
+                scope = None
 
             def fetch_user_returns(u_tuple):
                 uid, uinfo = u_tuple
@@ -762,7 +910,11 @@ class DataManager:
                         timeout=4.0,
                     )
                     if r.status_code == 200:
-                        items = r.json().get("data", [])
+                        payload = r.json()
+                        items = payload.get("data", [])
+                        if scope is not None:
+                            with scope['lock']:
+                                scope['return_responses'][uid] = payload
                         user_records = []
                         for it in items:
                             b_id = str(it.get("batch_id", "") or "")
@@ -786,6 +938,8 @@ class DataManager:
                 return []
 
             users_list = list(self.scraper._users.items())
+            if scope is not None and scope.get('member_ids'):
+                users_list = [(uid, info) for uid, info in users_list if uid in scope['member_ids']]
             with ThreadPoolExecutor(max_workers=8) as executor:
                 results = executor.map(fetch_user_returns, users_list)
                 for res in results:
@@ -811,6 +965,7 @@ class DataManager:
                         data = json.load(f)
                         if isinstance(data, dict) and "batches" in data:
                             records = data["batches"]
+                            self._batches_master_synced_dates.update(data.get('fetched_dates', []))
                         elif isinstance(data, list):
                             records = data
                         if records:
@@ -824,6 +979,8 @@ class DataManager:
         self._batches_master_cache = {
             b["batch_id"]: b for b in records if isinstance(b, dict) and b.get("batch_id")
         }
+        self._batches_master_synced_dates.update(
+            batch['batch_date'] for batch in self._batches_master_cache.values() if batch.get('batch_date'))
 
     def _save_batches_master(self, batches_dict: dict[str, dict[str, Any]]) -> None:
         """Persist batches master ledger to disk and snapshot cache."""
@@ -836,6 +993,7 @@ class DataManager:
             "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "total_batches": len(batches_list),
             "batches": batches_list,
+            "fetched_dates": sorted(getattr(self, '_batches_master_synced_dates', set())),
         }
         for target in [self._batches_master_path, Path("/tmp/batches_master.json")]:
             try:
@@ -846,6 +1004,7 @@ class DataManager:
             except Exception:
                 continue
 
+    @_per_refresh
     def sync_batches_master(
         self, start_date: str, end_date: str, force_refresh: bool = False
     ) -> dict[str, dict[str, Any]]:
@@ -855,14 +1014,16 @@ class DataManager:
         batches are permanently preserved even if upstream endpoints purge older history.
         """
         now = datetime.now()
-        today_str = now.strftime("%Y-%m-%d")
-        yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
 
-        if not force_refresh and self._batches_master_cache:
-            if not self.server_is_live:
-                return self._batches_master_cache
-            if self._last_batches_sync and (now - self._last_batches_sync).total_seconds() < 60:
-                return self._batches_master_cache
+        synced_dates = getattr(self, '_batches_master_synced_dates', set())
+        synced_dates.update(batch['batch_date'] for batch in self._batches_master_cache.values() if batch.get('batch_date'))
+        self._batches_master_synced_dates = synced_dates
+        start = datetime.strptime(start_date, '%Y-%m-%d')
+        end = datetime.strptime(end_date, '%Y-%m-%d')
+        requested_dates = {(start + timedelta(days=index)).strftime('%Y-%m-%d')
+                           for index in range((end - start).days + 1)}
+        if not force_refresh and (requested_dates <= synced_dates or not self.server_is_live):
+            return self._batches_master_cache
 
         try:
             if not self.scraper.is_authenticated:
@@ -886,18 +1047,15 @@ class DataManager:
             s_dt = dt_cls.strptime(start_date, fmt)
             e_dt = dt_cls.strptime(end_date, fmt)
 
-            cached_dates = set()
-            for b in self._batches_master_cache.values():
-                d = b.get("batch_date")
-                if d:
-                    cached_dates.add(d)
+            cached_dates = set(synced_dates)
 
             dates_to_fetch = []
             cur = s_dt
             while cur <= e_dt:
                 d_str = cur.strftime(fmt)
-                # Always refresh recent active days (today, yesterday) or any date not yet cached
-                if force_refresh or d_str in [today_str, yesterday_str] or d_str not in cached_dates:
+                # Display interactions reuse covered dates. Explicit Refresh
+                # still reloads the entire selected range, including history.
+                if force_refresh or d_str not in cached_dates:
                     dates_to_fetch.append(d_str)
                 cur += timedelta(days=1)
 
@@ -915,7 +1073,7 @@ class DataManager:
                         return day_str, r.json().get("breakdowns", {}).get("batches", [])
                 except Exception as e:
                     print(f"Error fetching batches for {day_str}: {e}")
-                return day_str, []
+                return day_str, None
 
             with ThreadPoolExecutor(max_workers=min(10, max(1, len(dates_to_fetch)))) as ex:
                 results = list(ex.map(fetch_day_batches, dates_to_fetch))
@@ -923,6 +1081,9 @@ class DataManager:
             now_str = now.strftime("%Y-%m-%d %H:%M:%S")
             updated = False
             for day_str, b_list in results:
+                if b_list is None:
+                    continue
+                self._batches_master_synced_dates.add(day_str)
                 for b in b_list:
                     bid = b.get("batch_id")
                     if not bid:
@@ -956,9 +1117,10 @@ class DataManager:
                     }
                     updated = True
 
-            if updated or force_refresh:
+            if updated or force_refresh or self._batches_master_synced_dates != cached_dates:
                 self._save_batches_master(self._batches_master_cache)
                 self._last_batches_sync = now
+                self._save_snapshot()
 
             return self._batches_master_cache
         except Exception as e:
@@ -973,7 +1135,7 @@ class DataManager:
         """
         try:
             self.sync_batches_master(start_date, end_date, force_refresh=force_refresh)
-            summary, items = self.fetch_annotator_efficiency(start_date, end_date, role=2, force_refresh=force_refresh)
+            summary, items = self.fetch_annotator_efficiency(start_date, end_date, role=2, force_refresh=force_refresh, include_summary=False)
 
             batches = list(self._batches_master_cache.values())
             
@@ -1008,14 +1170,14 @@ class DataManager:
             filtered = [
                 b for b in batches
                 if (start_date <= b.get("batch_date", "") <= end_date or b.get("batch_id") in returned_batch_ids)
-                and b.get("canonical_user") not in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]
+                and self._batch_canonical_name(b) not in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]
                 and is_batch_submitted(b)
             ]
 
             user_results: dict[str, dict[str, Any]] = {}
             for b in filtered:
                 raw_u = b.get("username", "")
-                canon = b.get("canonical_user") or self._get_canonical_name(b.get("assignee_id", 0), raw_u)
+                canon = self._batch_canonical_name(b)
                 if not canon or canon in ["Admin", "Test", "Dep", "user-None", "", "(unassigned)", "Exempt"]:
                     continue
                 if canon not in user_results:
@@ -1031,7 +1193,7 @@ class DataManager:
             used_csv = False
             if filtered:
                 for b in filtered:
-                    canon = b.get("canonical_user") or self._get_canonical_name(b.get("assignee_id", 0), b.get("username", ""))
+                    canon = self._batch_canonical_name(b)
                     if canon in user_results:
                         bid = b.get("batch_id")
                         if bid in returns_in_range_by_batch:
@@ -1173,12 +1335,12 @@ class DataManager:
             print(f"Error in get_batch_rework_ratio_df: {e}")
             return pd.DataFrame()
 
+    @_per_refresh
     def get_todays_work_df(self, target_date: (str | None)=None,
         force_refresh: bool=False) -> pd.DataFrame:
         """Count unique task submissions in India time, not updates or approvals."""
         from slicing_dashboard.management.periods import today_iso
         from slicing_dashboard.processing.daily_work import aggregate_daily_work
-        from slicing_dashboard.processing.daily_work_source import DailyWorkSource
         target_date = target_date or today_iso()
         key = f'verified_daily_work_{target_date}'
         cached = self._cache.get(key)
@@ -1197,7 +1359,7 @@ class DataManager:
             result.attrs.update(cached.get('metadata', {}))
             return result
         try:
-            source = DailyWorkSource(self.scraper, self._get_canonical_name).fetch(target_date)
+            source = self._daily_work_reader().fetch(target_date)
             result, evidence = aggregate_daily_work(
                 source['tasks'], source['returned_accounts'], source['reviews'],
                 target_date, self._get_canonical_name, requests=source.get('requests', []),
@@ -1234,6 +1396,7 @@ class DataManager:
             result.attrs.update(error=str(error), target_date=target_date, is_snapshot=True)
             return result
 
+    @_per_refresh
     def get_live_rework_by_user(self, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
         """Fetch actual tasks with status 'slice_rework' from API grouped by canonical user."""
         cache_key = 'live_slice_rework'
@@ -1362,8 +1525,14 @@ class DataManager:
         from slicing_dashboard.management.periods import available_periods
         return available_periods(getattr(self, 'settlement_periods', []))
 
-    def fetch_all_assigned_tasks_live(self) -> dict:
+    @_per_refresh
+    def fetch_all_assigned_tasks_live(self, force_refresh: bool = False) -> dict:
         """Fetch all assigned tasks directly to bypass the date-filtering flaw of the overview API."""
+        cache_key = 'live_slice_assigned'
+        if not force_refresh and cache_key in self._cache:
+            # Raw IDs are stored in the snapshot as JSON arrays.
+            return {name: dict(value, raw_ids=set(value.get('raw_ids', [])))
+                    for name, value in self._cache[cache_key].items()}
         if not self.scraper.is_authenticated:
             self.scraper.login()
         if not self.scraper._users:
@@ -1408,6 +1577,8 @@ class DataManager:
             canonical_assigned[canonical]['backlog_cnt'] += 1
             canonical_assigned[canonical]['raw_ids'].add(username)
             
+        self._cache[cache_key] = {name: dict(value, raw_ids=sorted(value['raw_ids']))
+                                 for name, value in canonical_assigned.items()}
         return canonical_assigned
 
     def get_detailed_pending_assigned_df(
@@ -1415,6 +1586,7 @@ class DataManager:
         start_date: (str | None) = None,
         end_date: (str | None) = None,
         force_refresh: bool = False,
+        overview_data: dict | None = None,
     ) -> pd.DataFrame:
         """Calculate user-level pending (split by Leader, Auditor, Admin) and assigned (New vs Rework) plus Assignable Pool."""
         if not start_date or not end_date:
@@ -1422,7 +1594,7 @@ class DataManager:
             start_date = start_date or today_str
             end_date = end_date or today_str
 
-        data = self.fetch_dashboard_data(start_date, end_date, force_refresh)
+        data = overview_data if overview_data is not None else self.fetch_dashboard_data(start_date, end_date, force_refresh)
         breakdowns = data.get('breakdowns', {})
         metrics = data.get('metrics', {})
 
@@ -1431,10 +1603,9 @@ class DataManager:
         # 1. Real-time Assignable Videos (Unassigned Pool)
         funnel_list = breakdowns.get('slice_funnel', [])
         funnel_map = {f.get('key'): f for f in funnel_list}
-        assignable_dur = (
-            funnel_map.get('pending_assign', {}).get('duration_seconds')
-            or metrics.get('overview_slice_assignable_remaining_duration_seconds', 0)
-        )
+        assignable_dur = metrics.get('overview_slice_assignable_remaining_duration_seconds')
+        if assignable_dur is None:
+            assignable_dur = funnel_map.get('pending_assign', {}).get('duration_seconds', 0)
         assignable_count = funnel_map.get('pending_assign', {}).get('count', 0)
         records.append({
             'User': 'Assignable Pool',
@@ -1454,7 +1625,7 @@ class DataManager:
                 start_date='2020-01-01',
                 end_date=today_str,
                 role=2,
-                force_refresh=force_refresh,
+                force_refresh=force_refresh, include_summary=False,
             )
             for it in eff_items:
                 raw_u = it.get('username', '')
@@ -1506,7 +1677,7 @@ class DataManager:
 
         if active_batches:
             for b in active_batches:
-                c_user = b.get("canonical_user") or self._get_canonical_name(b.get("assignee_id", 0), b.get("username", ""))
+                c_user = self._batch_canonical_name(b)
                 if c_user in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)']:
                     continue
                 raw_u = b.get("username") or c_user
@@ -1535,7 +1706,7 @@ class DataManager:
             live_rework = self.get_live_rework_by_user(force_refresh=force_refresh)
             canonical_assigned: dict[str, dict[str, Any]] = {}
             try:
-                canonical_assigned = self.fetch_all_assigned_tasks_live()
+                canonical_assigned = self.fetch_all_assigned_tasks_live(force_refresh=force_refresh)
             except Exception as e:
                 print(f"Warning: Failed to fetch exact assigned tasks live: {e}")
                 user_breakdown = breakdowns.get('slice_user_breakdown', [])
@@ -1766,12 +1937,46 @@ class DataManager:
             traceback.print_exc()
             return False
 
+    @_per_refresh
+    def _fetch_efficiency_summary(self, start_date: str, end_date: str, role: int = 2) -> dict:
+        response = self.scraper._client.get(
+            f"{self.scraper._base_url}/api/dashboard/annotator-efficiency-overall",
+            params={"start_date": start_date, "end_date": end_date, "role": role},
+            timeout=5.0,
+        )
+        response.raise_for_status()
+        return response.json().get("summary", {})
+
+    @_per_refresh
+    def _fetch_efficiency_items(self, start_date: str, end_date: str, role: int = 2) -> list:
+        items, page = [], 1
+        while True:
+            response = self.scraper._client.get(
+                f"{self.scraper._base_url}/api/dashboard/annotator-efficiency",
+                params={"start_date": start_date, "end_date": end_date, "role": role,
+                        "page": page, "page_size": 200},
+                timeout=5.0,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            page_items = payload.get("items", [])
+            if not page_items:
+                break
+            items.extend(page_items)
+            total = payload.get("total", len(items))
+            if len(items) >= total or len(page_items) < 200 or page > 20:
+                break
+            page += 1
+        return items
+
+    @_per_refresh
     def fetch_annotator_efficiency(
         self,
         start_date: str,
         end_date: str,
         role: int = 2,
         force_refresh: bool = False,
+        include_summary: bool = True,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Fetch efficiency metrics directly from the API with safe fallback.
 
@@ -1779,7 +1984,8 @@ class DataManager:
             (summary_dict, items_list)
         """
         cache_key = f"eff_{role}_{start_date}_{end_date}"
-        if not force_refresh and cache_key in self._cache:
+        summary_key = f'{cache_key}_has_summary'
+        if not force_refresh and cache_key in self._cache and (not include_summary or self._cache.get(summary_key, True)):
             return self._cache[cache_key]
 
         if not force_refresh and not self.server_is_live and cache_key in self._cache:
@@ -1791,45 +1997,22 @@ class DataManager:
                 if not self.scraper.login():
                     raise ConnectionError("Login failed")
 
-            url = self.scraper._base_url
-
-            # 1. Fetch overall summary
-            overall_resp = self.scraper._client.get(
-                f"{url}/api/dashboard/annotator-efficiency-overall",
-                params={"start_date": start_date, "end_date": end_date, "role": role},
-                timeout=5.0,
-            )
-            overall_resp.raise_for_status()
-            summary = overall_resp.json().get("summary", {})
-
-            # 2. Fetch all paginated user items
-            items: list[dict[str, Any]] = []
-            page = 1
-            while True:
-                eff_resp = self.scraper._client.get(
-                    f"{url}/api/dashboard/annotator-efficiency",
-                    params={
-                        "start_date": start_date,
-                        "end_date": end_date,
-                        "role": role,
-                        "page": page,
-                        "page_size": 200,
-                    },
-                    timeout=5.0,
-                )
-                eff_resp.raise_for_status()
-                page_json = eff_resp.json()
-                page_items = page_json.get("items", [])
-                if not page_items:
-                    break
-                items.extend(page_items)
-                total = page_json.get("total", len(items))
-                if len(items) >= total or len(page_items) < 200 or page > 20:
-                    break
-                page += 1
+            # Most charts need only per-user rows. The much larger all-time
+            # pending range does not need an extra overall aggregation query.
+            summary = self._fetch_efficiency_summary(start_date, end_date, role) if include_summary else {}
+            has_summary = include_summary
+            if not include_summary:
+                scope = _REFRESH_SCOPE.get()
+                summary_read = ('_fetch_efficiency_summary', (('start_date', start_date), ('end_date', end_date), ('role', role)))
+                prior_summary = scope['reads'].get(summary_read) if scope is not None and scope['manager'] is self else None
+                if prior_summary is not None:
+                    summary = prior_summary.result()
+                    has_summary = True
+            items = self._fetch_efficiency_items(start_date, end_date, role)
 
             res = (summary, items)
             self._cache[cache_key] = res
+            self._cache[summary_key] = has_summary
             self.server_is_live = True
             self.is_using_snapshot = False
             self.last_sync_error = None

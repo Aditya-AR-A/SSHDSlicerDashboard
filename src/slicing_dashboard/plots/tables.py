@@ -28,6 +28,8 @@ def create_table(df, is_dark: bool):
         data=df.to_dict("records"),
         columns=[{"name": str(i), "id": str(i)} for i in df.columns],
         sort_action="native",
+        page_action="native",
+        page_size=25,
         style_header={
             "backgroundColor": header_bg,
             "color": header_color,

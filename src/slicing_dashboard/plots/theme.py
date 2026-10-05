@@ -5,7 +5,9 @@ Used by all plot modules to ensure visual consistency.
 """
 
 import plotly.graph_objects as go
+import plotly.io as pio
 import pandas as pd
+from functools import lru_cache
 
 # ── Consistent user color palette ────────────────────────────────────────────
 USER_COLORS = {
@@ -26,12 +28,22 @@ USER_COLORS = {
 CHART_HEIGHT = 280
 
 
+@lru_cache(maxsize=2)
+def chart_template(is_dark: bool) -> go.layout.Template:
+    """Keep the theme defaults for the bar and scatter charts used here."""
+    template = pio.templates["plotly_dark" if is_dark else "plotly_white"].to_plotly_json()
+    template["data"] = {kind: values for kind, values in template.get("data", {}).items()
+                        if kind in ("bar", "scatter")}
+    # A Template object replaces defaults; a dict merges with the full template.
+    return go.layout.Template(template)
+
+
 def empty_fig() -> go.Figure:
     """Return a dark, transparent empty figure — used as initial placeholder
     so the browser doesn't flash white default plotly charts while data loads."""
     fig = go.Figure()
     fig.update_layout(
-        template="plotly_dark",
+        template=chart_template(True),
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(0,0,0,0)",
         xaxis=dict(visible=False),
@@ -60,7 +72,7 @@ def theme_ctx(is_dark: bool) -> dict:
     dict with keys: template, font_color, bg_color, hover_bg, hover_fg
     """
     return {
-        "template": "plotly_dark" if is_dark else "plotly_white",
+        "template": chart_template(is_dark),
         "font_color": "#e0e0e0" if is_dark else "#333333",
         "bg_color": "rgba(0,0,0,0)",
         "hover_bg": "#2a2a35" if is_dark else "#f0f0f0",

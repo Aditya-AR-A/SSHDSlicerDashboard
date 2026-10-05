@@ -5,6 +5,11 @@ Handles pushing and pulling data from MongoDB Atlas (primary) or PostgreSQL (fal
 from __future__ import annotations
 from typing import Optional, Any
 from datetime import datetime
+import hashlib
+import json
+import base64
+import zlib
+from time import perf_counter
 import pandas as pd
 from slicing_dashboard.config import get_settings
 
@@ -16,6 +21,8 @@ class DatabaseManager:
         self.settings = get_settings()
         self.engine = None
         self._connected: Optional[bool] = None
+        self._snapshot_document_fingerprints = {}
+        self.last_snapshot_profile = {}
 
         # ── 1. MongoDB Atlas Initialization ─────────────────────────
         self.mongo_client = None
@@ -213,17 +220,28 @@ class DatabaseManager:
 
     def save_dashboard_snapshot(self, snapshot_data: dict) -> bool:
         """Save JSON snapshot to MongoDB Atlas or PostgreSQL table 'dashboard_snapshot'."""
+        self.last_snapshot_profile = {'saved': False}
         if not self.is_connected():
+            self.last_snapshot_profile['backend'] = 'unavailable'
+            self.last_snapshot_profile['error_class'] = 'DatabaseDisconnected'
             return False
 
         # ── MongoDB Storage (Preferred) ──────────────────────────────
         if self.mongo_db is not None:
             try:
                 coll = self.mongo_db['dashboard_snapshot']
-                doc = dict(snapshot_data)
-                doc['_id'] = 'latest'
-                doc['updated_at'] = datetime.now().isoformat()
-                coll.replace_one({'_id': 'latest'}, doc, upsert=True)
+                started = perf_counter()
+                raw_snapshot = json.dumps(snapshot_data, separators=(',', ':'), ensure_ascii=False).encode('utf-8')
+                compressed_snapshot = zlib.compress(raw_snapshot)
+                doc = {'_id': 'latest-compressed-v1', 'snapshot_encoding': 'zlib-base64-v1',
+                       'snapshot_payload': base64.b64encode(compressed_snapshot).decode('ascii'),
+                       'updated_at': datetime.now().isoformat()}
+                self.last_snapshot_profile = {'saved': False, 'backend': 'mongodb',
+                                              'json_bytes': len(raw_snapshot), 'compressed_bytes': len(compressed_snapshot),
+                                              'compression_seconds': round(perf_counter() - started, 4)}
+                started = perf_counter()
+                coll.replace_one({'_id': 'latest-compressed-v1'}, doc, upsert=True)
+                self.last_snapshot_profile['snapshot_write_seconds'] = round(perf_counter() - started, 4)
 
                 # Also populate granular batches_master collection for fast indexing
                 bm_recs = snapshot_data.get("batches_master_records", [])
@@ -233,31 +251,23 @@ class DatabaseManager:
                     else:
                         bm_recs = [v for v in bm_recs.values() if isinstance(v, dict)]
                 if isinstance(bm_recs, list):
-                    bm_coll = self.mongo_db['batches_master']
-                    for b in bm_recs:
-                        if isinstance(b, dict):
-                            bid = b.get("batch_id")
-                            if bid:
-                                b_copy = dict(b)
-                                b_copy['_id'] = bid
-                                bm_coll.replace_one({'_id': bid}, b_copy, upsert=True)
+                    started = perf_counter()
+                    self._upsert_snapshot_records('batches_master', bm_recs, ('batch_id',))
+                    self.last_snapshot_profile['batches_write_seconds'] = round(perf_counter() - started, 4)
 
                 # Also populate batch_returns collection
                 br_records = snapshot_data.get("batch_returns_records", [])
                 if isinstance(br_records, dict):
                     br_records = br_records.get("records", [])
                 if isinstance(br_records, list):
-                    br_coll = self.mongo_db['batch_returns']
-                    for r in br_records:
-                        if isinstance(r, dict):
-                            rid = r.get("id") or r.get("task_id") or r.get("batch_id")
-                            if rid:
-                                r_copy = dict(r)
-                                r_copy['_id'] = str(rid)
-                                br_coll.replace_one({'_id': str(rid)}, r_copy, upsert=True)
+                    started = perf_counter()
+                    self._upsert_snapshot_records('batch_returns', br_records, ('event_id', 'id', 'task_id', 'batch_id'))
+                    self.last_snapshot_profile['returns_write_seconds'] = round(perf_counter() - started, 4)
 
+                self.last_snapshot_profile['saved'] = True
                 return True
             except Exception as e:
+                self.last_snapshot_profile['error_class'] = type(e).__name__
                 import traceback
                 traceback.print_exc()
                 print(f"Error saving snapshot to MongoDB: {e}")
@@ -265,7 +275,7 @@ class DatabaseManager:
         # ── PostgreSQL Storage (Fallback) ────────────────────────────
         if self.engine is not None:
             try:
-                import json
+                self.last_snapshot_profile['backend'] = 'postgresql'
                 from sqlalchemy import text
                 with self.engine.begin() as conn:
                     conn.execute(
@@ -287,11 +297,40 @@ class DatabaseManager:
                         ),
                         {"data": json.dumps(snapshot_data)},
                     )
+                self.last_snapshot_profile['saved'] = True
                 return True
             except Exception as e:
+                self.last_snapshot_profile['error_class'] = type(e).__name__
                 print(f"Error saving snapshot to PostgreSQL: {e}")
 
         return False
+
+    def _upsert_snapshot_records(self, collection_name: str, records: list[dict], id_fields: tuple[str, ...]) -> None:
+        """Batch only changed ledger documents instead of sending one request per row."""
+        from pymongo import ReplaceOne
+        fingerprints = getattr(self, '_snapshot_document_fingerprints', {})
+        self._snapshot_document_fingerprints = fingerprints
+        changed = []
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            record_id = next((record.get(field) for field in id_fields if record.get(field)), None)
+            if record_id is None:
+                continue
+            record_id = str(record_id)
+            meaningful_fields = {name: value for name, value in record.items() if name != 'last_updated'}
+            fingerprint = hashlib.sha256(json.dumps(meaningful_fields, sort_keys=True, default=str).encode('utf-8')).digest()
+            key = (collection_name, record_id)
+            if fingerprints.get(key) == fingerprint:
+                continue
+            document = dict(record, _id=record_id)
+            changed.append((ReplaceOne({'_id': record_id}, document, upsert=True), key, fingerprint))
+        collection = self.mongo_db[collection_name]
+        for offset in range(0, len(changed), 500):
+            chunk = changed[offset:offset + 500]
+            collection.bulk_write([operation for operation, _, _ in chunk], ordered=False)
+            for _, key, fingerprint in chunk:
+                fingerprints[key] = fingerprint
 
     def load_dashboard_snapshot(self) -> dict | None:
         """Load JSON snapshot from MongoDB Atlas or PostgreSQL table 'dashboard_snapshot'."""
@@ -302,8 +341,16 @@ class DatabaseManager:
         if self.mongo_db is not None:
             try:
                 coll = self.mongo_db['dashboard_snapshot']
-                doc = coll.find_one({'_id': 'latest'})
+                doc = coll.find_one({'_id': 'latest-compressed-v1'})
+                if doc is None:
+                    doc = coll.find_one({'_id': 'latest'})
                 if doc and isinstance(doc, dict):
+                    if doc.get('snapshot_encoding') == 'zlib-base64-v1':
+                        raw_snapshot = zlib.decompress(base64.b64decode(doc['snapshot_payload'], validate=True))
+                        snapshot = json.loads(raw_snapshot.decode('utf-8'))
+                        if not isinstance(snapshot, dict):
+                            raise ValueError('Dashboard snapshot payload must be an object')
+                        return snapshot
                     doc.pop('_id', None)
                     return doc
             except Exception as e:
@@ -312,7 +359,6 @@ class DatabaseManager:
         # ── PostgreSQL Load (Fallback) ───────────────────────────────
         if self.engine is not None:
             try:
-                import json
                 from sqlalchemy import text
                 with self.engine.connect() as conn:
                     res = conn.execute(

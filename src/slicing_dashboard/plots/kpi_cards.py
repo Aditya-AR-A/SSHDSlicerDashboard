@@ -55,6 +55,7 @@ def _make_kpi_card(
         )
     )
     fig.update_layout(
+        template="none",
         margin=dict(l=0, r=0, t=0, b=0),
         height=22,
         paper_bgcolor="rgba(0,0,0,0)",
@@ -253,4 +254,3 @@ def build_kpi_layout(kpis: dict, funnel_map: dict, is_dark: bool) -> list:
         ),
     ]
     return cards
-

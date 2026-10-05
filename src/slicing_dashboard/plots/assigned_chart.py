@@ -137,14 +137,16 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
 
     border_color = "rgba(255,255,255,0.25)" if is_dark else "rgba(0,0,0,0.18)"
 
-    # Add segmented blocks per user
+    # One trace per segment position shares bar settings across users while
+    # keeping the original stacking order and a hover record for every account.
+    segments = []
     for user in users_sorted:
         u_df = df[df["User"] == user].copy()
         # Sort user segments: New Assigned first (fresh to older), then Rework Assigned (fresh to older)
         u_df["Stage_Sort"] = u_df["Stage"].apply(lambda s: 0 if s == "New Assigned" else 1)
         u_df = u_df.sort_values(by=["Stage_Sort", "DaysAssigned", "Duration"], ascending=[True, True, True])
 
-        for _, row in u_df.iterrows():
+        for segment_index, (_, row) in enumerate(u_df.iterrows()):
             stage = row["Stage"]
             raw_id = str(row["ID"])
             dur_sec = float(row["Duration"])
@@ -167,31 +169,33 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
             # Ensure legible text contrast
             text_color = "#0f172a" if (color in ["#86efac", "#4ade80", "#22c55e", "#fda4af", "#fb7185"]) else "#ffffff"
 
-            fig.add_trace(
-                go.Bar(
-                    name=raw_id,
-                    x=[dur_hours],
-                    y=[user],
-                    orientation="h",
-                    marker=dict(
-                        color=color,
-                        line=dict(color=border_color, width=1.5),
-                    ),
-                    text=in_bar_text,
-                    textposition="inside",
-                    textfont=dict(size=10, weight="bold", color=text_color),
-                    customdata=[[fmt_dur, stage, cnt, raw_id, date_label, dur_hours]],
-                    hovertemplate=(
-                        "<b>%{y}</b><br>"
-                        "ID: <b>%{customdata[3]}</b><br>"
-                        "Stage: <b>%{customdata[1]}</b><br>"
-                        "Duration: <b>%{customdata[0]}</b> (%{customdata[5]:.2f}h)<br>"
-                        "Tasks: %{customdata[2]}<br>"
-                        "Assigned: %{customdata[4]}<extra></extra>"
-                    ),
-                    showlegend=False,
-                )
-            )
+            if segment_index == len(segments):
+                segments.append({"x": [], "y": [], "color": [], "text": [],
+                                 "text_color": [], "customdata": []})
+            segment = segments[segment_index]
+            segment["x"].append(dur_hours)
+            segment["y"].append(user)
+            segment["color"].append(color)
+            segment["text"].append(in_bar_text)
+            segment["text_color"].append(text_color)
+            segment["customdata"].append([fmt_dur, stage, cnt, raw_id, date_label, dur_hours])
+
+    for segment in segments:
+        fig.add_trace(go.Bar(
+            x=segment["x"], y=segment["y"], orientation="h",
+            marker=dict(color=segment["color"], line=dict(color=border_color, width=1.5)),
+            text=segment["text"], textposition="inside",
+            textfont=dict(size=10, weight="bold", color=segment["text_color"]),
+            customdata=segment["customdata"],
+            hovertemplate=(
+                "<b>%{y}</b><br>"
+                "ID: <b>%{customdata[3]}</b><br>"
+                "Stage: <b>%{customdata[1]}</b><br>"
+                "Duration: <b>%{customdata[0]}</b> (%{customdata[5]:.2f}h)<br>"
+                "Tasks: %{customdata[2]}<br>"
+                "Assigned: %{customdata[4]}<extra></extra>"
+            ), showlegend=False,
+        ))
 
     num_users = len(users_sorted)
     # Dynamic height: 38px per user bar + 110px for title, axis, legend, and margins

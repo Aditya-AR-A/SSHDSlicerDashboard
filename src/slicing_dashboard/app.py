@@ -7,6 +7,8 @@ Layout and callbacks. All chart/table builders live in the plots/ package.
 import dash
 import dash_bootstrap_components as dbc
 import pandas as pd
+from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
 from dash import Input, Output, State, dcc, html
 from datetime import datetime, timedelta
 
@@ -27,7 +29,7 @@ from slicing_dashboard.plots import (
 from slicing_dashboard.plots.theme import CHART_HEIGHT
 from slicing_dashboard.management.ui import layout_settlement_management, layout_user_mapping, register_management_callbacks
 from slicing_dashboard.management.periods import today_iso
-from slicing_dashboard.processing.daily_work import format_video_seconds
+from slicing_dashboard.processing.daily_work import EXCLUDED, format_video_seconds
 
 # ── Bootstrap / initialise ───────────────────────────────────────────────
 dm = DataManager()
@@ -46,18 +48,12 @@ app = dash.Dash(
     suppress_callback_exceptions=True,
 )
 
-try:
-    all_users_df = dm.get_user_breakdown_df("2026-07-01", default_end)
-    available_users = (
-        sorted(all_users_df["User"].unique().tolist())
-        if not all_users_df.empty
-        else []
-    )
-except Exception:
-    available_users = []
+def _available_user_names(snapshot, mappings):
+    names = list(snapshot.get("available_users", [])) + list(mappings.values())
+    return sorted({name for name in names if name and name not in EXCLUDED})
 
-if not available_users and dm._snapshot_payload.get("available_users"):
-    available_users = dm._snapshot_payload["available_users"]
+
+available_users = _available_user_names(dm._snapshot_payload, dm.user_mapping)
 if not available_users:
     available_users = ["Aditya", "Deepak", "Komal", "Pawan", "Priya", "Rajni", "Riya", "Sanddep"]
 
@@ -511,6 +507,51 @@ def _build_status_banner(status: dict):
 
 
 # ── Main dashboard callback ──────────────────────────────────────────────
+def _prepare_pending_sources(force_refresh):
+    """Fetch queues concurrently; build assigned rows after the batch sync."""
+    dm.fetch_annotator_efficiency(
+        "2020-01-01", today_iso(), role=2, force_refresh=force_refresh, include_summary=False,
+    )
+
+
+def _dashboard_sources(start_date, end_date, force_refresh, selected_users):
+    """Overlap independent queues and inventory while sharing return histories."""
+    raw = dm.fetch_dashboard_data(start_date, end_date, force_refresh)
+    daily_date = start_date if start_date == end_date else today_iso()
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        inventory = pool.submit(dm._refresh_worker(dm.prepare_daily_work), daily_date) if force_refresh else None
+        pending = pool.submit(dm._refresh_worker(_prepare_pending_sources), force_refresh)
+        batches = pool.submit(
+            dm._refresh_worker(dm.sync_batches_master), start_date, end_date, force_refresh=force_refresh,
+        )
+        kpis = dm.get_summary_kpis(start_date, end_date, selected_users=selected_users, force_refresh=force_refresh)
+        breakdown = dm.get_user_breakdown_df(start_date, end_date, force_refresh)
+        # Return histories and dated batch reads run alongside KPI comparisons.
+        # Both the ratio and assigned rows must use the completed batch sync.
+        batches.result()
+        ratio = dm.get_batch_rework_ratio_df(start_date, end_date, force_refresh=force_refresh)
+        if inventory is not None:
+            try:
+                inventory.result()
+            except Exception:
+                # The daily getter retains its existing retry and dated fallback.
+                pass
+        pending.result()
+        detailed = dm.get_detailed_pending_assigned_df(
+            start_date="2020-01-01", end_date=today_iso(), force_refresh=force_refresh, overview_data=raw,
+        )
+    return raw, kpis, breakdown, ratio, detailed
+
+
+def _refresh_scope(callback):
+    """Share source reads and persist once across the whole rendered response."""
+    @wraps(callback)
+    def scoped(*args, **kwargs):
+        with dm.refresh_scope():
+            return callback(*args, **kwargs)
+    return scoped
+
+
 @app.callback(
     [
         Output("kpi-cards", "children"),
@@ -539,7 +580,10 @@ def _build_status_banner(status: dict):
         Input("error-rework-chart", "clickData"),
     ],
     [State("selected-users-store", "data")],
+    running=[(Output("refresh-btn", "disabled"), True, False),
+             (Output("auto-refresh-interval", "disabled"), True, False)],
 )
+@_refresh_scope
 def update_dashboard(
     n_clicks,
     n_intervals,
@@ -623,13 +667,17 @@ def update_dashboard(
         and len(effective_users) < len(available_users)
     )
 
+    if triggered_id == "tabs":
+        # Charts are independent of the selected table or management form.
+        outputs = [dash.no_update] * 13
+        outputs[7] = _render_tab(
+            active_tab, is_dark, is_filtering, effective_users, end_date, False,
+        )
+        return tuple(outputs)
+
     # ── Fetch data ───────────────────────────────────────────────────
-    raw_data = dm.fetch_dashboard_data(start_date, end_date, force_refresh)
-    kpis = dm.get_summary_kpis(
-        start_date,
-        end_date,
-        selected_users=effective_users if is_filtering else None,
-        force_refresh=force_refresh,
+    raw_data, kpis, breakdown_df, ratio_df, detailed_df = _dashboard_sources(
+        start_date, end_date, force_refresh, effective_users if is_filtering else None,
     )
     breakdowns = raw_data.get("breakdowns", {})
     funnel_list = breakdowns.get("slice_funnel", [])
@@ -639,21 +687,18 @@ def update_dashboard(
     kpi_layout = build_kpi_layout(kpis, funnel_map, is_dark)
 
     # ── Legend ───────────────────────────────────────────────────────
-    fig_legend = build_legend_figure(
-        available_users, current_selection, is_dark
-    )
+    selection_changed = triggered_id in (None, "universal-legend", "individual-chart", "error-rework-chart")
+    fig_legend = build_legend_figure(available_users, current_selection, is_dark) if (
+        selection_changed or triggered_id == "theme-toggle"
+    ) else dash.no_update
 
     # ── Breakdown data ───────────────────────────────────────────────
-    breakdown_df = dm.get_user_breakdown_df(
-        start_date, end_date, force_refresh
-    )
     if is_filtering and effective_users:
         breakdown_df = breakdown_df[
             breakdown_df["User"].isin(effective_users)
         ]
 
     # ── Rework Ratio chart ───────────────────────────────────────────
-    ratio_df = dm.get_batch_rework_ratio_df(start_date, end_date, force_refresh=force_refresh)
     fig_rework = build_rework_ratio_chart(
         ratio_df, start_date, is_dark, effective_users, is_filtering
     )
@@ -669,16 +714,11 @@ def update_dashboard(
         start_date,
         end_date,
         is_dark,
-        effective_users,
+        effective_users if is_filtering else None,
         force_refresh,
     )
 
     # ── Pending + Assigned charts ────────────────────────────────────
-    detailed_df = dm.get_detailed_pending_assigned_df(
-        start_date="2020-01-01",
-        end_date=datetime.now().strftime("%Y-%m-%d"),
-        force_refresh=force_refresh,
-    )
     if is_filtering and effective_users and not detailed_df.empty:
         detailed_df = detailed_df[
             (detailed_df["User"].isin(effective_users))
@@ -739,8 +779,8 @@ def update_dashboard(
         fig_assigned,
         tab_content,
         status_msg,
-        toggle_label,
-        current_selection,
+        toggle_label if triggered_id in (None, "theme-toggle") else dash.no_update,
+        current_selection if selection_changed else dash.no_update,
         banner_el,
         badge_el,
     )
