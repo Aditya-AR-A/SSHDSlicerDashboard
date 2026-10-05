@@ -27,6 +27,7 @@ from slicing_dashboard.plots import (
 from slicing_dashboard.plots.theme import CHART_HEIGHT
 from slicing_dashboard.management.ui import layout_settlement_management, layout_user_mapping, register_management_callbacks
 from slicing_dashboard.management.periods import today_iso
+from slicing_dashboard.processing.daily_work import format_video_seconds
 
 # ── Bootstrap / initialise ───────────────────────────────────────────────
 dm = DataManager()
@@ -716,6 +717,7 @@ def update_dashboard(
         effective_users,
         end_date,
         force_refresh,
+        daily_work_date=start_date if start_date == end_date else today_iso(),
     )
 
     srv_status = dm.get_server_status()
@@ -771,94 +773,24 @@ def _build_work_chart(
     effective_users,
     force_refresh,
 ):
-    """Fetch work classification data and build the chart."""
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    if start_date == end_date:
-        target_work_date = start_date
-        if start_date == today_str:
-            chart_date_label = "Today"
-        else:
-            d = datetime.strptime(start_date, "%Y-%m-%d")
-            chart_date_label = f"{d.strftime('%b')} {d.day}"
-        try:
-            t_df = dm.get_todays_work_df(
-                target_work_date,
-                force_refresh=force_refresh,
-            )
-            if not t_df.empty:
-                work_df = pd.DataFrame({
-                    "User": t_df["User"],
-                    "New Work Duration": t_df["New Videos (First Time)"],
-                    "Rework Duration": t_df.get("Reworks", 0.0),
-                    "Total Work Duration": t_df["Total Duration"],
-                    "RawID": t_df.get("RawID", ""),
-                })
-            else:
-                work_df = breakdown_df.copy()
-        except Exception:
-            work_df = breakdown_df.copy()
-    else:
-        chart_date_label = "Selected Period"
-        if not breakdown_df.empty and "New Work Duration" in breakdown_df.columns:
-            work_df = pd.DataFrame({
-                "User": breakdown_df["User"],
-                "New Work Duration": breakdown_df["New Work Duration"],
-                "Rework Duration": breakdown_df.get("Rework Duration", 0.0),
-                "Total Work Duration": breakdown_df.get("Total Duration", 0.0),
-                "RawID": "",
-            })
-        else:
-            try:
-                t_df = dm.get_todays_work_df(
-                    today_str,
-                    force_refresh=force_refresh,
-                )
-                if not t_df.empty:
-                    chart_date_label = "Today"
-                    work_df = pd.DataFrame({
-                        "User": t_df["User"],
-                        "New Work Duration": t_df["New Videos (First Time)"],
-                        "Rework Duration": t_df.get("Reworks", 0.0),
-                        "Total Work Duration": t_df["Total Duration"],
-                        "RawID": t_df.get("RawID", ""),
-                    })
-            except Exception:
-                work_df = pd.DataFrame()
-
-    if not work_df.empty:
-        if "New Work Duration" not in work_df.columns:
-            if "Submitted Duration" in work_df.columns:
-                total_worked = work_df[
-                    ["Completed Duration", "Submitted Duration"]
-                ].max(axis=1)
-            else:
-                total_worked = work_df.get("Completed Duration", 0)
-            work_df["New Work Duration"] = (
-                total_worked - work_df.get("Rework Duration", 0)
-            ).clip(lower=0)
-
-        if "Rework Duration" not in work_df.columns:
-            work_df["Rework Duration"] = 0.0
-
-        if "Total Work Duration" not in work_df.columns:
-            work_df["Total Work Duration"] = (
-                work_df["New Work Duration"] + work_df["Rework Duration"]
-            )
-
-        if effective_users:
-            work_df = work_df[work_df["User"].isin(effective_users)]
-
-        active_work = work_df[work_df["Total Work Duration"] > 0].copy()
-        
-        # Use the RawID natively provided by b_df or get_todays_work_df
-        if "RawID" in active_work.columns:
-            active_work["IDs"] = active_work["RawID"]
-        else:
-            active_work["IDs"] = ""
-    else:
-        active_work = pd.DataFrame()
-
-    return build_error_rework_chart(active_work, chart_date_label, is_dark)
+    """Daily chart uses the same verified submission rows as the daily table."""
+    target_date = start_date if start_date == end_date else today_iso()
+    label = "Today" if target_date == today_iso() else target_date
+    daily = dm.get_todays_work_df(target_date, force_refresh=force_refresh)
+    if daily.empty:
+        fig = build_error_rework_chart(pd.DataFrame(), label, is_dark)
+        if daily.attrs.get('error'):
+            fig.layout.annotations[0].text = "Daily submissions could not be verified. Retry Refresh."
+        return fig
+    if effective_users:
+        daily = daily[daily['User'].isin(effective_users)]
+    work = pd.DataFrame({'User': daily['User'], 'New Work Duration': daily['New Videos (First Time)'],
+                         'Same-day Rework Duration': daily['Same-day Rework'], 'Old Rework Duration': daily['Old Rework'],
+                         'Rework Duration': daily['Reworks'], 'Total Work Duration': daily['Total Duration'], 'IDs': daily['RawID']})
+    figure = build_error_rework_chart(work, label, is_dark)
+    if daily.attrs.get('is_snapshot'):
+        figure.update_layout(title=f"{label} · Submitted Video Duration (cached)")
+    return figure
 
 
 # ── Helper: render tab content ───────────────────────────────────────────
@@ -869,53 +801,36 @@ def _render_tab(
     effective_users,
     end_date,
     force_refresh,
+    daily_work_date=None,
 ):
     """Render the active tab's table content."""
     if active_tab in ("tab-today", "tab-yesterday"):
-        target_date = (
-            datetime.now().strftime("%Y-%m-%d")
-            if active_tab == "tab-today"
-            else (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        )
-        today_df = dm.get_todays_work_df(
-            target_date=target_date, force_refresh=force_refresh
-        )
-        if is_filtering and effective_users and not today_df.empty:
-            today_df = today_df[today_df["User"].isin(effective_users)]
-        if not today_df.empty:
-            for col in ["Total Duration", "New Videos (First Time)", "Reworks"]:
-                if col in today_df.columns:
-                    today_df[col] = today_df[col].apply(format_seconds)
-            totals = today_df.select_dtypes(include=["number"]).sum()
-            total_row = {"User": "TOTAL", "Total Tasks": int(totals.get("Total Tasks", 0))}
-            raw_full_df = dm.get_todays_work_df(
-                target_date=target_date, force_refresh=False
-            )
-            if is_filtering and effective_users:
-                raw_full_df = raw_full_df[
-                    raw_full_df["User"].isin(effective_users)
-                ]
-            for col in ["Total Duration", "New Videos (First Time)", "Reworks"]:
-                if col in raw_full_df.columns:
-                    total_seconds = (
-                        raw_full_df[col].sum() if not raw_full_df.empty else 0
-                    )
-                    total_row[col] = format_seconds(total_seconds)
-            if "Working Hours" in today_df.columns:
-                total_wh = raw_full_df["Working Hours Seconds"].sum() if "Working Hours Seconds" in raw_full_df.columns else 0
-                total_row["Working Hours"] = format_seconds(total_wh) if total_wh > 0 else "-"
-            if "Rework %" in today_df.columns:
-                tot_dur = raw_full_df["Total Duration"].sum() if not raw_full_df.empty else 0
-                tot_rew = raw_full_df["Reworks"].sum() if not raw_full_df.empty else 0
-                total_row["Rework %"] = f"{round(tot_rew / tot_dur * 100, 1)}%" if tot_dur > 0 else "0.0%"
-            if "RawID" in today_df.columns:
-                total_row["RawID"] = ""
-            if "Working Hours Seconds" in today_df.columns:
-                today_df = today_df.drop(columns=["Working Hours Seconds"])
-            today_df = pd.concat(
-                [today_df, pd.DataFrame([total_row])], ignore_index=True
-            )
-        return create_table(today_df, is_dark)
+        target_date = today_iso() if active_tab == "tab-today" else (
+            datetime.strptime(today_iso(), "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+        raw = dm.get_todays_work_df(target_date, force_refresh=force_refresh and target_date != daily_work_date)
+        if is_filtering and effective_users and not raw.empty:
+            raw = raw[raw['User'].isin(effective_users)].copy()
+        if raw.empty and raw.attrs.get('error'):
+            return dbc.Alert("Daily submissions could not be verified. Please retry Refresh.", color="warning")
+        if raw.empty:
+            return html.Div("No submissions recorded for this day.")
+        columns = ['User', 'Total Tasks', 'Total Duration', 'New Videos (First Time)',
+                   'Same-day Rework', 'Old Rework', 'New Tasks', 'Same-day Rework Tasks', 'Old Rework Tasks', 'Rework %', 'RawID']
+        daily = raw[columns].copy()
+        total = {'User': 'TOTAL', 'RawID': ''}
+        for column in columns:
+            if column not in ('User', 'RawID', 'Rework %'):
+                total[column] = raw[column].sum()
+        total['Rework %'] = f"{raw['Reworks'].sum() / raw['Total Duration'].sum() * 100:.1f}%" if raw['Total Duration'].sum() else '0.0%'
+        daily = pd.concat([daily, pd.DataFrame([total])], ignore_index=True)
+        for column in ['Total Duration', 'New Videos (First Time)', 'Same-day Rework', 'Old Rework']:
+            daily[column] = daily[column].apply(format_video_seconds)
+        note = "Unique tasks by latest submission in India time. Video duration only; approvals and pending rework are excluded."
+        if raw.attrs.get('captured_at'):
+            note += f" Verified scan: {raw.attrs['captured_at']}."
+        if raw.attrs.get('is_snapshot'):
+            note = f"Cached verified submissions from {raw.attrs.get('captured_at', 'an earlier refresh')}. Refresh failed; figures may be stale."
+        return html.Div([html.P(note, className='text-secondary small'), create_table(daily, is_dark)])
 
     elif active_tab == "tab-overview":
         overview_df = dm.get_slice_data_overview_df(

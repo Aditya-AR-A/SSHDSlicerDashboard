@@ -1,168 +1,40 @@
-"""
-New Work + Rework stacked bar chart builder.
-"""
-
-import pandas as pd
+"""Daily video output, separated into fresh, same-day and older rework."""
 import plotly.graph_objects as go
-
-from slicing_dashboard.plots.theme import (
-    CHART_HEIGHT,
-    format_seconds,
-    theme_ctx,
-)
+from slicing_dashboard.plots.theme import CHART_HEIGHT, theme_ctx
+from slicing_dashboard.processing.daily_work import format_video_seconds as format_seconds
 
 
-def build_error_rework_chart(
-    active_work_df,
-    chart_date_label: str,
-    is_dark: bool,
-) -> go.Figure:
-    """Build stacked bar chart of new work vs rework.
-
-    Parameters
-    ----------
-    active_work_df : DataFrame with columns 'User', 'New Work Duration',
-                     'Rework Duration', 'Total Work Duration' — only rows
-                     where Total Work Duration > 0.
-    chart_date_label : str for the title
-    is_dark : bool
-    """
-    t = theme_ctx(is_dark)
-
+def build_error_rework_chart(active_work_df, chart_date_label, is_dark):
+    theme = theme_ctx(is_dark)
+    figure = go.Figure()
+    maximum = 1
     if active_work_df.empty:
-        fig = go.Figure()
-        fig.add_annotation(
-            text=f"No work recorded ({chart_date_label})",
-            showarrow=False,
-            font={"size": 14, "color": t["font_color"]},
-        )
-        fig.update_layout(title=f"{chart_date_label}'s Work")
+        figure.add_annotation(text=f"No submissions recorded ({chart_date_label})", showarrow=False,
+                              font={"size": 14, "color": theme["font_color"]})
     else:
-        df = active_work_df.sort_values("Total Work Duration", ascending=False)
-
-        new_hours = df["New Work Duration"] / 3600
-        rework_hours = df["Rework Duration"] / 3600
-
-        new_fmt = df["New Work Duration"].apply(format_seconds)
-        rework_fmt = df["Rework Duration"].apply(format_seconds)
-        total_fmt = df["Total Work Duration"].apply(format_seconds)
-        total_hours = df["Total Work Duration"] / 3600
-
-        new_pct = (
-            df["New Work Duration"] / df["Total Work Duration"] * 100
-        ).fillna(0)
-        rework_pct = (
-            df["Rework Duration"] / df["Total Work Duration"] * 100
-        ).fillna(0)
-
-        ids_col = df["IDs"].tolist() if "IDs" in df.columns else [""] * len(df)
-
-        new_color = "#38bdf8" if is_dark else "#0284c7"
-        rework_color = "#f97316" if is_dark else "#ea580c"
-
-        fig = go.Figure()
-        fig.add_trace(
-            go.Bar(
-                name="New Work",
-                x=df["User"],
-                y=new_hours,
-                text=new_fmt,
-                marker=dict(
-                    color=new_color,
-                    line=dict(
-                        color="rgba(255,255,255,0.15)"
-                        if is_dark
-                        else "rgba(0,0,0,0.1)",
-                        width=1,
-                    ),
-                ),
-                customdata=list(zip(new_fmt, new_pct, total_fmt, total_hours, ids_col)),
-                hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "<b>New Work:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br>"
-                    "<b>Total:</b> %{customdata[2]}<br>"
-                    "Slicer IDs: %{customdata[4]}<extra></extra>"
-                ),
-            )
-        )
-        fig.add_trace(
-            go.Bar(
-                name="Rework",
-                x=df["User"],
-                y=rework_hours,
-                text=rework_fmt,
-                marker=dict(
-                    color=rework_color,
-                    line=dict(
-                        color="rgba(255,255,255,0.15)"
-                        if is_dark
-                        else "rgba(0,0,0,0.1)",
-                        width=1,
-                    ),
-                ),
-                customdata=list(
-                    zip(rework_fmt, rework_pct, total_fmt, total_hours, ids_col)
-                ),
-                hovertemplate=(
-                    "<b>%{x}</b><br>"
-                    "<b>Rework:</b> %{customdata[0]} (%{customdata[1]:.1f}%)<br>"
-                    "<b>Total:</b> %{customdata[2]}<br>"
-                    "Slicer IDs: %{customdata[4]}<extra></extra>"
-                ),
-            )
-        )
-        fig.update_layout(
-            barmode="stack",
-            title=f"{chart_date_label}'s Work",
-            yaxis_title="Hours",
-            showlegend=True,
-            legend=dict(
-                orientation="h",
-                yanchor="bottom",
-                y=1.02,
-                xanchor="right",
-                x=1,
-                font=dict(size=11, color=t["font_color"]),
-                bgcolor="rgba(0,0,0,0)",
-            ),
-        )
-
-    max_hours = total_hours.max() if not df.empty else 0
-    max_range = max_hours * 1.15 if (max_hours and max_hours > 0) else 1
-
-    fig.update_layout(
-        template=t["template"],
-        plot_bgcolor=t["bg_color"],
-        paper_bgcolor=t["bg_color"],
-        font=dict(family="Inter, sans-serif", size=12, color=t["font_color"]),
-        title_font=dict(size=15, weight="bold"),
-        height=CHART_HEIGHT,
-        margin=dict(l=40, r=15, t=45, b=35),
-        bargap=0.35,
-        clickmode="event+select",
-        hoverlabel=dict(
-            bgcolor=t["hover_bg"],
-            font_color=t["hover_fg"],
-            font_size=13,
-        ),
-        xaxis=dict(
-            showgrid=False,
-            zeroline=False,
-            automargin=True,
-            tickfont=dict(size=12, weight="bold"),
-        ),
-        yaxis=dict(
-            range=[0, max_range],
-            showgrid=True,
-            gridcolor="rgba(128,128,128,0.2)",
-            zeroline=False,
-            automargin=True,
-            tickfont=dict(size=11),
-        ),
+        rows = active_work_df.sort_values("Total Work Duration", ascending=False)
+        buckets = [("Fresh Work", "New Work Duration", "#38bdf8" if is_dark else "#0284c7")]
+        if "Same-day Rework Duration" in rows:
+            buckets += [("Same-day Rework", "Same-day Rework Duration", "#fbbf24" if is_dark else "#b45309"),
+                        ("Old Rework", "Old Rework Duration", "#f97316" if is_dark else "#c2410c")]
+        else:
+            buckets += [("Rework", "Rework Duration", "#f97316")]
+        total = rows["Total Work Duration"].apply(format_seconds)
+        ids = rows["IDs"].tolist() if "IDs" in rows else [""] * len(rows)
+        for label, column, color in buckets:
+            durations = rows[column].apply(format_seconds)
+            figure.add_trace(go.Bar(name=label, x=rows["User"], y=rows[column] / 3600, text=durations,
+                                   marker_color=color, customdata=list(zip(durations, total, ids)),
+                                   hovertemplate=f"<b>%{{x}}</b><br>{label}: %{{customdata[0]}}<br>Total video output: %{{customdata[1]}}<br>Accounts: %{{customdata[2]}}<extra></extra>"))
+        maximum = max(1, rows["Total Work Duration"].max() / 3600 * 1.2)
+    figure.update_layout(
+        title=f"{chart_date_label} · Submitted Video Duration", barmode="stack",
+        template=theme["template"], plot_bgcolor=theme["bg_color"], paper_bgcolor=theme["bg_color"],
+        font={"family": "Inter, sans-serif", "size": 12, "color": theme["font_color"]},
+        height=CHART_HEIGHT, margin={"l": 40, "r": 15, "t": 55, "b": 35},
+        clickmode="event+select", legend={"orientation": "h", "y": 1.04, "x": 0},
+        yaxis={"title": "Video hours", "range": [0, maximum], "gridcolor": "rgba(128,128,128,.2)"},
+        xaxis={"showgrid": False, "automargin": True},
     )
-    fig.update_traces(
-        textposition="auto",
-        textfont=dict(size=10, weight="bold"),
-        constraintext="none",
-    )
-    return fig
+    figure.update_traces(textposition="auto", textfont={"size": 10})
+    return figure

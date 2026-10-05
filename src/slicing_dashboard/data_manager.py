@@ -1175,159 +1175,64 @@ class DataManager:
 
     def get_todays_work_df(self, target_date: (str | None)=None,
         force_refresh: bool=False) -> pd.DataFrame:
-        """Fetch daily work broken down by user in real time directly from efficiency API."""
-        if not target_date:
-            target_date = datetime.now().strftime('%Y-%m-%d')
-
-        try:
-            summary, items = self.fetch_annotator_efficiency(
-                start_date=target_date,
-                end_date=target_date,
-                role=2,
-                force_refresh=force_refresh,
-            )
-            live_rework = self.get_live_rework_by_user()
-
-            user_stats: dict[str, dict[str, Any]] = {}
-            for it in items:
-                raw_u = it.get('username', '')
-                canonical = self._get_canonical_name(it.get('user_id'), raw_u)
-                if canonical in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)', 'Exempt']:
-                    continue
-                if canonical not in user_stats:
-                    user_stats[canonical] = {
-                        'sub_cnt': 0, 'sub_dur': 0.0,
-                        'comp_cnt': 0, 'comp_dur': 0.0,
-                        'rew_cnt': 0, 'rew_dur': 0.0,
-                        'work_dur': 0.0,
-                        'raw_ids': set()
-                    }
-                user_stats[canonical]['sub_cnt'] += int(it.get('submitted_count', 0) or 0)
-                user_stats[canonical]['sub_dur'] += float(it.get('submitted_duration_seconds', 0.0) or 0.0)
-                user_stats[canonical]['comp_cnt'] += int(it.get('completed_count', 0) or 0)
-                user_stats[canonical]['comp_dur'] += float(it.get('completed_duration_seconds', 0.0) or 0.0)
-                user_stats[canonical]['rew_cnt'] += int(it.get('rework_count', 0) or 0)
-                user_stats[canonical]['rew_dur'] += float(it.get('rework_duration_seconds', 0.0) or 0.0)
-                user_stats[canonical]['work_dur'] += float(it.get('work_duration_seconds', 0.0) or 0.0)
-                if raw_u:
-                    user_stats[canonical]['raw_ids'].add(raw_u)
-
-            # Blend live in-progress rework tasks (status == 'slice_rework')
-            for canon, lr in live_rework.items():
-                if canon in ['Admin', 'Test', 'Dep', 'user-None', '', '(unassigned)', 'Exempt']:
-                    continue
-                if canon not in user_stats:
-                    user_stats[canon] = {
-                        'sub_cnt': 0, 'sub_dur': 0.0,
-                        'comp_cnt': 0, 'comp_dur': 0.0,
-                        'rew_cnt': lr.get('count', 0),
-                        'rew_dur': lr.get('duration', 0.0),
-                        'work_dur': 0.0,
-                        'raw_ids': set(),
-                        'live_rew_cnt': lr.get('count', 0),
-                        'live_rew_dur': lr.get('duration', 0.0)
-                    }
-                else:
-                    user_stats[canon]['live_rew_cnt'] = lr.get('count', 0)
-                    user_stats[canon]['live_rew_dur'] = lr.get('duration', 0.0)
-
-            records = []
-            for user, st in sorted(user_stats.items()):
-                sub_cnt = st['sub_cnt']
-                comp_cnt = st['comp_cnt']
-                sub_dur = st['sub_dur']
-                comp_dur = st['comp_dur']
-                work_dur = st['work_dur']
-                rew_dur = st['rew_dur']
-                rew_cnt = st['rew_cnt']
-                live_cnt = st.get('live_rew_cnt', 0)
-                live_dur = st.get('live_rew_dur', 0.0)
-
-                # Rework is the maximum of server efficiency rework duration and live rework duration
-                eff_rew_dur = max(rew_dur, live_dur)
-                eff_rew_cnt = max(rew_cnt, live_cnt)
-
-                # Total duration is max of submitted, completed, or actual work duration
-                # If rework duration is larger (in-progress rework), ensure total duration covers it
-                total_dur = max(sub_dur, comp_dur, work_dur, eff_rew_dur)
-                new_dur = max(0.0, total_dur - eff_rew_dur)
-                total_cnt = max(sub_cnt, comp_cnt, eff_rew_cnt)
-
-                if total_dur <= 0 and total_cnt <= 0:
-                    continue
-
-                h = int(total_dur // 3600)
-                m = int((total_dur % 3600) // 60)
-                s = int(total_dur % 60)
-                wh_str = f"{h:02d}:{m:02d}:{s:02d}"
-
-                rework_pct_val = (eff_rew_dur / total_dur * 100.0) if total_dur > 0 else 0.0
-
-                raw_ids_list = sorted(list(st['raw_ids']))
-                raw_id_str = raw_ids_list[0] if len(raw_ids_list) == 1 else (",".join(raw_ids_list) if raw_ids_list else "")
-
-                records.append({
-                    'User': user,
-                    'Total Tasks': total_cnt,
-                    'Total Duration': total_dur,
-                    'New Videos (First Time)': new_dur,
-                    'Reworks': eff_rew_dur,
-                    'Working Hours Seconds': total_dur,
-                    'Working Hours': wh_str,
-                    'Rework %': f"{rework_pct_val:.1f}%",
-                    'RawID': raw_id_str,
-                })
-
-            if records:
-                return pd.DataFrame(records)
-            return pd.DataFrame()
-        except Exception as e:
-            print(f'Warning: Failed to fetch daily work from efficiency API: {e}. Falling back to CSV.')
-
-        # 2. Offline fallback to master data transitions if available
-        if self._data is not None and self._transitions_data is not None:
+        """Count unique task submissions in India time, not updates or approvals."""
+        from slicing_dashboard.management.periods import today_iso
+        from slicing_dashboard.processing.daily_work import aggregate_daily_work
+        from slicing_dashboard.processing.daily_work_source import DailyWorkSource
+        target_date = target_date or today_iso()
+        key = f'verified_daily_work_{target_date}'
+        cached = self._cache.get(key)
+        from slicing_dashboard.config import DATA_DIR
+        audit_path = DATA_DIR / 'reports' / f'daily-audit-{target_date}' / 'verified-submissions.json'
+        if not cached and audit_path.exists():
             try:
-                df = self._data
-                trans_df = self._transitions_data
-                post_submit_statuses = [
-                    'slice_submitted', 'slice_pending_auditor_review',
-                    'slice_pending_admin_review', 'slice_completed',
-                    'video_error_confirmed'
-                ]
-                submitted_today = df[
-                    (df['completed_date'] == target_date) &
-                    (df['status'].isin(post_submit_statuses))
-                ].copy()
-                submitted_today = submitted_today[~submitted_today['user_name'].isin(['Admin', 'Test', 'Dep', 'user-None', '', 'Exempt'])]
-                if not submitted_today.empty:
-                    task_ids = submitted_today['id'].tolist()
-                    rework_by_ids = set(submitted_today[submitted_today['rework_by'].fillna('') != '']['id'])
-                    returned_ids = set(trans_df[(trans_df['task_id'].isin(task_ids)) & (trans_df['type'].isin(['leader_returned', 'auditor_returned']))]['task_id'])
-                    submit_counts = trans_df[trans_df['type'] == 'submitted'].groupby('task_id').size()
-                    multi_submit_ids = set(submit_counts[submit_counts > 1].index) & set(task_ids)
-                    all_rework_ids = rework_by_ids | returned_ids | multi_submit_ids
-
-                    submitted_today['is_rework'] = submitted_today['id'].isin(all_rework_ids)
-                    submitted_today['canonical_user'] = submitted_today['user_name'].apply(
-                        lambda u: self._get_canonical_name('', u))
-
-                    records = []
-                    for user, group in submitted_today.groupby('canonical_user'):
-                        rework_df = group[group['is_rework']]
-                        first_time_df = group[~group['is_rework']]
-                        records.append({
-                            'User': user,
-                            'Total Tasks': len(group),
-                            'Total Duration': group['duration_seconds'].sum(),
-                            'New Videos (First Time)': first_time_df['duration_seconds'].sum(),
-                            'Reworks': rework_df['duration_seconds'].sum()
-                        })
-                    if records:
-                        return pd.DataFrame(records)
-            except Exception:
+                saved = json.loads(audit_path.read_text(encoding='utf-8'))
+                if saved.get('metadata', {}).get('target_date') == target_date:
+                    cached = {'rows': saved['rows'], 'metadata': saved['metadata']}
+                    self._cache[key] = cached
+            except (OSError, ValueError, KeyError):
                 pass
-
-        return pd.DataFrame()
+        if cached and not force_refresh:
+            result = pd.DataFrame(cached['rows'])
+            result.attrs.update(cached.get('metadata', {}))
+            return result
+        try:
+            source = DailyWorkSource(self.scraper, self._get_canonical_name).fetch(target_date)
+            result, evidence = aggregate_daily_work(
+                source['tasks'], source['returned_accounts'], source['reviews'],
+                target_date, self._get_canonical_name, requests=source.get('requests', []),
+            )
+            metadata = {'source': 'task submissions and batch-return history',
+                        'captured_at': source['captured_at'], 'target_date': target_date,
+                        'timezone': 'Asia/Kolkata', 'is_snapshot': False}
+            result.attrs.update(metadata)
+            self._cache[key] = {'rows': result.to_dict('records'), 'metadata': metadata}
+            audit_dir = DATA_DIR / 'reports' / f'daily-audit-{target_date}'
+            try:
+                audit_dir.mkdir(parents=True, exist_ok=True)
+                (audit_dir / 'verified-submissions.json').write_text(
+                    json.dumps({'metadata': metadata, 'rows': result.to_dict('records'), 'tasks': evidence}, indent=2),
+                    encoding='utf-8',
+                )
+            except OSError as error:
+                print(f'Could not save daily audit: {error}')
+            self.server_is_live = True
+            self.is_using_snapshot = False
+            self.last_sync_error = None
+            # Daily evidence is already persisted above. Saving the global
+            # snapshot here also rewrites every batch ledger row in MongoDB.
+            self.last_sync_time = source['captured_at']
+            return result
+        except Exception as error:
+            self.last_sync_error = str(error)
+            self.is_using_snapshot = True
+            if cached:
+                result = pd.DataFrame(cached['rows'])
+                result.attrs.update(cached.get('metadata', {}), is_snapshot=True, error=str(error))
+                return result
+            result = pd.DataFrame()
+            result.attrs.update(error=str(error), target_date=target_date, is_snapshot=True)
+            return result
 
     def get_live_rework_by_user(self, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
         """Fetch actual tasks with status 'slice_rework' from API grouped by canonical user."""
