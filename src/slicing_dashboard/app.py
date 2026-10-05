@@ -549,11 +549,8 @@ def update_dashboard(
         triggered_id = None
 
     force_refresh = triggered_id in ["refresh-btn", "auto-refresh-interval"]
-    if triggered_id == "auto-refresh-interval":
-        # Only do heavy network refresh if server is live
-        is_live = dm.check_server_heartbeat()
-        if not is_live:
-            force_refresh = False
+    # Retry real data requests on each refresh even if the last heartbeat failed.
+    # The data manager retains the matching cached data if recovery fails.
 
     # ── User selection / filtering ───────────────────────────────────
     current_selection = (

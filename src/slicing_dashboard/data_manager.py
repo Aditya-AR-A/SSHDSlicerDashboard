@@ -303,7 +303,7 @@ class DataManager:
             return self._cache[cache_key]
 
         # If server is known down, don't stall — return snapshot cache immediately
-        if not self.server_is_live and cache_key in self._cache:
+        if not force_refresh and not self.server_is_live and cache_key in self._cache:
             self.is_using_snapshot = True
             return self._cache[cache_key]
 
@@ -321,6 +321,7 @@ class DataManager:
             self._cache[cache_key] = data
             self.server_is_live = True
             self.is_using_snapshot = False
+            self.last_sync_error = None
             self._save_snapshot()
             return data
         except Exception as e:
@@ -647,7 +648,7 @@ class DataManager:
                         start_date=dt_str,
                         end_date=dt_str,
                         role=2,
-                        force_refresh=(dt_str == today_str and force_refresh),
+                        force_refresh=force_refresh,
                     )
                     day_users = {}
                     for it in items:
@@ -1905,7 +1906,7 @@ class DataManager:
         if not force_refresh and cache_key in self._cache:
             return self._cache[cache_key]
 
-        if not self.server_is_live and cache_key in self._cache:
+        if not force_refresh and not self.server_is_live and cache_key in self._cache:
             self.is_using_snapshot = True
             return self._cache[cache_key]
 
@@ -1955,6 +1956,7 @@ class DataManager:
             self._cache[cache_key] = res
             self.server_is_live = True
             self.is_using_snapshot = False
+            self.last_sync_error = None
             self._save_snapshot()
             return res
         except Exception as e:
@@ -2170,4 +2172,3 @@ class DataManager:
             user_mapping=self.user_mapping,
         )
         return write_individual_report(report_data, output_dir=output_dir)
-
