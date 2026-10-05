@@ -1,6 +1,6 @@
 {
+  "SSHD-Komal2": "Komal",
   "SSHD-admin": "Admin",
-
   "SSHD-Aditya": "Aditya",
   "SSHD-Adi": "Aditya",
   "SSHD-Slicer1": "Aditya",
@@ -8,18 +8,14 @@
   "SSHD-Slicer8nk": "Aditya",
   "SSHD-Slicer10": "Aditya",
   "SSHD-S-Aditya1": "Aditya",
-
   "Akash 1": "Akash",
   "Akash 1 N": "Akash",
   "SSHD-Akash": "Akash",
   "SSHD-Akash2": "Akash",
   "SSHD-S-Akash": "Akash",
   "SSHD-S-Akash3": "Akash",
-
   "SSHD-Annotator1": "Annotator",
-
   "SSHD-Dep": "Dep",
-
   "SSHD-Gurharleen": "Gurharleen",
   "SSHD-GURHARLEEN1": "Gurharleen",
   "SSHD-Gurharleen2": "Gurharleen",
@@ -27,17 +23,14 @@
   "SSHD-Gurharleen4": "Gurharleen",
   "SSHD-Gurharleen5": "Gurharleen",
   "SSHD-Gurharleen6": "Gurharleen",
-
   "SSHD-Komal": "Komal",
   "SSHD-komal1": "Komal",
   "SSHD-Komal14": "Komal",
   "SSHD-Komal21": "Komal",
   "SSHD-Ranjeeta": "Komal",
   "SSHD- Slicnner21": "Komal",
-
   "SSHD-Pardeep": "Pardeep",
   "SSHD-Psrdeep1": "Pardeep",
-
   "SSHD-Priya": "Priya",
   "SSHD-Priya1": "Priya",
   "SSHD-Priya2": "Priya",
@@ -45,7 +38,6 @@
   "SSHD-Slicer2": "Priya",
   "SSHD-SlicerPS": "Priya",
   "SSHD-Slicer 4": "Priya",
-
   "SSHD-Ranzo": "Ranjeeta",
   "SSHD-ranjo2": "Ranjeeta",
   "SSHD- Ranzo2": "Ranjeeta",
@@ -54,14 +46,12 @@
   "SSHD-Slicer9": "Ranjeeta",
   "SSHd-ranjeeta1": "Ranjeeta",
   "SSHD-A-ranjeeta2": "Ranjeeta",
-
   "SSHD-Rajni": "Rajni",
   "SSHD-Rajni1": "Rajni",
   "SSHD-Rajni2": "Rajni",
   "SSHD-Rajni3": "Rajni",
   "SSHD-S-Rajni": "Rajni",
   "SSHD-Slicer5": "Rajni",
-
   "SSHD-Riya": "Riya",
   "SSHD-Riya1": "Riya",
   "SSHD-Riya2": "Riya",
@@ -71,14 +61,14 @@
   "SSHD-Slicer7": "Riya",
   "SSHD-S-Riya6": "Riya",
   "SSHD-S-Riya7": "Riya",
-
   "SSHD-Sanddep": "Sanddep",
   "SSHD-Sandeep1": "Sanddep",
-  
   "SSHD-S-Sheetal": "Sheetal",
-
   "SSHD-Test": "Test",
   "SSHD-A-Test1": "Test",
   "SSHD-S-Test2": "Test",
-  "SSHD-S-Test3": "Test"
+  "SSHD-S-Test3": "Test",
+  "SSHD-Akash4": "Akash",
+  "SSHD-S-Priya1": "Priya",
+  "SSHD-S-Aditya2": "Aditya"
 }

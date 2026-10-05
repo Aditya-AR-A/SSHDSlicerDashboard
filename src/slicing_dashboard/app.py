@@ -26,14 +26,15 @@ from slicing_dashboard.plots import (
 )
 from slicing_dashboard.plots.theme import CHART_HEIGHT
 from slicing_dashboard.management.ui import layout_settlement_management, layout_user_mapping, register_management_callbacks
+from slicing_dashboard.management.periods import today_iso
 
 # ── Bootstrap / initialise ───────────────────────────────────────────────
 dm = DataManager()
 periods = dm.get_available_periods()
-default_period = next((p for p in periods if p.get('is_current')), periods[-1] if periods else {'start_date': '2026-09-01', 'end_date': datetime.now().strftime("%Y-%m-%d")})
+default_period = next((p for p in periods if p.get('is_current')), periods[-1])
 default_start = default_period['start_date']
 default_end = default_period['end_date']
-default_period_value = f"{default_start}|{default_end}"
+default_period_value = default_period['value']
 
 
 app = dash.Dash(
@@ -208,6 +209,7 @@ app.layout = html.Div(
 
                 # ── Stores & Intervals ───────────────────────────────
                 dcc.Store(id="selected-users-store", data=available_users),
+                dcc.Store(id="current-period-range", data={"start": default_start, "end": default_end}),
                 dcc.Store(id="server-status-store", data=dm.get_server_status()),
                 dcc.Interval(
                     id="auto-refresh-interval",
@@ -381,14 +383,30 @@ app.clientside_callback(
 
 # ── Quick date-range buttons ─────────────────────────────────────────────
 @app.callback(
-    [Output("date-from", "value"), Output("date-to", "value")],
+    Output("settlement-dropdown", "options"), Output("settlement-dropdown", "value"),
+    Input("auto-refresh-interval", "n_intervals"),
+    State("settlement-dropdown", "value"),
+)
+def refresh_period_options(n_intervals, selected):
+    current_periods = dm.get_available_periods()
+    options = [{"label": p["label"], "value": p["value"]} for p in current_periods]
+    if selected in {p["value"] for p in current_periods}:
+        return options, dash.no_update
+    current = next((p for p in current_periods if p.get("is_current")), current_periods[-1])
+    return options, current["value"]
+
+
+@app.callback(
+    [Output("date-from", "value"), Output("date-to", "value"), Output("current-period-range", "data")],
     [
         Input("btn-today", "n_clicks"),
         Input("settlement-dropdown", "value"),
+        Input("auto-refresh-interval", "n_intervals"),
     ],
+    [State("date-from", "value"), State("date-to", "value"), State("current-period-range", "data")],
     prevent_initial_call=True,
 )
-def quick_filters(btn_today, dropdown_val):
+def quick_filters(btn_today, dropdown_val, n_intervals, selected_start, selected_end, followed_range):
     ctx = dash.callback_context
     if not ctx.triggered:
         raise dash.exceptions.PreventUpdate
@@ -396,15 +414,22 @@ def quick_filters(btn_today, dropdown_val):
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
     
     if trigger_id == "btn-today":
-        now = datetime.now()
-        today_str = now.strftime("%Y-%m-%d")
-        return today_str, today_str
+        today_str = today_iso()
+        return today_str, today_str, None
     
     if trigger_id == "settlement-dropdown" and dropdown_val:
         start, end = dropdown_val.split("|")
-        return start, end
-
-    return default_start, default_end
+        is_current = end == "current"
+        if is_current:
+            end = today_iso()
+        return start, end, {"start": start, "end": end} if is_current else None
+    if trigger_id == "auto-refresh-interval" and dropdown_val:
+        start, end = dropdown_val.split("|")
+        if (end == "current" and followed_range
+                and selected_start == followed_range["start"] == start
+                and selected_end == followed_range["end"] and selected_end != today_iso()):
+            return start, today_iso(), {"start": start, "end": today_iso()}
+    raise dash.exceptions.PreventUpdate
 
 
 def _build_status_badge(status: dict):
@@ -680,7 +705,11 @@ def update_dashboard(
     fig_assigned = build_assigned_chart(assigned_df, is_dark)
 
     # ── Tab content ──────────────────────────────────────────────────
-    tab_content = _render_tab(
+    tab_content = dash.no_update if (
+        active_tab in ["tab-manage-settlement", "tab-manage-mapping"]
+        and triggered_id != "tabs"
+        and triggered_id is not None
+    ) else _render_tab(
         active_tab,
         is_dark,
         is_filtering,

@@ -480,6 +480,65 @@ body {
     gap: 12px;
 }
 
+/* Management controls: theme-aware surfaces, visible focus and mobile layouts. */
+.mgmt-container { max-width: 1200px; margin: 0 auto; padding: 24px 8px; }
+.mgmt-container h3 { font-size: 1.6rem; font-weight: 700; color: var(--text-primary); margin: 8px 0; }
+.mgmt-auth-card { max-width: 460px; text-align: left; box-shadow: var(--glass-shadow); padding: 32px; }
+.mgmt-lock-icon { margin: 0 0 20px; border-radius: 16px; box-shadow: none; }
+.mgmt-eyebrow { font-size: 11px; letter-spacing: .12em; font-weight: 700; color: var(--accent-blue); }
+.mgmt-description, .mgmt-help { color: var(--text-secondary); line-height: 1.6; font-size: 14px; }
+.mgmt-description { margin: 0; max-width: 680px; }
+.mgmt-label { display: block; color: var(--text-primary); font-size: 13px; font-weight: 600; margin: 16px 0 8px; }
+.mgmt-input { min-height: 44px; background: var(--glass-card-bg); color: var(--text-primary); border: 1px solid var(--dropdown-border); border-radius: 8px; }
+.mgmt-input:focus { background: var(--glass-card-bg); color: var(--text-primary); }
+.mgmt-input::placeholder { color: var(--text-muted); }
+.mgmt-container .btn { min-height: 44px; border-radius: 8px; font-weight: 600; padding: 10px 18px; }
+.mgmt-unlock { width: 100%; margin-top: 16px; }
+.mgmt-container :focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 3px; }
+.mgmt-header-banner { background: transparent; border: none; padding: 0; gap: 20px; align-items: center; }
+.mgmt-header-banner .btn { flex-shrink: 0; }
+.mgmt-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 24px 0; }
+.mgmt-stat { padding: 18px 20px; border: 1px solid var(--glass-border); border-radius: 12px; background: var(--glass-card-bg); }
+.mgmt-stat span { display: block; color: var(--text-secondary); font-size: 13px; }
+.mgmt-stat strong { display: block; color: var(--text-primary); font-size: 23px; font-weight: 650; margin-top: 6px; }
+.mgmt-current-note { display: flex; gap: 16px; padding: 18px 20px; border-radius: 12px; background: var(--dropdown-option-hover); border: 1px solid var(--dropdown-border); margin-bottom: 20px; color: var(--text-primary); }
+.mgmt-current-note > i { font-size: 24px; color: var(--accent-blue); }
+.mgmt-current-note p { margin: 6px 0 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.mgmt-filters { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin: 0 0 20px; }
+.mgmt-filters .mgmt-label { margin-top: 0; }
+.mgmt-assignment-card { padding: 20px; background: var(--glass-card-bg); border: 1px solid var(--glass-border); border-radius: 12px; margin-bottom: 20px; color: var(--text-primary); }
+.mgmt-assignment-card .mgmt-help { margin: 4px 0 12px; }
+.mgmt-assignment-fields { display: flex; gap: 16px; align-items: end; flex-wrap: wrap; }
+.mgmt-assignment-fields > div { flex: 1 1 220px; min-width: 0; }
+.mgmt-assignment-fields .mgmt-label { margin-top: 0; }
+.mgmt-assignment-fields .Select-control { min-height: 44px; }
+.mgmt-apply-button { flex-shrink: 0; }
+.mgmt-table-card { background: var(--glass-card-bg); border: 1px solid var(--glass-border); border-radius: 12px; padding: 16px; }
+.mgmt-table-card .mgmt-help { margin: 0 0 16px; }
+.mgmt-save-toolbar { padding: 16px 20px; align-items: end; gap: 16px; }
+.mgmt-save-field { flex: 0 1 300px; }
+.mgmt-save-field .mgmt-label { margin-top: 0; }
+.mgmt-save-toolbar .mgmt-help { align-self: center; margin-left: auto; }
+.mgmt-feedback { margin-top: 16px; font-size: 14px; }
+.mgmt-container .dash-table-container .Select-menu-outer { background: var(--dropdown-bg); color: var(--text-primary); border-color: var(--dropdown-border); }
+.mgmt-container .dash-table-container .Select-option { background: var(--dropdown-bg); color: var(--text-primary); padding: 12px; }
+.mgmt-container .dash-table-container .Select-option.is-focused { background: var(--dropdown-option-hover); }
+.mgmt-container .dash-table-container .Select-value-label, .mgmt-container .dash-table-container input { color: var(--text-primary) !important; }
+.mgmt-container .dash-table-container .previous-next-container button { color: var(--text-primary); min-width: 40px; min-height: 40px; }
+@media (max-width: 640px) {
+    .mgmt-container { padding: 16px 0; }
+    .mgmt-auth-card { margin: 16px 0; padding: 24px; }
+    .mgmt-header-banner { align-items: stretch; flex-direction: column; }
+    .mgmt-stats { grid-template-columns: 1fr; gap: 8px; margin: 16px 0; }
+    .mgmt-stat { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+    .mgmt-stat strong { margin: 0; font-size: 20px; }
+    .mgmt-filters { grid-template-columns: 1fr; }
+    .mgmt-save-field { flex-basis: 100%; }
+    .mgmt-save-toolbar .mgmt-help { margin-left: 0; }
+    .mgmt-save-button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .mgmt-container { animation: none; } }
+
 /* ─── Scrollbar styling ───────────────────────────────────────────────── */
 ::-webkit-scrollbar {
     width: 6px;

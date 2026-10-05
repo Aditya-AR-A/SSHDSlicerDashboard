@@ -1453,38 +1453,9 @@ class DataManager:
         return df
 
     def get_available_periods(self) -> list[dict]:
-        """Return all settlement periods plus an ongoing one if applicable."""
-        periods = []
-        if hasattr(self, 'settlement_periods'):
-            periods = sorted(self.settlement_periods, key=lambda x: x['start_date'])
-        
-        # Add an ongoing period if the last one is settled and its end date is before today
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        if not periods:
-            periods.append({'start_date': '2026-09-01', 'end_date': today_str, 'settled': False, 'is_current': True})
-        else:
-            last_period = periods[-1]
-            if last_period.get('settled', False):
-                try:
-                    last_end_dt = datetime.strptime(last_period['end_date'], "%Y-%m-%d")
-                    ongoing_start = (last_end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
-                    # Only add if ongoing_start <= today_str
-                    if ongoing_start <= today_str:
-                        periods.append({'start_date': ongoing_start, 'end_date': today_str, 'settled': False, 'is_current': True})
-                except Exception:
-                    pass
-            else:
-                last_period['is_current'] = True
-
-        for p in periods:
-            if 'label' not in p:
-                status = "(Settled)" if p.get('settled') else "(Ongoing)"
-                if p.get('is_current'):
-                    status = "(Current)"
-                p['label'] = f"{p['start_date']} to {p['end_date']} {status}"
-                p['value'] = f"{p['start_date']}|{p['end_date']}"
-
-        return periods
+        """Return date ranges without mutating persisted settlement records."""
+        from slicing_dashboard.management.periods import available_periods
+        return available_periods(getattr(self, 'settlement_periods', []))
 
     def fetch_all_assigned_tasks_live(self) -> dict:
         """Fetch all assigned tasks directly to bypass the date-filtering flaw of the overview API."""
