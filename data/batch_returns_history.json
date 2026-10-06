@@ -1,7 +1,17 @@
 {
-  "last_updated": "2026-10-05 19:16:30",
-  "total_records": 194,
+  "last_updated": "2026-10-05 19:53:41",
+  "total_records": 195,
   "records": [
+    {
+      "event_id": "7413_ab_f036de1af8b04fb6b18407d2f36f5128_2026-10-05T22:11:36",
+      "user_id": 7413,
+      "username": "SSHD-Riya1",
+      "canonical_user": "Riya",
+      "batch_id": "ab_f036de1af8b04fb6b18407d2f36f5128",
+      "legacy_batch_number": 26,
+      "reason": "Water Wave",
+      "returned_at": "2026-10-05T22:11:36"
+    },
     {
       "event_id": "3969_ab_7c9b2957d84a428ca55b358b3bc0f476_2026-10-05T17:46:28",
       "user_id": 3969,
