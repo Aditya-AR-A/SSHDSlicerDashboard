@@ -7,13 +7,21 @@ from slicing_dashboard.data_manager import DataManager
 class TestReworkAssigned(unittest.TestCase):
 
     def setUp(self):
-        self.dm = DataManager()
-        # Mock scraper and overview data
+        # This test exercises the overview fallback. Real startup loads an
+        # unrelated persisted batch ledger before the API mocks take effect.
+        self.dm = DataManager.__new__(DataManager)
+        self.dm._cache = {}
+        self.dm._batches_master_cache = {}
+        self.dm.exempt_ids = set()
         self.dm.scraper = MagicMock()
         self.dm.scraper.is_authenticated = True
         self.dm.scraper._users = {1: {'username': 'SSHD-UserA'}, 2: {'username': 'SSHD-UserB'}}
         self.dm.scraper._get_username.side_effect = lambda uid: f"user_{uid}"
         self.dm.user_mapping = {"user_1": "UserA", "user_2": "UserB"}
+        self.dm.fetch_annotator_efficiency = MagicMock(return_value=({}, []))
+        self.dm.fetch_all_assigned_tasks_live = MagicMock(
+            side_effect=ConnectionError("Assigned endpoint unavailable"),
+        )
 
     def test_rework_assigned_only_to_users_with_rework(self):
         # UserA has pure backlog 1000s, but 0 rework tasks
@@ -79,6 +87,8 @@ class TestReworkAssigned(unittest.TestCase):
         user_b_new = df[(df['User'] == 'UserB') & (df['Stage'] == 'New Assigned')].iloc[0]
         self.assertEqual(user_b_new['Duration'], 1500.0)
         self.assertEqual(user_b_new['Count'], 15)
+        self.dm.scraper._client.get.assert_not_called()
+        self.dm.scraper._client.post.assert_not_called()
 
 
 if __name__ == '__main__':

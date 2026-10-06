@@ -11,6 +11,7 @@ from functools import wraps
 from concurrent.futures import ThreadPoolExecutor
 from dash import Input, Output, State, dcc, html
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from slicing_dashboard.data_manager import DataManager
 from slicing_dashboard.plots import (
@@ -29,7 +30,10 @@ from slicing_dashboard.plots import (
 from slicing_dashboard.plots.theme import CHART_HEIGHT
 from slicing_dashboard.management.ui import layout_settlement_management, layout_user_mapping, register_management_callbacks
 from slicing_dashboard.management.periods import today_iso
-from slicing_dashboard.processing.daily_work import EXCLUDED, format_video_seconds
+from slicing_dashboard.processing.daily_work import EXCLUDED
+from slicing_dashboard.pages.components import add_reporting_shell
+from slicing_dashboard.pages.daily_report import build_daily_report_content
+from slicing_dashboard.reporting.dashboard_reports import prepare_daily_table, prepare_daily_work_chart_rows
 
 # ── Bootstrap / initialise ───────────────────────────────────────────────
 dm = DataManager()
@@ -45,6 +49,7 @@ app = dash.Dash(
     title="SSHD Slicing Dashboard",
     update_title=None,
     external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
+    assets_folder=str(Path(__file__).resolve().parent / "assets"),
     suppress_callback_exceptions=True,
 )
 
@@ -371,6 +376,87 @@ app.layout = html.Div(
 )
 
 # ── Client-side theme toggle ─────────────────────────────────────────────
+app.layout = add_reporting_shell(app.layout, today_iso())
+
+
+@app.callback(
+    Output("dashboard-page", "style"), Output("daily-report-page", "style"),
+    Output("report-not-found", "style"), Output("nav-dashboard", "active"),
+    Output("nav-daily-report", "active"), Output("dashboard-period-controls", "style"),
+    Output("dashboard-date-controls", "style"),
+    Input("report-location", "pathname"),
+)
+def route_pages(pathname):
+    dashboard = pathname in (None, "/", "/dashboard")
+    daily = pathname == "/reports/daily"
+    hidden = {"display": "none"}
+    return ({}, hidden, hidden, True, False, {}, {}) if dashboard else (
+        hidden, {} if daily else hidden, hidden if daily else {}, False, daily, hidden, hidden,
+    )
+
+
+@app.callback(
+    Output("daily-report-date", "value"), Output("daily-date-follows-today", "data"),
+    Output("daily-report-date", "max"),
+    Input("daily-report-today", "n_clicks"), Input("auto-refresh-interval", "n_intervals"),
+    Input("daily-report-date", "value"),
+    State("daily-date-follows-today", "data"),
+    prevent_initial_call=True,
+)
+def follow_daily_date(n_clicks, n_intervals, selected_date, follows_today):
+    current = today_iso()
+    trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    if trigger == "daily-report-today":
+        return current, True, current
+    if trigger == "daily-report-date":
+        return dash.no_update, selected_date == current, current
+    return current if follows_today else dash.no_update, follows_today, current
+
+
+@app.callback(
+    Output("daily-report-store", "data"),
+    Input("report-location", "pathname"), Input("refresh-btn", "n_clicks"),
+    Input("auto-refresh-interval", "n_intervals"), Input("daily-report-date", "value"),
+)
+def load_daily_report(pathname, n_clicks, n_intervals, report_date):
+    if pathname != "/reports/daily":
+        raise dash.exceptions.PreventUpdate
+    try:
+        trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    except (AttributeError, IndexError, dash.exceptions.MissingCallbackContextException):
+        trigger = None
+    # Refresh the live capture on entry or an explicit/timed refresh. Pure
+    # theme/legend interactions do not invoke this callback.
+    try:
+        return dm.get_daily_report_data(report_date=report_date or today_iso(),
+            force_refresh=trigger in (None, "report-location", "refresh-btn", "auto-refresh-interval"))
+    except ValueError:
+        return {"validation_error": "Choose a valid report date on or before today in India time."}
+
+
+@app.callback(
+    Output("daily-report-content", "children"),
+    Output("refresh-status", "children", allow_duplicate=True),
+    Output("theme-toggle", "children", allow_duplicate=True),
+    Input("daily-report-store", "data"), Input("theme-toggle", "n_clicks"),
+    Input("report-location", "pathname"),
+    prevent_initial_call=True,
+)
+def render_daily_report(data, theme_clicks, pathname):
+    if pathname != "/reports/daily":
+        raise dash.exceptions.PreventUpdate
+    is_dark = (theme_clicks or 0) % 2 == 0
+    metadata = (data or {}).get("today", {}).get("metadata", {})
+    status = "Loading report…" if not data else (
+        "Daily data unavailable" if not metadata.get("available") else
+        f"Saved: {metadata.get('captured_at', 'earlier capture')}" if metadata.get("is_snapshot") else
+        f"Recorded: {metadata.get('captured_at', 'available daily history')}"
+    )
+    icon = html.I(className="bi bi-sun-fill text-warning fs-5" if is_dark else "bi bi-moon-stars-fill text-primary fs-5",
+                  title="Switch to Light Theme" if is_dark else "Switch to Dark Theme")
+    return build_daily_report_content(data, is_dark), status, icon
+
+
 app.clientside_callback(
     dash.ClientsideFunction(namespace="clientside", function_name="toggleTheme"),
     Output("main-container", "className"),
@@ -578,11 +664,20 @@ def _refresh_scope(callback):
         Input("tabs", "active_tab"),
         Input("individual-chart", "clickData"),
         Input("error-rework-chart", "clickData"),
+        Input("report-location", "pathname"),
     ],
     [State("selected-users-store", "data")],
     running=[(Output("refresh-btn", "disabled"), True, False),
              (Output("auto-refresh-interval", "disabled"), True, False)],
 )
+def _dispatch_dashboard(n_clicks, n_intervals, start_date, end_date, restyle_data,
+                        theme_clicks, active_tab, ind_click, err_click, pathname, stored_users):
+    # Dash passes Inputs before State. Keep the existing handler's positional
+    # API intact for callers while adding the route as a reactive Input.
+    return update_dashboard(n_clicks, n_intervals, start_date, end_date, restyle_data,
+                            theme_clicks, active_tab, ind_click, err_click, stored_users, pathname)
+
+
 @_refresh_scope
 def update_dashboard(
     n_clicks,
@@ -595,7 +690,10 @@ def update_dashboard(
     ind_click,
     err_click,
     stored_users,
+    pathname="/",
 ):
+    if pathname not in (None, "/", "/dashboard"):
+        return tuple([dash.no_update] * 13)
     # ── Theme ────────────────────────────────────────────────────────
     is_dark = True if theme_clicks is None else theme_clicks % 2 == 0
     toggle_label = (
@@ -824,9 +922,8 @@ def _build_work_chart(
         return fig
     if effective_users:
         daily = daily[daily['User'].isin(effective_users)]
-    work = pd.DataFrame({'User': daily['User'], 'New Work Duration': daily['New Videos (First Time)'],
-                         'Same-day Rework Duration': daily['Same-day Rework'], 'Old Rework Duration': daily['Old Rework'],
-                         'Rework Duration': daily['Reworks'], 'Total Work Duration': daily['Total Duration'], 'IDs': daily['RawID']})
+    work = prepare_daily_work_chart_rows({"date": target_date, "rows": daily.to_dict("records"),
+                                         "metadata": dict(daily.attrs, available=not bool(daily.attrs.get('error')) or not daily.empty)})
     figure = build_error_rework_chart(work, label, is_dark)
     if daily.attrs.get('is_snapshot'):
         figure.update_layout(title=f"{label} · Submitted Video Duration (cached)")
@@ -854,18 +951,9 @@ def _render_tab(
             return dbc.Alert("Daily submissions could not be verified. Please retry Refresh.", color="warning")
         if raw.empty:
             return html.Div("No submissions recorded for this day.")
-        columns = ['User', 'Total Tasks', 'Total Duration', 'New Videos (First Time)',
-                   'Same-day Rework', 'Old Rework', 'New Tasks', 'Same-day Rework Tasks', 'Old Rework Tasks', 'Rework %', 'RawID']
-        daily = raw[columns].copy()
-        total = {'User': 'TOTAL', 'RawID': ''}
-        for column in columns:
-            if column not in ('User', 'RawID', 'Rework %'):
-                total[column] = raw[column].sum()
-        total['Rework %'] = f"{raw['Reworks'].sum() / raw['Total Duration'].sum() * 100:.1f}%" if raw['Total Duration'].sum() else '0.0%'
-        daily = pd.concat([daily, pd.DataFrame([total])], ignore_index=True)
-        for column in ['Total Duration', 'New Videos (First Time)', 'Same-day Rework', 'Old Rework']:
-            daily[column] = daily[column].apply(format_video_seconds)
-        note = "Unique tasks by latest submission in India time. Video duration only; approvals and pending rework are excluded."
+        daily = pd.DataFrame(prepare_daily_table({"date": target_date, "rows": raw.to_dict("records"),
+                                                  "metadata": dict(raw.attrs, available=True)}))
+        note = "Observed unique task submissions in India time. Video duration only; approvals and pending rework are excluded."
         if raw.attrs.get('captured_at'):
             note += f" Verified scan: {raw.attrs['captured_at']}."
         if raw.attrs.get('is_snapshot'):

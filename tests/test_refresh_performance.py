@@ -125,7 +125,8 @@ class TestRefreshPerformance(unittest.TestCase):
         self.assertEqual(second['Aditya']['raw_ids'], {'SSHD-Aditya'})
         dm.scraper._client.get.assert_called_once()
 
-    def test_today_and_yesterday_share_source_only_within_refresh(self):
+    @patch('slicing_dashboard.management.periods.today_iso', return_value='2026-10-05')
+    def test_today_and_yesterday_share_source_only_within_refresh(self, _):
         dm = self.dm
         with patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource') as source_class, patch('slicing_dashboard.config.DATA_DIR', Path(self.directory.name)):
             source = source_class.return_value
@@ -138,7 +139,10 @@ class TestRefreshPerformance(unittest.TestCase):
             source.invalidate.assert_called_once()
             with dm.refresh_scope():
                 dm.get_todays_work_df('2026-10-05', force_refresh=True)
+                yesterday = dm.get_todays_work_df('2026-10-04', force_refresh=True)
             self.assertEqual(source_class.call_count, 2)
+            self.assertEqual(source.fetch.call_count, 3)
+            self.assertTrue(yesterday.attrs['closed'])
 
     def test_cached_ledger_and_empty_returns_never_refresh_on_display_events(self):
         dm = self.dm

@@ -39,7 +39,9 @@ def _make_kpi_card(
     badge_text: str,
     badge_color: str,
     is_dark: bool,
-    sparkline_data: list,
+    sparkline_data: list | None,
+    *,
+    sparkline_shape: str = "spline",
 ) -> html.Div:
     """Build a single compact KPI card element."""
     text_col = "#e0e0e0" if is_dark else "#333333"
@@ -50,7 +52,8 @@ def _make_kpi_card(
         go.Scatter(
             y=sparkline_data,
             mode="lines",
-            line=dict(color=badge_color, width=2, shape="spline"),
+            line=dict(color=badge_color, width=2, shape=sparkline_shape),
+            connectgaps=False,
             hoverinfo="skip",
         )
     )
@@ -87,7 +90,8 @@ def _make_kpi_card(
                                 },
                             ),
                             html.Span(
-                                value_str,
+                                "—" if value_str is None else value_str,
+                                className="kpi-value",
                                 style={
                                     "fontSize": "1.1rem",
                                     "fontWeight": "700",
@@ -103,6 +107,7 @@ def _make_kpi_card(
                     # Title
                     html.Div(
                         title,
+                        className="kpi-title",
                         style={
                             "fontSize": "0.65rem",
                             "fontWeight": "700",
@@ -119,7 +124,7 @@ def _make_kpi_card(
                         figure=fig,
                         config={"displayModeBar": False},
                         style={"height": "22px"},
-                    ),
+                    ) if sparkline_data is not None else None,
                     # Badge
                     html.Div(
                         html.Span(
@@ -136,7 +141,7 @@ def _make_kpi_card(
                             },
                         ),
                         style={"marginTop": "3px"},
-                    ),
+                    ) if badge_text else None,
                 ],
                 className="p-2",
             ),
@@ -150,6 +155,26 @@ def _make_kpi_card(
             },
         ),
         className="kpi-card",
+    )
+
+
+def make_kpi_card(
+    title: str,
+    value_str: str | None,
+    icon_class: str = "bi bi-clock",
+    badge_text: str = "",
+    badge_color: str = "#38bdf8",
+    is_dark: bool = True,
+    sparkline_data: list | None = None,
+) -> html.Div:
+    """Reuse the dashboard card, showing only a supplied, real daily trend.
+
+    A missing value is shown as an em dash; a zero value remains zero. Report
+    callers may omit sparklines instead of inventing a trend from two totals.
+    """
+    return _make_kpi_card(
+        title, value_str, icon_class, badge_text, badge_color, is_dark,
+        sparkline_data, sparkline_shape="linear",
     )
 
 

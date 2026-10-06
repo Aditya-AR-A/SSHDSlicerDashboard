@@ -6,7 +6,10 @@ import pandas as pd
 from dash import dash_table, html
 
 
-def create_table(df, is_dark: bool):
+def create_table(
+    df, is_dark: bool, *, columns=None, table_id=None, page_size=25,
+    max_height="320px", tooltip_data=None, tooltip_duration=None,
+):
     """Build a theme-aware Dash DataTable from a DataFrame.
 
     Parameters
@@ -24,12 +27,18 @@ def create_table(df, is_dark: bool):
     odd_bg = "rgba(30, 41, 59, 0.45)" if is_dark else "rgba(241, 245, 249, 0.6)"
     border_col = "rgba(255,255,255,0.08)" if is_dark else "rgba(0,0,0,0.08)"
 
+    options = {"id": table_id} if table_id is not None else {}
+    if tooltip_data is not None:
+        options.update(tooltip_data=tooltip_data, tooltip_duration=tooltip_duration)
+    elif tooltip_duration is not None:
+        options["tooltip_duration"] = tooltip_duration
     return dash_table.DataTable(
-        data=df.to_dict("records"),
-        columns=[{"name": str(i), "id": str(i)} for i in df.columns],
+        **options,
+        data=df.astype(object).where(pd.notna(df), None).to_dict("records"),
+        columns=columns if columns is not None else [{"name": str(i), "id": str(i)} for i in df.columns],
         sort_action="native",
         page_action="native",
-        page_size=25,
+        page_size=page_size,
         style_header={
             "backgroundColor": header_bg,
             "color": header_color,
@@ -74,8 +83,8 @@ def create_table(df, is_dark: bool):
         ],
         style_table={
             "borderRadius": "10px",
-            "overflow": "hidden",
-            "maxHeight": "320px",
+            "overflowX": "auto",
+            "maxHeight": max_height,
             "overflowY": "auto",
         },
     )

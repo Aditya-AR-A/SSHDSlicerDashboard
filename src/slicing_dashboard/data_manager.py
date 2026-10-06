@@ -16,12 +16,13 @@ from slicing_dashboard.scraper.http_scraper import HTTPScraper
 
 from collections import defaultdict
 from concurrent.futures import Future, ThreadPoolExecutor
-from threading import Lock
+from threading import Lock, RLock
 from time import perf_counter
 from typing import Any
 
 
 _REFRESH_SCOPE = ContextVar('dashboard_refresh_scope', default=None)
+_DAILY_REPORT_FILES_LOCK = RLock()
 
 
 def _per_refresh(function):
@@ -146,6 +147,8 @@ class DataManager:
         self.scraper = HTTPScraper(self.settings)
         self._cache = {}
         self._daily_cache = {}
+        self._daily_report_records = {}
+        self._daily_report_lock = RLock()
         from slicing_dashboard.db import DatabaseManager
         self.db = DatabaseManager()
         
@@ -1336,64 +1339,182 @@ class DataManager:
             return pd.DataFrame()
 
     @_per_refresh
+    def _load_daily_report_records(self, start_date, end_date):
+        """Load only saved dated evidence, including legacy verified daily audits."""
+        from slicing_dashboard.management.periods import today_iso
+        from slicing_dashboard.config import DATA_DIR
+        from slicing_dashboard.reporting.dashboard_reports import date_range, merge_daily_reports
+
+        if not hasattr(self, '_daily_report_records'):
+            self._daily_report_records = {}
+        if not hasattr(self, '_daily_report_lock'):
+            self._daily_report_lock = RLock()
+        with self._daily_report_lock:
+            scope = _REFRESH_SCOPE.get()
+            ranges = scope.setdefault('daily_report_ranges', []) if scope is not None and scope['manager'] is self else []
+            if any(start <= start_date and end_date <= end for start, end in ranges):
+                return {day: record for day, record in self._daily_report_records.items()
+                        if start_date <= day <= end_date}
+            database = getattr(self, 'db', None)
+            if database is not None:
+                try:
+                    for record in database.load_daily_work_reports(start_date, end_date):
+                        day = record.get('date', '')
+                        if start_date <= day <= end_date:
+                            prior = self._daily_report_records.get(day)
+                            self._daily_report_records[day] = merge_daily_reports(prior, record) if prior and 'tasks' in record else record
+                except Exception as error:
+                    self._daily_report_load_error = str(error)
+            count = (datetime.fromisoformat(end_date) - datetime.fromisoformat(start_date)).days + 1
+            for day in date_range(end_date, count):
+                if day in self._daily_report_records:
+                    continue
+                saved_path = DATA_DIR / 'reports' / 'daily-work' / f'{day}.json'
+                audit_path = DATA_DIR / 'reports' / f'daily-audit-{day}' / 'verified-submissions.json'
+                for path in (saved_path, audit_path):
+                    if not path.exists():
+                        continue
+                    try:
+                        saved = json.loads(path.read_text(encoding='utf-8'))
+                        if (saved.get('metadata', {}).get('target_date') != day
+                                or saved.get('metadata', {}).get('available') is False):
+                            continue
+                        record = {'date': day, 'rows': saved.get('rows', []),
+                                  'metadata': {**saved['metadata'], 'available': True,
+                                               'coverage': 'observed', 'observed_on': today_iso(),
+                                               'closed': day < today_iso()}}
+                        if 'tasks' in saved:
+                            record['tasks'] = saved['tasks']
+                            record = merge_daily_reports(None, record)
+                        if path == audit_path:
+                            record['metadata']['capture_kind'] = 'verified_audit_import'
+                            self._persist_daily_report(record)
+                        self._daily_report_records[day] = record
+                        break
+                    except (OSError, ValueError, KeyError, TypeError):
+                        continue
+            ranges.append((start_date, end_date))
+            return {day: record for day, record in self._daily_report_records.items()
+                    if start_date <= day <= end_date}
+
+    def _persist_daily_report(self, record):
+        """Persist dated observations independently of the global dashboard snapshot."""
+        from slicing_dashboard.config import DATA_DIR
+        from slicing_dashboard.reporting.dashboard_reports import merge_daily_reports
+        from uuid import uuid4
+
+        persisted = False
+        destination = DATA_DIR / 'reports' / 'daily-work' / f"{record['date']}.json"
+        temporary = destination.with_suffix(f'.{uuid4().hex}.tmp')
+        with _DAILY_REPORT_FILES_LOCK:
+            try:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if destination.exists():
+                    prior = json.loads(destination.read_text(encoding='utf-8'))
+                    merged = merge_daily_reports(prior, record)
+                    record.clear()
+                    record.update(merged)
+                record['metadata'].pop('persistence_error', None)
+                temporary.write_text(json.dumps(record, indent=2, allow_nan=False), encoding='utf-8')
+                temporary.replace(destination)
+                persisted = True
+            except (OSError, ValueError, KeyError) as error:
+                self._daily_report_save_error = str(error)
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
+        database = getattr(self, 'db', None)
+        if database is not None:
+            try:
+                persisted = bool(database.save_daily_work_report(record)) or persisted
+            except Exception as error:
+                self._daily_report_save_error = str(error)
+        return persisted
+
+    def get_daily_report_data(self, report_date=None, force_refresh=False):
+        """One JSON-safe payload for Daily Report cards, charts, and both tables."""
+        from slicing_dashboard.reporting.dashboard_reports import get_daily_report_data
+        return get_daily_report_data(self, report_date, force_refresh)
+
+    def _get_reporting_name(self, uid, username):
+        """Apply account exclusions consistently, including case-variant observations."""
+        account = str(username or '').casefold()
+        for record in getattr(self, 'user_mapping_full', {}).values():
+            if str(record.get('id') or '').casefold() == account:
+                if record.get('mapping_type') == 'Exempt':
+                    return 'Exempt'
+                if record.get('mapping_type') == 'New':
+                    return 'Unassigned'
+        return self._get_canonical_name(uid, username)
+
+    @_per_refresh
     def get_todays_work_df(self, target_date: (str | None)=None,
         force_refresh: bool=False) -> pd.DataFrame:
-        """Count unique task submissions in India time, not updates or approvals."""
+        """Preserve each observed task/day, counting its latest submission once that day."""
         from slicing_dashboard.management.periods import today_iso
         from slicing_dashboard.processing.daily_work import aggregate_daily_work
-        target_date = target_date or today_iso()
+        from slicing_dashboard.reporting.dashboard_reports import day_for_ui, merge_daily_reports
+
+        current_date = today_iso()
+        target_date = target_date or current_date
+        datetime.strptime(target_date, '%Y-%m-%d')
         key = f'verified_daily_work_{target_date}'
-        cached = self._cache.get(key)
-        from slicing_dashboard.config import DATA_DIR
-        audit_path = DATA_DIR / 'reports' / f'daily-audit-{target_date}' / 'verified-submissions.json'
-        if not cached and audit_path.exists():
-            try:
-                saved = json.loads(audit_path.read_text(encoding='utf-8'))
-                if saved.get('metadata', {}).get('target_date') == target_date:
-                    cached = {'rows': saved['rows'], 'metadata': saved['metadata']}
-                    self._cache[key] = cached
-            except (OSError, ValueError, KeyError):
-                pass
-        if cached and not force_refresh:
-            result = pd.DataFrame(cached['rows'])
-            result.attrs.update(cached.get('metadata', {}))
+        cached = getattr(self, '_cache', {}).get(key)
+        records = self._load_daily_report_records(target_date, target_date)
+        stored = records.get(target_date)
+        if stored and (target_date < current_date or not force_refresh):
+            view = day_for_ui(stored, target_date, self._get_reporting_name)
+            view['metadata']['closed'] = target_date < current_date
+            result = pd.DataFrame(view['rows'])
+            result.attrs.update(view['metadata'])
+            return result
+        previous_date = (datetime.strptime(current_date, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+        if target_date < previous_date or target_date > current_date:
+            result = pd.DataFrame()
+            result.attrs.update(available=False, coverage='unavailable', target_date=target_date,
+                                timezone='Asia/Kolkata', is_snapshot=False)
             return result
         try:
             source = self._daily_work_reader().fetch(target_date)
-            result, evidence = aggregate_daily_work(
+            _, evidence = aggregate_daily_work(
                 source['tasks'], source['returned_accounts'], source['reviews'],
-                target_date, self._get_canonical_name, requests=source.get('requests', []),
+                target_date, self._get_reporting_name, requests=source.get('requests', []),
             )
             metadata = {'source': 'task submissions and batch-return history',
                         'captured_at': source['captured_at'], 'target_date': target_date,
-                        'timezone': 'Asia/Kolkata', 'is_snapshot': False}
-            result.attrs.update(metadata)
-            self._cache[key] = {'rows': result.to_dict('records'), 'metadata': metadata}
-            audit_dir = DATA_DIR / 'reports' / f'daily-audit-{target_date}'
-            try:
-                audit_dir.mkdir(parents=True, exist_ok=True)
-                (audit_dir / 'verified-submissions.json').write_text(
-                    json.dumps({'metadata': metadata, 'rows': result.to_dict('records'), 'tasks': evidence}, indent=2),
-                    encoding='utf-8',
-                )
-            except OSError as error:
-                print(f'Could not save daily audit: {error}')
+                        'timezone': 'Asia/Kolkata', 'is_snapshot': False, 'observed_on': current_date,
+                        'capture_kind': 'daily_observation' if target_date == current_date else 'historical_bootstrap'}
+            with self._daily_report_lock:
+                record = merge_daily_reports(self._daily_report_records.get(target_date),
+                                             {'date': target_date, 'tasks': evidence, 'metadata': metadata})
+                if not self._persist_daily_report(record):
+                    record['metadata']['persistence_error'] = 'Daily evidence could not be saved; this observation is held in memory only.'
+                self._daily_report_records[target_date] = record
+            view = day_for_ui(record, target_date, self._get_reporting_name)
+            result = pd.DataFrame(view['rows'])
+            result.attrs.update(view['metadata'])
+            if not hasattr(self, '_cache'):
+                self._cache = {}
+            self._cache[key] = {'rows': view['rows'], 'metadata': view['metadata']}
             self.server_is_live = True
             self.is_using_snapshot = False
             self.last_sync_error = None
-            # Daily evidence is already persisted above. Saving the global
-            # snapshot here also rewrites every batch ledger row in MongoDB.
             self.last_sync_time = source['captured_at']
             return result
         except Exception as error:
             self.last_sync_error = str(error)
             self.is_using_snapshot = True
+            if stored:
+                cached = day_for_ui(stored, target_date, self._get_reporting_name)
             if cached:
                 result = pd.DataFrame(cached['rows'])
-                result.attrs.update(cached.get('metadata', {}), is_snapshot=True, error=str(error))
+                result.attrs.update(cached.get('metadata', {}), available=True, coverage='observed',
+                                    is_snapshot=True, error=str(error))
                 return result
             result = pd.DataFrame()
-            result.attrs.update(error=str(error), target_date=target_date, is_snapshot=True)
+            result.attrs.update(error=str(error), target_date=target_date, is_snapshot=False,
+                                available=False, coverage='unavailable', timezone='Asia/Kolkata')
             return result
 
     @_per_refresh

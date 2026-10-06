@@ -432,3 +432,92 @@ class DatabaseManager:
         except Exception as e:
             print(f"Error loading settlement periods from MongoDB: {e}")
             return []
+
+    def load_daily_work_reports(self, start_date: str, end_date: str) -> list[dict]:
+        """Read dated submission observations, never current task-state snapshots."""
+        if not self.is_connected():
+            return []
+        if self.mongo_db is not None:
+            try:
+                records = self.mongo_db['daily_work_reports'].find(
+                    {'_id': {'$gte': start_date, '$lte': end_date}})
+                return [{key: value for key, value in record.items() if key not in ('_id', '_revision')}
+                        for record in records]
+            except Exception as error:
+                print(f"Could not read daily work reports from MongoDB: {error}")
+        if self.engine is not None:
+            try:
+                from sqlalchemy import text
+                with self.engine.begin() as connection:
+                    self._ensure_daily_work_table(connection)
+                    records = connection.execute(text(
+                        'SELECT payload FROM daily_work_reports WHERE date >= :start AND date <= :end'),
+                        {'start': start_date, 'end': end_date})
+                    return [json.loads(row[0]) if isinstance(row[0], str) else row[0] for row in records]
+            except Exception as error:
+                print(f"Could not read daily work reports from PostgreSQL: {error}")
+        return []
+
+    @staticmethod
+    def _ensure_daily_work_table(connection):
+        from sqlalchemy import text
+        connection.execute(text('CREATE TABLE IF NOT EXISTS daily_work_reports '
+                                '(date TEXT PRIMARY KEY, payload JSONB NOT NULL)'))
+
+    def save_daily_work_report(self, report: dict) -> bool:
+        """Idempotently union task/day observations with concurrent-writer protection."""
+        from slicing_dashboard.reporting.dashboard_reports import merge_daily_reports
+        from slicing_dashboard.management.periods import today_iso
+
+        if report.get('metadata', {}).get('available') is False:
+            return False
+        if not self.is_connected():
+            return False
+        report = {**report, 'metadata': {**report.get('metadata', {}),
+                  'observed_on': max(report.get('metadata', {}).get('observed_on', report['date']), today_iso())}}
+        day = report['date']
+        if self.mongo_db is not None:
+            try:
+                from pymongo.errors import DuplicateKeyError
+                collection = self.mongo_db['daily_work_reports']
+                for _ in range(5):
+                    existing = collection.find_one({'_id': day})
+                    merged = merge_daily_reports(existing, report)
+                    revision = (existing or {}).get('_revision', 0)
+                    document = {**merged, '_id': day, '_revision': revision + 1}
+                    if existing is None:
+                        try:
+                            collection.insert_one(document)
+                            return True
+                        except DuplicateKeyError:
+                            continue
+                    # An old writer cannot erase evidence captured by a newer refresh.
+                    expected = revision if '_revision' in existing else {'$exists': False}
+                    result = collection.replace_one({'_id': day, '_revision': expected}, document)
+                    if result.matched_count:
+                        return True
+            except Exception as error:
+                print(f"Could not save daily work report to MongoDB: {error}")
+        if self.engine is not None:
+            try:
+                from sqlalchemy import text
+                with self.engine.begin() as connection:
+                    self._ensure_daily_work_table(connection)
+                    # Lock the date even before its first row exists, so concurrent
+                    # initial captures merge instead of replacing one another.
+                    connection.execute(text('SELECT pg_advisory_xact_lock(hashtext(:key))'),
+                                       {'key': f'daily_work_reports:{day}'})
+                    existing = connection.execute(text(
+                        'SELECT payload FROM daily_work_reports WHERE date = :date FOR UPDATE'),
+                        {'date': day}).scalar()
+                    if isinstance(existing, str):
+                        existing = json.loads(existing)
+                    merged = merge_daily_reports(existing, report)
+                    connection.execute(text('INSERT INTO daily_work_reports (date, payload) '
+                                            'VALUES (:date, CAST(:payload AS JSONB)) '
+                                            'ON CONFLICT (date) DO UPDATE SET payload = EXCLUDED.payload'),
+                                       {'date': day, 'payload': json.dumps(merged, allow_nan=False)})
+                return True
+            except Exception as error:
+                print(f"Could not save daily work report to PostgreSQL: {error}")
+        return False

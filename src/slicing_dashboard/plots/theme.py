@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import pandas as pd
 from functools import lru_cache
+from hashlib import sha256
 
 # ── Consistent user color palette ────────────────────────────────────────────
 USER_COLORS = {
@@ -22,7 +23,19 @@ USER_COLORS = {
     "Admin": "#B6E880",
     "Test": "#FF97FF",
     "Dep": "#FECB52",
+    "Akash": "#FECB52",
+    "Annotator": "#B6E880",
+    "Pardeep": "#FF97FF",
+    "Sheetal": "#A8B5E8",
 }
+
+
+def user_color(user: str) -> str:
+    """Keep a person's color stable when the directory or selection changes."""
+    if user in USER_COLORS:
+        return USER_COLORS[user]
+    hue = int.from_bytes(sha256(str(user).encode("utf-8")).digest()[:2], "big") % 360
+    return f"hsl({hue}, 65%, 60%)"
 
 # ── Compact chart height (px) used by all graphs ─────────────────────────────
 CHART_HEIGHT = 280
