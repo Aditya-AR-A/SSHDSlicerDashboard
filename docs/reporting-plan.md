@@ -12,7 +12,9 @@ Implement and verify these phases in order:
 2. Individual User Report.
 3. Main Dashboard simplification and approval trend.
 
-Only Phase 1 is currently authorized for implementation. Retain the Dashboard's daily chart and Today/Yesterday tabs through Phases 1 and 2 using shared builders; remove their Dashboard presentation in Phase 3.
+Phases 1 and 2 (Individual User Report) are implemented and verified. Retain the Dashboard's daily chart and Today/Yesterday tabs through these phases using shared builders; remove their Dashboard presentation in Phase 3.
+
+The new [batch workflow/history and notification plan](batch-workflow-plan.md) adds a separate W1–W7 workstream. Its feasibility investigation precedes the Phase 2 implementation, while workflow code remains planned. W1–W3 must establish verified event sources/storage before the Phase 3 approval trend. Phase 2 continues to use the retained daily submission dataset and does not depend on unverified workflow events.
 
 ### Phase 1 implementation checkpoint
 
@@ -20,7 +22,17 @@ Implemented on the testing branch: `/reports/daily`, six daily KPIs and day-over
 
 Validation: the full test suite passed (159 tests plus 27 subtests), followed by 33 focused plot, page, and refresh checks after the final adjustments. An isolated offline fixture preview passed desktop (1440px) and mobile (390px) checks for navigation, theme switching, legend toggling, chart resizing, and table scrolling. Live upstream and database services were not used for these checks. The existing batch tracker test now persists only in a temporary directory.
 
-Phases 2 and 3 remain planned and unimplemented. Daily history is captured during application refreshes; no unattended scheduler was added.
+At this checkpoint, Phase 2 is next and Phase 3 remains planned. Daily history is captured during application refreshes; no unattended scheduler was added.
+
+### Phase 2 implementation checkpoint
+
+Implemented `/reports/user` with a searchable canonical-person selector, independent India report date/Today action, seven KPIs, 30-day total trend with optional work types and supported rolling mean, selected-day donut, and settlement/overall coverage panels. Means and best day require consecutive recorded completed days. Available zero-work users remain selectable; unknown dates remain gaps. Historical report dates cap totals at the selected date. If that date precedes the current settlement period, its total is unavailable instead of including later work.
+
+`reporting/user_reports.py` prepares the report from shared daily evidence. DataManager/DB history-bound reads include retained dates older than the chart; selection and theme changes only render the prepared payload. The shared report section helper now flattens component children to prevent repeated component remounts in Dash.
+
+Validation: 177 tests plus 27 subtests passed, including actual DataManager integration with isolated storage. Offline fixture browser checks passed at 1440px and 390px: seven cards, stable charts, member switching without another source-load callback, theme switching, and navigation to/from Daily Report. Screenshots are local ignored artifacts under `data/reports/browser-phase-two/`. No deployment or merge to main was performed.
+
+Batch workflow/history and notifications remain planned. The authenticated read-only feasibility audit verified accessible source schemas and pagination; Auditor-pass ownership, Admin completion, full role semantics and complete batch lifecycle continuity still require verification before workflow ingestion/notifications and the Phase 3 approval trend.
 
 ### Accepted history change
 
@@ -30,7 +42,7 @@ Collection occurs when the application refreshes; it is not a new unattended sch
 
 ## Repository findings
 
-The site is a Python Dash application with Plotly, Dash Bootstrap Components, pandas, and MongoDB/PostgreSQL persistence. `api/index.py` exposes the Flask server. Vercel routes all requests to that server. There is one dashboard layout and no existing page router or sidebar.
+The site is a Python Dash application with Plotly, Dash Bootstrap Components, pandas, and MongoDB/PostgreSQL persistence. `api/index.py` exposes the Flask server. Vercel routes all requests to that server. The initial audit found one dashboard layout with no router/sidebar; Phases 1–2 added a small shared routing shell.
 
 | Area | Existing file/function | Treatment |
 | --- | --- | --- |
@@ -147,7 +159,7 @@ Phase 1 can pass with partial historical coverage. No fabricated backfill and no
 
 Expected files: modify `app.py`, `data_manager.py`, `db.py`, `plots/kpi_cards.py`, `plots/tables.py`, `plots/theme.py`, and `assets/style_v2.css`; modify `daily_work_source.py` only if necessary. Create `pages/__init__.py`, `pages/daily_report.py`, `pages/components.py`, `reporting/dashboard_reports.py`, `plots/work_trend_chart.py`, and focused data/plot/routing tests. Keep extraction of the existing dashboard minimal; a separate `pages/dashboard.py` can wait if it would create unnecessary churn.
 
-## Phase 2: Individual User Report (later)
+## Phase 2: Individual User Report (implemented)
 
 Add `/reports/user` and User Report navigation. Put a searchable canonical-person dropdown at the top. Include mapped users with zero work; aggregate all aliases. Use a selection resolver separate from report generation so a future `?user=<person-or-id>` parameter, employee ID, login identity, or permissions layer can replace the selection source. No authentication changes.
 

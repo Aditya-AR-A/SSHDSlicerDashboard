@@ -33,6 +33,7 @@ from slicing_dashboard.management.periods import today_iso
 from slicing_dashboard.processing.daily_work import EXCLUDED
 from slicing_dashboard.pages.components import add_reporting_shell
 from slicing_dashboard.pages.daily_report import build_daily_report_content
+from slicing_dashboard.pages.user_report import build_user_report_content
 from slicing_dashboard.reporting.dashboard_reports import prepare_daily_table, prepare_daily_work_chart_rows
 
 # ── Bootstrap / initialise ───────────────────────────────────────────────
@@ -384,15 +385,17 @@ app.layout = add_reporting_shell(app.layout, today_iso())
     Output("report-not-found", "style"), Output("nav-dashboard", "active"),
     Output("nav-daily-report", "active"), Output("dashboard-period-controls", "style"),
     Output("dashboard-date-controls", "style"),
+    Output("user-report-page", "style"), Output("nav-user-report", "active"),
     Input("report-location", "pathname"),
 )
 def route_pages(pathname):
     dashboard = pathname in (None, "/", "/dashboard")
     daily = pathname == "/reports/daily"
+    individual = pathname == "/reports/user"
     hidden = {"display": "none"}
-    return ({}, hidden, hidden, True, False, {}, {}) if dashboard else (
-        hidden, {} if daily else hidden, hidden if daily else {}, False, daily, hidden, hidden,
-    )
+    return (({}, hidden, hidden, True, False, {}, {}) if dashboard else (
+        hidden, {} if daily else hidden, hidden if daily or individual else {}, False, daily, hidden, hidden,
+    )) + ({} if individual else hidden, individual)
 
 
 @app.callback(
@@ -455,6 +458,76 @@ def render_daily_report(data, theme_clicks, pathname):
     icon = html.I(className="bi bi-sun-fill text-warning fs-5" if is_dark else "bi bi-moon-stars-fill text-primary fs-5",
                   title="Switch to Light Theme" if is_dark else "Switch to Dark Theme")
     return build_daily_report_content(data, is_dark), status, icon
+
+
+@app.callback(
+    Output("user-report-date", "value"), Output("user-date-follows-today", "data"),
+    Output("user-report-date", "max"),
+    Input("user-report-today", "n_clicks"), Input("auto-refresh-interval", "n_intervals"),
+    Input("user-report-date", "value"), State("user-date-follows-today", "data"),
+    prevent_initial_call=True,
+)
+def follow_user_date(n_clicks, n_intervals, selected_date, follows_today):
+    current = today_iso()
+    trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    if trigger == "user-report-today":
+        return current, True, current
+    if trigger == "user-report-date":
+        return dash.no_update, selected_date == current, current
+    return current if follows_today else dash.no_update, follows_today, current
+
+
+@app.callback(
+    Output("user-report-store", "data"),
+    Input("report-location", "pathname"), Input("refresh-btn", "n_clicks"),
+    Input("auto-refresh-interval", "n_intervals"), Input("user-report-date", "value"),
+)
+def load_user_report(pathname, n_clicks, n_intervals, report_date):
+    if pathname != "/reports/user":
+        raise dash.exceptions.PreventUpdate
+    try:
+        trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    except (AttributeError, IndexError, dash.exceptions.MissingCallbackContextException):
+        trigger = None
+    try:
+        return dm.get_user_report_data(report_date=report_date or today_iso(),
+            force_refresh=trigger in (None, "report-location", "refresh-btn", "auto-refresh-interval"))
+    except ValueError:
+        return {"validation_error": "Choose a valid report date on or before today in India time."}
+
+
+@app.callback(
+    Output("user-report-person", "options"), Output("user-report-person", "value"),
+    Input("user-report-store", "data"), State("user-report-person", "value"),
+)
+def update_report_people(data, selected):
+    if not data or data.get("validation_error"):
+        return dash.no_update, dash.no_update
+    users = data.get("users", [])
+    return [{"label": user, "value": user} for user in users], (
+        selected if selected in users else users[0] if users else None)
+
+
+@app.callback(
+    Output("user-report-content", "children"),
+    Output("refresh-status", "children", allow_duplicate=True),
+    Output("theme-toggle", "children", allow_duplicate=True),
+    Input("user-report-store", "data"), Input("user-report-person", "value"),
+    Input("theme-toggle", "n_clicks"), Input("report-location", "pathname"),
+    prevent_initial_call=True,
+)
+def render_user_report(data, user, theme_clicks, pathname):
+    if pathname != "/reports/user":
+        raise dash.exceptions.PreventUpdate
+    is_dark = (theme_clicks or 0) % 2 == 0
+    metadata = (data or {}).get("today", {}).get("metadata", {})
+    status = "Loading report…" if not data else (
+        "Daily data unavailable" if not metadata.get("available") else
+        f"Saved: {metadata.get('captured_at', 'earlier capture')}" if metadata.get("is_snapshot") else
+        f"Recorded: {metadata.get('captured_at', 'available daily history')}"
+    )
+    icon = html.I(className="bi bi-sun-fill text-warning fs-5" if is_dark else "bi bi-moon-stars-fill text-primary fs-5")
+    return build_user_report_content(data, user, is_dark), status, icon
 
 
 app.clientside_callback(

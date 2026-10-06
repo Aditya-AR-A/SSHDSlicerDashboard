@@ -132,3 +132,29 @@ def build_work_composition_chart(
         figure.add_annotation(text="Work-type history is unavailable for this period.",
                               x=.5, y=.5, xref="paper", yref="paper", showarrow=False)
     return figure
+
+
+def build_individual_work_chart(rows, user, is_dark=True):
+    """One total line, optional work-type lines and a coverage-aware rolling mean."""
+    records = list(rows)
+    figure = go.Figure()
+    series = [('Total', 'total_seconds', user_color(user), True),
+              ('Fresh', 'new_seconds', '#38bdf8', 'legendonly'),
+              ('Same-day', 'same_day_rework_seconds', '#fbbf24', 'legendonly'),
+              ('Old', 'old_rework_seconds', '#f97316', 'legendonly')]
+    if any(row.get('rolling_mean_seconds') is not None for row in records):
+        series.append(('7-day mean', 'rolling_mean_seconds', '#94a3b8', 'legendonly'))
+    for name, key, color, visible in series:
+        values = [_seconds(row.get(key)) for row in records]
+        figure.add_trace(go.Scatter(name=name, x=[row['date'] for row in records],
+            y=[value / 3600 if value is not None else None for value in values],
+            customdata=[_duration_label(value) for value in values], mode='lines+markers',
+            connectgaps=False, visible=visible, line={'color': color, 'width': 2},
+            hovertemplate='%{x|%d %b %Y}<br>%{customdata}<extra>%{fullData.name}</extra>'))
+    revision = f"user-work:{user}:{records[-1]['date'] if records else ''}"
+    _layout(figure, 'Recorded daily output · last 30 days', is_dark, revision)
+    figure.update_layout(margin={'b': 110})
+    if not any(row.get('total_seconds') is not None for row in records):
+        figure.add_annotation(text='No recorded daily history for this period.', x=.5, y=.5,
+                              xref='paper', yref='paper', showarrow=False)
+    return figure

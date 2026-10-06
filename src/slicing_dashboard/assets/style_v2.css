@@ -542,7 +542,7 @@ body {
 /* Daily reports reuse the dashboard surfaces with room for readable details. */
 .report-page { min-width: 0; width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .report-page > *, .report-content > * { min-width: 0; max-width: 100%; }
-#daily-report-content { min-width: 0; width: 100%; }
+#daily-report-content, #user-report-content { min-width: 0; width: 100%; }
 .report-content { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; width: 100%; gap: 18px; }
 .report-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .report-header h1, .report-header h2 { margin: 0 0 6px; color: var(--text-primary); font-weight: 700; font-size: 1.65rem; }
@@ -570,6 +570,19 @@ body {
 .report-section .dash-graph { height: 400px; min-height: 400px; }
 .report-page .report-comparison-chart { height: 450px; min-height: 450px; }
 .report-page #daily-composition-chart { height: 380px; min-height: 380px; }
+.user-report-selector { max-width: 480px; width: 100%; }
+#user-report-person { background-color: var(--dropdown-bg); color: var(--text-primary); border-color: var(--dropdown-border); }
+.user-report-breakdown-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; min-width: 0; }
+.user-report-breakdown-grid > * { min-width: 0; }
+.user-scope-panel { padding: 16px; margin-top: 12px; overflow-wrap: anywhere; }
+.user-report-statistics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.user-report-statistics dt { color: var(--text-secondary); font-size: 12px; }
+.user-report-statistics dd { margin: 8px 0 0; font-size: 17px; }
+@media (min-width: 1200px) { .user-report-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 800px) {
+    .user-report-breakdown-grid { grid-template-columns: minmax(0, 1fr); }
+    .user-report-statistics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .report-page .Select--multi .Select-control { height: auto !important; min-height: 36px !important; }
 .report-page .Select--multi .Select-value { line-height: 24px !important; margin: 4px 0 4px 5px; }
 .report-page :focus-visible { outline: 3px solid var(--accent-blue); outline-offset: 3px; }

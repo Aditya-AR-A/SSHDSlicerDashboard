@@ -458,6 +458,29 @@ class DatabaseManager:
                 print(f"Could not read daily work reports from PostgreSQL: {error}")
         return []
 
+    def daily_work_start_date(self, end_date: str):
+        """Earliest retained daily record, including history outside the chart range."""
+        if not self.is_connected():
+            return None
+        if self.mongo_db is not None:
+            try:
+                record = self.mongo_db['daily_work_reports'].find_one(
+                    {'_id': {'$lte': end_date}}, {'date': 1}, sort=[('_id', 1)])
+                return record.get('date', record.get('_id')) if record else None
+            except Exception as error:
+                print(f'Could not read daily history start: {error}')
+        if self.engine is not None:
+            try:
+                from sqlalchemy import text
+                with self.engine.begin() as connection:
+                    self._ensure_daily_work_table(connection)
+                    return connection.execute(text(
+                        'SELECT MIN(date) FROM daily_work_reports WHERE date <= :end'),
+                        {'end': end_date}).scalar()
+            except Exception as error:
+                print(f'Could not read daily history start: {error}')
+        return None
+
     @staticmethod
     def _ensure_daily_work_table(connection):
         from sqlalchemy import text

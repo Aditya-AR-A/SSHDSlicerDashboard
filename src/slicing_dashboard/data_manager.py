@@ -1437,6 +1437,32 @@ class DataManager:
         from slicing_dashboard.reporting.dashboard_reports import get_daily_report_data
         return get_daily_report_data(self, report_date, force_refresh)
 
+    def _daily_report_start_date(self, end_date):
+        """Find retained history bounds without scanning arbitrary calendar years."""
+        from slicing_dashboard.config import DATA_DIR
+        dates = set(getattr(self, '_daily_report_records', {}))
+        root = DATA_DIR / 'reports'
+        dates.update(path.stem for path in (root / 'daily-work').glob('*.json'))
+        dates.update(path.parent.name.removeprefix('daily-audit-')
+                     for path in root.glob('daily-audit-*/verified-submissions.json'))
+        database = getattr(self, 'db', None)
+        if database is not None:
+            earliest = database.daily_work_start_date(end_date)
+            if earliest:
+                dates.add(earliest)
+        valid = []
+        for value in dates:
+            try:
+                if datetime.strptime(value, '%Y-%m-%d').date().isoformat() == value and value <= end_date:
+                    valid.append(value)
+            except (ValueError, TypeError):
+                continue
+        return min(valid) if valid else None
+
+    def get_user_report_data(self, report_date=None, force_refresh=False):
+        from slicing_dashboard.reporting.user_reports import get_user_report_data
+        return get_user_report_data(self, report_date, force_refresh)
+
     def _get_reporting_name(self, uid, username):
         """Apply account exclusions consistently, including case-variant observations."""
         account = str(username or '').casefold()
