@@ -52,6 +52,15 @@ succeeds. Failed database connection checks expire after 60 seconds and retry;
 temporary outages don't require restarting warm workers. The mapping editor
 currently requires MongoDB, as before.
 
+MongoDB operations have a 15-second client deadline, including established
+socket reads/writes and retries. Connection selection, connection establishment
+and pool checkout are bounded to four seconds. A stalled workflow write cannot
+hold refresh workers indefinitely. Cached workflow-service lookups bypass the
+collector's initialization lock; configured database failures remain errors.
+An interactive batch refresh skips projection when the history collector is busy;
+the collector consumes the refreshed ledger and later attempts can retry projection.
+Current queue charts do not wait for workflow backfill to finish.
+
 Passing midnight does not establish completeness. Historical captures lacking an
 end-of-day reconciliation are explicitly marked incomplete. User scope sums remain
 partial and completed-day averages omit unreconciled days. Verified audit imports
@@ -142,10 +151,13 @@ export or audit, not a guessed total or a cache reset.
 
 ## Verification
 
-The local suite passes 336 tests and 26 subtests. Recovery tests exercise source
+The local suite passes 339 tests and 26 subtests. Recovery tests exercise source
 failure isolation, retained success times, process restart, source expiry, deployment
 version changes, concurrent jobs, old checkpoint rejection, storage failure,
 endpoint authorization, targeted retries, raw-queue remapping and database reconnects.
+An actual MongoDB wire-protocol fixture verifies an established workflow write
+times out and a subsequent write recovers through the same client. A concurrency
+regression checks cached workflow lookup while another thread owns the sync lock.
 Pool inventory regressions cover the supplied zero response, normal plus urgent
 hours, scope validation, missing/invalid metrics, expiry, expired sessions, forced
 refresh sharing, user/date independence and removal of overview/funnel overrides.

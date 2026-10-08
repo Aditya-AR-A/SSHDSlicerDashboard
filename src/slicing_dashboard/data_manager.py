@@ -1158,7 +1158,10 @@ class DataManager:
             history = self.__dict__.get('_workflow_history_service')
             if updated and history is not None:
                 try:
-                    history.capture_batches()
+                    # The active collector will include the refreshed ledger.
+                    # Current chart values must not wait for history backfill.
+                    if not history.capture_batches(wait=False):
+                        history.last_sync = None
                 except Exception:
                     # Preserve the successful batch refresh. Workflow storage
                     # failures remain visible/retryable in the shared inbox.
@@ -1343,6 +1346,9 @@ class DataManager:
 
     def _workflow_history(self):
         """Lazy durable service: never silently fork a configured database."""
+        service = self.__dict__.get('_workflow_history_service')
+        if service is not None:
+            return service
         from slicing_dashboard.processing.workflow_history import WorkflowHistory, LOCK
         with LOCK:
             if not hasattr(self, '_workflow_history_service'):

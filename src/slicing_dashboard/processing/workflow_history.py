@@ -494,17 +494,22 @@ class WorkflowHistory:
         # Set only after all writes succeed: a failed write must be retried.
         self._projection_fingerprint = projection_fingerprint
 
-    def capture_batches(self):
+    def capture_batches(self, *, wait=True):
         """Project newly refreshed ledger state without another upstream scan."""
         from uuid import uuid4
-        with LOCK:
+        if not LOCK.acquire(blocking=wait):
+            return False
+        try:
             owner = uuid4().hex
             if not self.store.acquire_lease(self.instance, owner):
-                return
+                return False
             try:
                 self._project()
+                return True
             finally:
                 self.store.release_lease(self.instance, owner)
+        finally:
+            LOCK.release()
 
     def notifications(self, limit=10):
         notices, total = self.store.query('notification', self.instance, page_size=limit)

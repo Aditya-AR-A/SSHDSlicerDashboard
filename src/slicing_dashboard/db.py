@@ -14,6 +14,9 @@ import pandas as pd
 from slicing_dashboard.config import get_settings
 from slicing_dashboard.processing.source_policy import SOURCE_TTL_SECONDS
 
+MONGO_OPERATION_TIMEOUT_MS = 15_000
+MONGO_CONNECTION_TIMEOUT_MS = 4_000
+
 
 class DatabaseManager:
     """Manages connections and ETL operations to MongoDB Atlas and PostgreSQL."""
@@ -37,7 +40,17 @@ class DatabaseManager:
         if mongo_url:
             try:
                 import pymongo
-                self.mongo_client = pymongo.MongoClient(mongo_url, serverSelectionTimeoutMS=4000)
+                # Server selection alone does not bound reads/writes on an
+                # established socket. A stalled workflow write otherwise holds
+                # the refresh lock indefinitely and prevents process shutdown.
+                self.mongo_client = pymongo.MongoClient(
+                    mongo_url,
+                    serverSelectionTimeoutMS=MONGO_CONNECTION_TIMEOUT_MS,
+                    connectTimeoutMS=MONGO_CONNECTION_TIMEOUT_MS,
+                    waitQueueTimeoutMS=MONGO_CONNECTION_TIMEOUT_MS,
+                    socketTimeoutMS=MONGO_OPERATION_TIMEOUT_MS,
+                    timeoutMS=MONGO_OPERATION_TIMEOUT_MS,
+                )
                 # Default database name 'slicing_dashboard'
                 self.mongo_db = self.mongo_client['slicing_dashboard']
             except Exception as e:

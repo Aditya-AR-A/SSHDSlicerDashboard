@@ -233,3 +233,107 @@ def test_api_heartbeat_cannot_label_failed_mappings_live():
     status = {'is_live': True, 'is_using_snapshot': False, 'configuration_error': 'ConnectionError'}
     assert 'Mappings unverified' in payload_text(namespace['_build_status_badge'](status))
     assert 'person totals may be attributed incorrectly' in payload_text(namespace['_build_status_banner'](status))
+
+
+def test_cached_workflow_service_does_not_wait_for_an_active_projection():
+    from concurrent.futures import ThreadPoolExecutor
+    from slicing_dashboard.processing.workflow_history import LOCK
+
+    dm = DataManager.__new__(DataManager)
+    dm._workflow_history_service = object()
+    # A collector owns the shared lock in another thread. Cached lookup must
+    # still complete, so independently rendered inbox/history reads can proceed.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with LOCK:
+            lookup = pool.submit(dm._workflow_history)
+            result = lookup.result(timeout=1)
+        assert result is dm._workflow_history_service
+
+
+def test_stalled_established_mongo_write_times_out_and_next_write_recovers(monkeypatch):
+    """Exercise the real driver's operation deadline, after a successful handshake."""
+    import socket
+    import struct
+    from threading import Event, Thread
+    from time import perf_counter
+    from bson import BSON
+    from pymongo.errors import PyMongoError
+
+    listener = socket.socket()
+    listener.bind(('127.0.0.1', 0))
+    listener.listen()
+    listener.settimeout(.1)
+    stopped, seen_write, allow_writes = Event(), Event(), Event()
+    connections = []
+    hello = {'ok': 1, 'ismaster': True, 'isWritablePrimary': True,
+             'minWireVersion': 0, 'maxWireVersion': 17,
+             'maxBsonObjectSize': 16777216, 'maxMessageSizeBytes': 48000000,
+             'maxWriteBatchSize': 100000}
+
+    def receive(connection, size):
+        data = b''
+        while len(data) < size:
+            chunk = connection.recv(size - len(data))
+            if not chunk:
+                raise OSError('Connection closed')
+            data += chunk
+        return data
+
+    def serve(connection):
+        try:
+            while not stopped.is_set():
+                length, request_id, _, opcode = struct.unpack('<iiii', receive(connection, 16))
+                body = receive(connection, length - 16)
+                if opcode == 2004:  # Initial legacy hello query.
+                    payload = struct.pack('<iqii', 0, 0, 0, 1) + BSON.encode(hello)
+                    reply_opcode = 1
+                else:
+                    command = BSON(body[5:5 + struct.unpack('<i', body[5:9])[0]]).decode()
+                    if 'update' in command:
+                        seen_write.set()
+                        while not allow_writes.wait(.05):
+                            if stopped.is_set():
+                                return
+                    result = hello if 'hello' in command or 'ismaster' in command else {'ok': 1, 'n': 1, 'nModified': 1}
+                    payload = struct.pack('<I', 0) + b'\x00' + BSON.encode(result)
+                    reply_opcode = 2013
+                connection.sendall(struct.pack('<iiii', len(payload) + 16, 1, request_id, reply_opcode) + payload)
+        except OSError:
+            pass
+        finally:
+            connection.close()
+
+    def accept():
+        while not stopped.is_set():
+            try:
+                connection, _ = listener.accept()
+            except socket.timeout:
+                continue
+            except OSError:
+                return
+            connections.append(connection)
+            Thread(target=serve, args=(connection,), daemon=True).start()
+
+    Thread(target=accept, daemon=True).start()
+    settings = SimpleNamespace(mongo_uri=f'mongodb://127.0.0.1:{listener.getsockname()[1]}/?directConnection=true',
+                               database_url=None)
+    monkeypatch.setattr('slicing_dashboard.db.get_settings', lambda: settings)
+    monkeypatch.setattr('slicing_dashboard.db.MONGO_OPERATION_TIMEOUT_MS', 500)
+    database = DatabaseManager()
+    try:
+        store = WorkflowStore(database)
+        started = perf_counter()
+        with pytest.raises(PyMongoError) as error:
+            store.save_many('event', [{'id': 'bounded-write', 'instance': 'test'}])
+        assert seen_write.is_set(), 'Must test an established write, not a failed connection'
+        assert error.value.timeout
+        assert perf_counter() - started < 3
+        allow_writes.set()
+        store.save_many('event', [{'id': 'recovered-write', 'instance': 'test'}])
+    finally:
+        stopped.set()
+        allow_writes.set()
+        database.mongo_client.close()
+        listener.close()
+        for connection in connections:
+            connection.close()

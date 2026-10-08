@@ -149,3 +149,17 @@ def test_failed_projection_is_retried(tmp_path):
     assert not hasattr(history, '_projection_fingerprint')
     history.capture_batches()
     assert history.notifications()['total'] > 0
+
+
+def test_chart_batch_capture_skips_busy_collector_and_can_retry(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from slicing_dashboard.processing.workflow_history import LOCK
+
+    history, _ = service(tmp_path)
+    history.manager._batches_master_cache = {'ab_example': completed()}
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        with LOCK:
+            capture = pool.submit(history.capture_batches, wait=False)
+            assert capture.result(timeout=1) is False
+        assert history.capture_batches(wait=False) is True
+    assert history.notifications()['total'] > 0
