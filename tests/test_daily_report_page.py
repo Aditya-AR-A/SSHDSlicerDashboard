@@ -103,10 +103,10 @@ class DailyReportRoutingTests(unittest.TestCase):
     def test_hidden_dashboard_never_fetches_its_sources(self):
         namespace, manager = application_namespace()
         result = namespace["update_dashboard"](
-            1, 1, "2026-10-01", "2026-10-06", None, 0, "tab-today", None, None,
+            1, 1, "2026-10-01", "2026-10-06", None, 0, "tab-settlement", None,
             ["Priya", "Riya"], "/reports/daily",
         )
-        self.assertEqual(len(result), 13)
+        self.assertEqual(len(result), 9)
         self.assertTrue(all(value is dash.no_update for value in result))
         for name in ("fetch_dashboard_data", "get_summary_kpis", "get_todays_work_df", "get_cumulative_df",
                      "get_batch_rework_ratio_df", "get_detailed_pending_assigned_df"):
@@ -147,11 +147,11 @@ class DailyReportRoutingTests(unittest.TestCase):
                         if "kpi-cards.children" in key)
         dispatch = callback["callback"].__wrapped__
         selected_users = ["Riya"]
-        result = dispatch(0, 1, "2026-10-01", "2026-10-06", None, 0, "tab-today",
-                          None, None, "/reports/daily", selected_users)
+        result = dispatch(0, 1, "2026-10-01", "2026-10-06", None, 0,
+                          None, "/reports/daily", selected_users)
         self.assertEqual(result, "dashboard result")
         namespace["update_dashboard"].assert_called_once_with(
-            0, 1, "2026-10-01", "2026-10-06", None, 0, "tab-today", None, None,
+            0, 1, "2026-10-01", "2026-10-06", None, 0, None, None,
             selected_users, "/reports/daily",
         )
 
@@ -212,16 +212,16 @@ class DailyReportRenderingTests(unittest.TestCase):
                   if getattr(component, "id", None) == "daily-work-chart"]
         self.assertEqual(len(charts), 1)
         bars = [trace for trace in charts[0].figure.data if trace.type == "bar"]
-        self.assertAlmostEqual(sum(sum(trace.y) for trace in bars) * 3600, 360)
+        self.assertAlmostEqual(sum(sum(trace.y) for trace in bars) * 3600, 180)
         tables = [component for component in components(page) if getattr(component, "data", None)
                   and component.__class__.__name__ == "DataTable"]
         table = next(table for table in tables if table.id == "daily-today-table")
         total_index = next(index for index, row in enumerate(table.data) if row.get("User") == "TOTAL")
-        self.assertAlmostEqual(table.data[total_index]["Total Duration"], 0.1)
-        self.assertEqual(table.tooltip_data[total_index]["Total Duration"]["value"], "00:06:00")
+        self.assertAlmostEqual(table.data[total_index]["Total Duration"], 0.05)
+        self.assertEqual(table.tooltip_data[total_index]["Total Duration"]["value"], "00:03:00")
         duration_column = next(column for column in table.columns if column["id"] == "Total Duration")
         self.assertEqual(duration_column["type"], "numeric")
-        self.assertIn("00:06:00", payload_text(page))
+        self.assertIn("00:03:00", payload_text(page))
 
 
 if __name__ == "__main__":

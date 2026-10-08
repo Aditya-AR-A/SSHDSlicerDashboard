@@ -7,6 +7,7 @@ from math import isfinite
 import plotly.graph_objects as go
 
 from slicing_dashboard.plots.theme import theme_ctx, user_color
+from slicing_dashboard.plots.guardrails import safe_chart, dated_records, add_bar_total_labels
 
 
 def _seconds(value) -> float | None:
@@ -53,6 +54,7 @@ def _layout(figure, title, is_dark, revision, *, composition=False):
     return figure
 
 
+@safe_chart(height=420)
 def build_user_comparison_chart(
     rows: Iterable[Mapping],
     is_dark: bool = True,
@@ -66,7 +68,7 @@ def build_user_comparison_chart(
     report dates and verified zero days; absent or null values stay unavailable.
     Other work-type fields may be present but are not transformed here.
     """
-    records = list(rows)
+    records = dated_records(rows, identity=('user',))
     dates = sorted({str(row["date"]) for row in records if row.get("date")})
     people = list(dict.fromkeys(users)) if users is not None else sorted({
         str(row["user"]) for row in records if row.get("user")
@@ -98,13 +100,14 @@ def build_user_comparison_chart(
     return figure
 
 
+@safe_chart(height=380)
 def build_work_composition_chart(
     rows: Iterable[Mapping],
     is_dark: bool = True,
     title: str = "Daily fresh work and rework",
 ) -> go.Figure:
     """Plot prepared team work-type totals; this builder does not aggregate users."""
-    records = sorted((dict(row) for row in rows if row.get("date")), key=lambda row: str(row["date"]))
+    records = dated_records(rows)
     dates = [str(row["date"]) for row in records]
     figure = go.Figure()
     categories = [
@@ -116,32 +119,39 @@ def build_work_composition_chart(
     for label, field, color in categories:
         values = [_seconds(row.get(field)) for row in records]
         has_values = has_values or any(value is not None for value in values)
-        figure.add_trace(go.Bar(
+        trace_args = dict(
             name=label, x=dates,
             y=[value / 3600 if value is not None else None for value in values],
             marker_color=color,
             customdata=[[_duration_label(value), _duration_label(row.get("total_seconds"))]
                         for value, row in zip(values, records)],
             hovertemplate=(f"%{{x|%d %b %Y}}<br>{label}: %{{customdata[0]}}"
-                           "<br>Total video output: %{customdata[1]}<extra></extra>"),
-        ))
+                           "<br>Total work (new + same-day): %{customdata[1]}<extra></extra>"),
+        )
+        if field == 'old_rework_seconds':
+            trace_args['name'] = 'Old Rework (excluded)'
+            figure.add_trace(go.Scatter(**trace_args, mode='lines+markers', connectgaps=False,
+                                       line={'color': color, 'width': 2}))
+        else:
+            figure.add_trace(go.Bar(**trace_args))
     revision = f"daily-composition:{dates[0] if dates else ''}:{dates[-1] if dates else ''}"
     _layout(figure, title, is_dark, revision, composition=True)
     figure.update_layout(barmode="stack", bargap=.2)
     if not has_values:
         figure.add_annotation(text="Work-type history is unavailable for this period.",
                               x=.5, y=.5, xref="paper", yref="paper", showarrow=False)
-    return figure
+    return add_bar_total_labels(figure)
 
 
+@safe_chart(height=360)
 def build_individual_work_chart(rows, user, is_dark=True):
     """One total line, optional work-type lines and a coverage-aware rolling mean."""
-    records = list(rows)
+    records = dated_records(rows)
     figure = go.Figure()
     series = [('Total', 'total_seconds', user_color(user), True),
               ('Fresh', 'new_seconds', '#38bdf8', 'legendonly'),
               ('Same-day', 'same_day_rework_seconds', '#fbbf24', 'legendonly'),
-              ('Old', 'old_rework_seconds', '#f97316', 'legendonly')]
+              ('Old (excluded)', 'old_rework_seconds', '#f97316', 'legendonly')]
     if any(row.get('rolling_mean_seconds') is not None for row in records):
         series.append(('7-day mean', 'rolling_mean_seconds', '#94a3b8', 'legendonly'))
     for name, key, color, visible in series:
@@ -153,7 +163,8 @@ def build_individual_work_chart(rows, user, is_dark=True):
             hovertemplate='%{x|%d %b %Y}<br>%{customdata}<extra>%{fullData.name}</extra>'))
     revision = f"user-work:{user}:{records[-1]['date'] if records else ''}"
     _layout(figure, 'Recorded daily output · last 30 days', is_dark, revision)
-    figure.update_layout(margin={'b': 110})
+    figure.update_layout(title=None, height=360, margin={'l': 48, 'r': 12, 't': 15, 'b': 110},
+                         legend={'y': -.3, 'font': {'size': 10}, 'entrywidth': 65})
     if not any(row.get('total_seconds') is not None for row in records):
         figure.add_annotation(text='No recorded daily history for this period.', x=.5, y=.5,
                               xref='paper', yref='paper', showarrow=False)

@@ -21,6 +21,11 @@ class TestDailyWork(unittest.TestCase):
         directory = patch('slicing_dashboard.config.DATA_DIR', Path(temporary.name))
         directory.start()
         self.addCleanup(directory.stop)
+        # Failure/fallback fixtures exercise yesterday's allowed inventory read.
+        # Keep that boundary fixed as the real India calendar advances.
+        clock = patch('slicing_dashboard.management.periods.today_iso', return_value='2026-10-06')
+        clock.start()
+        self.addCleanup(clock.stop)
 
     def test_daily_format_retains_seconds(self):
         self.assertEqual(format_video_seconds(103341), '28:42:21')
@@ -52,7 +57,7 @@ class TestDailyWork(unittest.TestCase):
         result, evidence = self.aggregate(tasks, returns, reviews)
         row = result.iloc[0]
         self.assertEqual(row["Total Tasks"], 3)
-        self.assertEqual(row["Total Duration"], 180)
+        self.assertEqual(row["Total Duration"], 90)
         self.assertEqual(row["New Videos (First Time)"], 30)
         self.assertEqual(row["Same-day Rework"], 60)
         self.assertEqual(row["Old Rework"], 90)
@@ -81,12 +86,14 @@ class TestDailyWork(unittest.TestCase):
         self.assertEqual(result.iloc[0]["Total Tasks"], 1)
         self.assertEqual(result.iloc[0]["Total Duration"], 60)
 
-    def test_chart_buckets_sum_to_video_duration(self):
+    def test_chart_stacked_work_excludes_separate_old_rework_marker(self):
         rows = pd.DataFrame([{"User": "Aditya", "New Work Duration": 30, "Same-day Rework Duration": 60,
                               "Old Rework Duration": 90, "Total Work Duration": 180}])
         figure = build_error_rework_chart(rows, "Today", True)
-        self.assertEqual([t.name for t in figure.data], ["Fresh Work", "Same-day Rework", "Old Rework"])
-        self.assertAlmostEqual(sum(t.y[0] for t in figure.data) * 3600, 180)
+        self.assertEqual([t.name for t in figure.data], ["Fresh Work", "Same-day Rework", "Old Rework (excluded)"])
+        self.assertAlmostEqual(sum(t.y[0] for t in figure.data if t.type == 'bar') * 3600, 90)
+        self.assertEqual(figure.data[2].type, 'scatter')
+        self.assertEqual(figure.data[2].customdata[0][1], '00:01:30')
 
     @patch("slicing_dashboard.processing.daily_work_source.DailyWorkSource.fetch", side_effect=ConnectionError("Offline"))
     def test_failure_never_uses_another_dates_results(self, _):

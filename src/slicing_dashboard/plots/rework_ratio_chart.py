@@ -4,6 +4,7 @@ Rework ratio 100% stacked bar chart builder.
 
 import pandas as pd
 import plotly.graph_objects as go
+from slicing_dashboard.plots.guardrails import safe_chart, checked_frame
 
 from slicing_dashboard.plots.theme import (
     CHART_HEIGHT,
@@ -11,6 +12,7 @@ from slicing_dashboard.plots.theme import (
 )
 
 
+@safe_chart
 def build_rework_ratio_chart(
     ratio_df: pd.DataFrame,
     start_date: str,
@@ -29,6 +31,9 @@ def build_rework_ratio_chart(
     is_filtering : bool whether user filtering is active
     """
     t = theme_ctx(is_dark)
+    ratio_df = checked_frame(ratio_df, ['User', 'Total Batches'],
+        ['Total Batches', 'No Rework', '1 Rework', '2 Reworks', '3 Reworks', '4 Reworks', '5+ Reworks',
+         'Reworked Once', 'Reworked Twice+', 'Total Duration (hrs)', 'Avg Batch Duration (hrs)'])
     fig = go.Figure()
 
     if ratio_df.empty:
@@ -85,6 +90,15 @@ def build_rework_ratio_chart(
         if "Reworked Twice+" in df.columns and "2 Reworks" not in df.columns:
             df["2 Reworks"] = df["Reworked Twice+"]
 
+        tier_columns = [column for column, _, _ in tiers]
+        for column in tier_columns:
+            if column not in df:
+                df[column] = 0
+        if not (df[tier_columns].sum(axis=1) == df['Total Batches']).all():
+            raise ValueError('Rework tiers do not match submitted batch totals')
+        if df['User'].duplicated().any():
+            raise ValueError('Duplicate user batch totals')
+
         for col, dark_c, light_c in tiers:
             if col not in df.columns:
                 df[col] = 0
@@ -111,7 +125,7 @@ def build_rework_ratio_chart(
 
             fig.add_trace(
                 go.Bar(
-                    name=col,
+                    name='No recorded rework' if col == 'No Rework' else col,
                     x=df["User"],
                     y=pct,
                     marker=dict(color=bar_color, line=dict(width=1, color="rgba(0,0,0,0.1)")),
@@ -124,7 +138,7 @@ def build_rework_ratio_chart(
 
         fig.update_layout(
             barmode="stack",
-            title=f"Batch Rework Ratio (From {start_date})",
+            title=f"Recorded Batch Reworks (From {start_date})",
             yaxis_title="% of Batches",
             showlegend=True,
             legend=dict(

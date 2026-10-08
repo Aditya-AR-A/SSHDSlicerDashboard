@@ -51,15 +51,16 @@ class TestDailyReportHelpers(unittest.TestCase):
         ]))
         day = day_for_ui(record, record['date'])
         summary = summarize_daily(day)
-        self.assertEqual(summary['total_seconds'], 180)
-        self.assertEqual(summary['new_seconds'] + summary['same_day_rework_seconds'] + summary['old_rework_seconds'], 180)
+        self.assertEqual(summary['total_seconds'], 90)
+        self.assertEqual(summary['new_seconds'] + summary['same_day_rework_seconds'], 90)
+        self.assertEqual(summary['old_rework_seconds'], 90)
         self.assertEqual(summary['active_users'], 1)
-        self.assertEqual(summary['rework_percentage'], 150 / 180 * 100)
-        self.assertEqual(prepare_daily_table(day)[-1]['Total Duration'], '00:03:00')
-        self.assertEqual(prepare_daily_table(day, numeric_durations=True)[-1]['Total Duration'], 180 / 3600)
+        self.assertEqual(summary['rework_percentage'], 60 / 90 * 100)
+        self.assertEqual(prepare_daily_table(day)[-1]['Total Duration'], '00:01:30')
+        self.assertEqual(prepare_daily_table(day, numeric_durations=True)[-1]['Total Duration'], 90 / 3600)
         chart = prepare_daily_work_chart_rows(day)
-        self.assertEqual(chart.iloc[0]['Total Work Duration'], 180)
-        self.assertEqual(prepare_team_composition_rows([day])[0]['total_seconds'], 180)
+        self.assertEqual(chart.iloc[0]['Total Work Duration'], 90)
+        self.assertEqual(prepare_team_composition_rows([day])[0]['total_seconds'], 90)
 
     def test_unavailable_empty_and_zero_work_user_remain_distinct(self):
         unknown = unavailable_day('2026-10-05', 'Offline')
@@ -125,8 +126,21 @@ class TestIncrementalEvidence(unittest.TestCase):
         later = capture([], day='2026-10-05', observed_on='2026-10-06')
         self.assertEqual(merge_daily_reports(closed, later), closed)
         next_day = merge_daily_reports(None, capture([evidence('a', bucket='Old Rework')]))
-        self.assertEqual(closed['rows'][0]['Total Duration'], next_day['rows'][0]['Total Duration'])
+        self.assertEqual(closed['rows'][0]['Total Duration'], 60)
+        self.assertEqual(next_day['rows'][0]['Total Duration'], 0)
         self.assertEqual(closed['rows'][0]['New Videos (First Time)'], 60)
+
+    def test_only_a_dated_next_day_reconciliation_can_update_closed_evidence(self):
+        closed = merge_daily_reports(None, capture([evidence('early', day='2026-10-05')], day='2026-10-05'))
+        incoming = capture([evidence('late', day='2026-10-05', seconds=120)],
+                           day='2026-10-05', observed_on='2026-10-06')
+        incoming['metadata'].update(capture_kind='day_end_reconciliation', target_date='2026-10-05')
+        reconciled = merge_daily_reports(closed, incoming)
+        self.assertEqual(reconciled['rows'][0]['Total Duration'], 180)
+        self.assertTrue(reconciled['metadata']['closed'])
+        self.assertEqual(merge_daily_reports(reconciled, incoming)['rows'], reconciled['rows'])
+        incoming['metadata']['observed_on'] = '2026-10-07'
+        self.assertEqual(merge_daily_reports(closed, incoming), closed)
 
 
 class TestManagerDailyReports(unittest.TestCase):
@@ -212,6 +226,34 @@ class TestManagerDailyReports(unittest.TestCase):
         fetch.assert_not_called()
         self.assertFalse(payload['today']['metadata']['available'])
 
+    def test_yesterday_refresh_adds_late_submissions_to_partial_afternoon_capture(self):
+        early = evidence('early', day='2026-10-05', seconds=10379)
+        saved = merge_daily_reports(None, capture([early], day='2026-10-05'))
+        self.dm._persist_daily_report(saved)
+        late = task('late', submitted='2026-10-05T21:00:00+08:00', seconds=7657)
+        with patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource.fetch',
+                   return_value=source([late])) as fetch:
+            payload = self.dm.get_daily_report_data('2026-10-05', True)
+        fetch.assert_called_once_with('2026-10-05')
+        self.assertEqual(summarize_daily(payload['today'])['total_seconds'], 18036)
+        self.assertEqual(payload['today']['metadata']['capture_kind'], 'day_end_reconciliation')
+        stored = json.loads((self.directory / 'reports/daily-work/2026-10-05.json').read_text())
+        self.assertEqual({row['task_id'] for row in stored['tasks']}, {'early', 'late'})
+        with patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource.fetch',
+                   return_value=source([late])):
+            repeated = self.manager().get_daily_report_data('2026-10-05', True)
+        self.assertEqual(summarize_daily(repeated['today'])['total_seconds'], 18036)
+
+    def test_failed_yesterday_reconciliation_marks_partial_capture_as_saved(self):
+        saved = merge_daily_reports(None, capture([evidence(day='2026-10-05')], day='2026-10-05'))
+        self.dm._persist_daily_report(saved)
+        with patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource.fetch',
+                   side_effect=ConnectionError('Offline')):
+            payload = self.dm.get_daily_report_data('2026-10-05', True)
+        self.assertEqual(summarize_daily(payload['today'])['total_seconds'], 60)
+        self.assertTrue(payload['today']['metadata']['is_snapshot'])
+        self.assertEqual(payload['today']['metadata']['error'], 'Offline')
+
     def test_persistence_failure_preserves_valid_observation_with_warning(self):
         with patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource.fetch', return_value=source([task()])), \
              patch.object(self.dm, '_persist_daily_report', return_value=False):
@@ -278,6 +320,16 @@ class TestDailyReportPersistence(unittest.TestCase):
         self.collection.race = {**raced, '_id': '2026-10-06', '_revision': 2}
         self.assertTrue(self.db.save_daily_work_report(capture([evidence('b')])))
         self.assertEqual(self.collection.records['2026-10-06']['rows'][0]['Total Tasks'], 3)
+
+    def test_mongo_persists_next_day_reconciliation_without_erasing_earlier_tasks(self):
+        self.db.save_daily_work_report(capture([evidence('early')]))
+        late = capture([evidence('late', seconds=120)], observed_on='2026-10-07')
+        late['metadata'].update(capture_kind='day_end_reconciliation', target_date='2026-10-06')
+        with patch('slicing_dashboard.management.periods.today_iso', return_value='2026-10-07'):
+            self.assertTrue(self.db.save_daily_work_report(late))
+        saved = self.db.load_daily_work_reports('2026-10-06', '2026-10-06')[0]
+        self.assertEqual(saved['rows'][0]['Total Duration'], 180)
+        self.assertEqual({task['task_id'] for task in saved['tasks']}, {'early', 'late'})
 
     def test_postgres_uses_date_lock_and_json_upsert(self):
         self.db.mongo_db = None

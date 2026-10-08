@@ -63,12 +63,12 @@ class ReportPlotTests(unittest.TestCase):
             {"date": "2026-10-04", "new_seconds": None, "same_day_rework_seconds": None,
              "old_rework_seconds": None, "total_seconds": None},
             {"date": "2026-10-05", "new_seconds": 3600, "same_day_rework_seconds": 1800,
-             "old_rework_seconds": 900, "total_seconds": 6300},
+             "old_rework_seconds": 900, "total_seconds": 5400},
         ]
         figure = build_work_composition_chart(rows)
-        self.assertEqual([trace.name for trace in figure.data], ["Fresh Work", "Same-day Rework", "Old Rework"])
+        self.assertEqual([trace.name for trace in figure.data], ["Fresh Work", "Same-day Rework", "Old Rework (excluded)"])
         self.assertEqual([trace.y[0] for trace in figure.data], [None, None, None])
-        self.assertEqual(sum(trace.y[1] for trace in figure.data), 6300 / 3600)
+        self.assertEqual(sum(trace.y[1] for trace in figure.data if trace.type == 'bar'), 5400 / 3600)
         self.assertEqual(figure.data[2].customdata[1][0], "00:15:00")
         self.assertEqual(figure.layout.barmode, "stack")
 

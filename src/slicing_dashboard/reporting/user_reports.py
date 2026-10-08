@@ -2,6 +2,7 @@
 from datetime import date, timedelta
 
 from slicing_dashboard.management.periods import today_iso
+from slicing_dashboard.reporting.completed_work import completed_work_for_period
 from slicing_dashboard.reporting.dashboard_reports import (
     date_range, day_for_ui, day_over_day, json_safe, report_users,
     summarize_daily, unavailable_day,
@@ -23,6 +24,10 @@ def get_user_report_data(manager, report_date=None, force_refresh=False):
         daily = manager.get_daily_report_data(report_date, force_refresh=force_refresh)
         periods = manager.get_available_periods()
         current_period = next((p for p in periods if p.get('is_current')), None)
+        completed = completed_work_for_period(
+            manager, current_period['start_date'] if current_period else None,
+            min(report_date, current_period['end_date']) if current_period else None,
+            force_refresh=force_refresh)
         earliest = manager._daily_report_start_date(report_date) or report_date
         # Include 30 completed days for averages in addition to today's point.
         start = min(earliest, date_range(report_date, 31)[0])
@@ -36,8 +41,17 @@ def get_user_report_data(manager, report_date=None, force_refresh=False):
         days.update({day['date']: day for day in daily['history']})
         users = report_users(manager.user_mapping, getattr(manager, '_snapshot_payload', {}),
                              list(days.values()), list(getattr(manager, 'user_mapping_full', {}).values()))
+        batches_master = getattr(manager, '_batches_master_cache', {})
+        if isinstance(batches_master, dict):
+            raw_batches = list(batches_master.values())
+        elif isinstance(batches_master, list):
+            raw_batches = batches_master
+        else:
+            raw_batches = []
+        day_batches = [b for b in raw_batches if isinstance(b, dict) and b.get('batch_date') == report_date]
         return json_safe({**daily, 'users': users, 'days': days,
-                          'current_period': current_period, 'earliest_recorded': earliest})
+                          'current_period': current_period, 'earliest_recorded': earliest,
+                          'batches': day_batches, 'completed_period': completed})
 
 
 def _scope(days, user, start, end):
@@ -50,7 +64,8 @@ def _scope(days, user, start, end):
     return {'start': start, 'end': end,
             'seconds': sum(summarize_daily(day, [user])['total_seconds'] for day in recorded) if recorded else None,
             'recorded_days': len(recorded), 'calendar_days': count,
-            'partial': len(recorded) != count or end == today_iso(),
+            'partial': len(recorded) != count or end == today_iso() or
+                       any(day['metadata'].get('reconciliation_pending') for day in recorded),
             'stale': any(day['metadata'].get('error') or day['metadata'].get('is_snapshot')
                          or day['metadata'].get('persistence_error') for day in recorded)}
 
@@ -62,7 +77,8 @@ def _completed_values(days, user, end, count):
     for key in date_range(end, count):
         day = days.get(key, unavailable_day(key))
         summary = summarize_daily(day, [user])
-        if not summary['available'] or day['metadata'].get('error') or day['metadata'].get('is_snapshot'):
+        if (not summary['available'] or day['metadata'].get('error') or day['metadata'].get('is_snapshot')
+                or day['metadata'].get('reconciliation_pending')):
             return None
         values.append((key, summary['total_seconds']))
     return values
@@ -94,10 +110,23 @@ def prepare_user_report(data, selection):
         window = _completed_values(days, user, key, 7)
         trend.append({'date': key, **summary,
                       'rolling_mean_seconds': sum(value for _, value in window) / 7 if window else None})
+    user_batches = [b for b in data.get('batches', [])
+                    if isinstance(b, dict) and b.get('canonical_user') == user]
+    completed = data.get('completed_period') or {}
+    matching_scope = (completed.get('start') == period_scope['start']
+                      and completed.get('end') == period_scope['end']
+                      and period_scope['start'] is not None
+                      and period_scope['end'] >= period_scope['start'])
+    completion_available = bool(completed.get('available') and matching_scope)
+    completed_rows = [row for row in completed.get('rows', []) if row.get('User') == user]
+    completion = {**completed, 'available': completion_available,
+                  'seconds': sum(row['seconds'] for row in completed_rows) if completion_available else None,
+                  'tasks': sum(row['tasks'] for row in completed_rows) if completion_available else None}
     return {'user': user, 'report_date': end, 'today': current, 'yesterday': prior,
             'summary': summarize_daily(current), 'previous_summary': summarize_daily(prior),
             'change': day_over_day(current, prior), 'trend': trend,
-            'period': period_scope, 'overall': overall,
+            'period': period_scope, 'overall': overall, 'completed_period': completion,
             'average_7': sum(value for _, value in weekly) / 7 if weekly else None,
             'average_30': sum(value for _, value in monthly) / 30 if monthly else None,
-            'best_day': max(monthly, key=lambda pair: pair[1]) if monthly else None}
+            'best_day': max(monthly, key=lambda pair: pair[1]) if monthly else None,
+            'batches': user_batches}

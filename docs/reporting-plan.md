@@ -1,6 +1,28 @@
 # Reporting redesign plan
 
-Updated: 6 October 2026 (Asia/Kolkata). Target: `E:/DEV/scorer`.
+Updated: 7 October 2026 (Asia/Kolkata). Target: `E:/DEV/scorer`.
+
+### Latest loading and report layout follow-up
+
+The latest User Report follow-up adds eight expressive cards, including **Completed Video This Settlement** and its completed-task count, independently of the recorded submission total. The source is the exact-range annotator-efficiency API; account aliases and exclusions are applied on every preparation. Captures have a 60-second TTL, explicit Refresh bypasses it, and incomplete pagination/invalid metrics remain unavailable. Failed refreshes can retain only the same range's completion snapshot and label it saved. Historical date filters use current source completion status and do not imply an approval timestamp.
+
+The activity calendar and individual trend now occupy equal desktop columns, stacking below 800px. Heatmap/donut color scales and legends fit inside their graphs. The actual overflow cause was Dash's inline `height: 100%` overriding CSS: the graph filled the section height and then its heading added overflow. Explicit graph heights with native responsive sizing fix this. Browser checks now compare SVGs, plotted cells, axes, legends and annotations against both the graph and the enclosing report card.
+
+The local Windows runner retains debug tools but disables Werkzeug's process reloader and Dash hot reload, avoiding the background serving-thread socket failure during reload. Python edits require a server restart on Windows; other platforms retain development reload behavior. No dependency downgrade or system socket changes are needed.
+
+Latest validation: 262 tests and 26 subtests passed. Isolated fixture browser checks passed at 1440px, 1024px, 390px and 320px, including direct reloads, light/dark themes, repeated live resizing, equal desktop chart columns and SVG/card containment. The Windows-safe debug runner stayed up without a reloader/socket exception. A read-only live schema check for 1–7 October returned all required completion fields across 75 accounts (12 included people); it took 1.292 seconds, with a cached read of 0.0008 seconds. Production persistence was disabled for that check. Changes remain local and undeployed.
+
+The owner clarified the work-total policy on 7 October: total work = new work + same-day rework, excluding old rework. This applies to daily/person KPIs, table totals, history/trend/comparison/calendar output, recorded-period/overall sums and supported averages. Same-day rework share uses that total as its denominator. Old rework is retained separately, using orange markers/a separate line rather than adding it to the work stack; the work-breakdown donut includes only the two counted categories. Saved row-only summaries are normalized on read, preserving their original evidence.
+
+Total-policy validation: 246 tests and 26 subtests passed. Desktop/mobile fixture browser checks verified the corrected total card, separate old-work markers, and two-category donut at 1440px and 390px. No production data was changed during these checks.
+
+The owner approved two additional plots: a per-person selected-day/previous-day comparison on Daily Report and a 90-day activity calendar on User Report. Both are rendered from saved report evidence. Missing days remain unknown; recorded zero days remain zero. Daily Report now leads with six redesigned cards, separates composition/history views, and preserves the detailed daily tables. Broken punctuation in User Report labels is corrected.
+
+The bottom Slice Data Overview is removed along with its callback dependency and extra fetch. The dashboard aggregate callback has ten outputs; separate callbacks own the universal legend and recorded trend so first-load/date/route callback ordering cannot leave either blank. Graph containers are observed for resizing after route changes. A 60-second shared report payload cache handles concurrent page requests; expiry, mapping edits and explicit refresh trigger new preparation. A new worker also reuses a verified durable capture younger than 60 seconds; old, failed and unverified captures trigger a live scan. Unchanged workflow evidence skips projection writes, while failed polls preserve last known approval evidence with a refresh error.
+
+Read-only live timing on 7 October: fresh report capture 10.9449 seconds (49 source requests), Daily Report re-entry 0.0010 seconds, User Report entry 0.4978 seconds, and dashboard trend re-entry 0.0010 seconds. Re-entries made zero source API requests. These measure Python payload preparation, exclude browser rendering, and are samples rather than guaranteed page-load times. Production persistence was intercepted for the benchmark. Fresh upstream scans remain expensive.
+
+Validation: 244 tests and 26 subtests passed, covering cache expiry/concurrency/refresh/mapping invalidation, coverage-safe plots, and workflow retry behavior. Isolated Chrome checks at 1440px/390px passed three dashboard reloads per size, real legend clicks, direct Daily/User reloads, route navigation, and exact visible chart/container sizing. Work remains local on the testing branch, without deployment or merge.
 
 ## Agreed scope and implementation order
 
@@ -12,7 +34,7 @@ Implement and verify these phases in order:
 2. Individual User Report.
 3. Main Dashboard simplification and approval trend.
 
-Phases 1 and 2 (Individual User Report) are implemented and verified. Retain the Dashboard's daily chart and Today/Yesterday tabs through these phases using shared builders; remove their Dashboard presentation in Phase 3.
+Phases 1 and 2 (Individual User Report) are implemented and verified. Phase 3 dashboard simplification and recorded-work trend are implemented. The owner's 7 October policy adds persistent workflow history, synthetic approval prerequisites and request-based notifications; actual daily approval hours still require known event times and duration attribution. Daily detail is presented on Daily Report instead of the Dashboard.
 
 The new [batch workflow/history and notification plan](batch-workflow-plan.md) adds a separate W1–W7 workstream. Its feasibility investigation precedes the Phase 2 implementation, while workflow code remains planned. W1–W3 must establish verified event sources/storage before the Phase 3 approval trend. Phase 2 continues to use the retained daily submission dataset and does not depend on unverified workflow events.
 
@@ -185,7 +207,17 @@ Sequence: add selection; reuse shared data; add KPIs/scopes; trend; donut; suppo
 
 Expected files: create `pages/user_report.py`, `plots/work_breakdown_donut.py`, and user report tests; extend shared report service/components/trend/styles and app registration. Preserve Excel contracts.
 
-## Phase 3: Dashboard changes (later)
+## Phase 3: Dashboard changes (UI implemented; approval sources pending)
+
+### 7 October implementation checkpoint
+
+Follow-up: the owner authorized synthetic missing Leader/Auditor/Admin prerequisites for completed batches, ordered approval-stage inference and a persistent shared inbox from `sampling_pass_notice`/`rework_notice`. `/workflow`, MongoDB/PostgreSQL/local SQLite storage, immutable observations, versioned projections, bounded incremental synchronization, latest-10 notifications, persistent read state, and batch/task deep links are implemented. See the accepted-policy section of [batch-workflow-plan.md](batch-workflow-plan.md). Unknown review dates remain unknown and synthetic history is excluded from daily approval hours. The earlier statement that the workflow module was not integrated describes the checkpoint before this follow-up.
+
+Removed the Dashboard daily chart and Today/Yesterday tabs. Settlement Overview is the default tab; overview KPIs, completed-work/rework summaries, pending reviews, assigned inventory, and management tabs remain. Added a full-width 30-day trend ending on the Dashboard end date (capped at India today), using the same retained submission evidence as Daily Report and User Report. The trend window is independent of the settlement start date. Member/theme changes render the saved payload without fetching submissions; management content remains mounted during refresh.
+
+Leader, Auditor and Admin/Completed series are explicitly unavailable, with null values and a visible explanation. No current-status queue, inferred transition, request approval, clip count or latest batch duration is substituted for historical approved video hours. The saved feasibility audit and available local projects do not establish verified approval duration attribution. Phase 3's approval verification/ingestion gate is still open; the separate W1–W7 workflow and notification workstream remains outside this reporting change. The existing untracked workflow observation module was not integrated.
+
+Validation: 184 tests plus 27 subtests pass, including submission parity, zero versus missing dates, unavailable approvals, user/theme rendering without source reads, removed callback dependencies, retained management forms, and empty settlement data. Two prior fallback tests now pin their India date rather than depending on the execution day. Offline fixture browser checks passed at 1440px and 390px for rendered dashboard charts, unavailable-stage text, theme toggling, navigation, six Daily Report cards and seven User Report cards; neither viewport overflowed horizontally. Screenshots exposed the existing dashboard KPI row squeezing seven cards on mobile; it now uses two mobile columns and three tablet columns. Local ignored artifacts are under `data/reports/browser-phase-three/`. The in-app Browser connection failed, so these checks used an isolated headless Chrome instance. Upstream services and deployment were not exercised.
 
 After both reports pass verification, remove the Dashboard's daily chart and Today/Yesterday tabs. Retain overview KPIs, completed-work/rework summaries, pending reviews, assigned inventory, Settlement Overview, Slice Data Overview, and management tabs. Add a full-width work/approval trend above retained overview charts.
 
@@ -200,6 +232,10 @@ Phase 3 gate: verify real action values and upstream event completeness; normali
 Expected files: create `plots/approval_trend_chart.py`, a verified event reader such as `processing/approval_history.py`, and workflow tests; modify dashboard layout/callback ownership, report service, DataManager, scraper pagination and DB persistence as required. Do not silently change existing inferred transitions/Excel consumers.
 
 ## Shared states, responsive behavior, and risks
+
+Latest 7 October update: Settlement Overview is removed from the dashboard, and the two management editors move to `/settings` as persistent tabs. Slice Data Overview stays on the dashboard. Assignment dates/ages/colors are restored by joining batch metadata onto live task quantities; ambiguous dates remain Unknown. Notifications now cover Admin approval/completion and any batch reviewer return, with 60-second polling, fresh bell reads, recent-event pop-ups, persistent individual/Mark all read controls and no history replay. Both editors preserve drafts across tabs/pages/themes. Validation: 232 tests plus 27 subtests and desktop/mobile browser checks. These requested layout changes supersede earlier notes about retaining dashboard management tabs.
+
+7 October follow-up: the 30-day trend now uses filled areas and consumes dated approval history from the workflow store. Approval hours are explicitly labeled estimates using retained batch video totals; unknown-time synthetic milestones and task/clip review records are excluded. Current assigned/rework hours now come from complete live task-status queues, not historical batch totals or date-filtered overview fallbacks. Aditya3's old 7,461-second assignment was verified absent from both current queues. In-process queue captures expire after 60 seconds; manual/automatic refresh bypasses them, and failure remains visibly unavailable. Validation: 218 tests plus 27 subtests, desktop/mobile area rendering and themes.
 
 - Stable shared shell for navigation/theme/status/refresh. Preserve management editor state; inactive pages do not load data. Report user selection and Dashboard filters remain independent.
 - Loading: section indicators and previous values retained during refresh.

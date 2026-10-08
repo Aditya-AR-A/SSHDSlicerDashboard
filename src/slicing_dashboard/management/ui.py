@@ -296,6 +296,7 @@ def register_management_callbacks(app, dm):
         dm.user_mapping_full = {m["id"]: m for m in mappings}
         dm.user_mapping = {m["id"]: m["mapped_user"] for m in mappings}
         dm.exempt_ids = {m["id"] for m in mappings if m["mapping_type"] == "Exempt"}
+        dm.invalidate_reporting_caches()
         try:
             (PROJECT_ROOT / "config" / "user_mapping.json").write_text(json.dumps(dm.user_mapping, indent=2), encoding="utf-8")
         except OSError:

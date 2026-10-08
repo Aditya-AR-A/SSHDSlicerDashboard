@@ -1,0 +1,42 @@
+name: Capture dashboard data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '2-59/5 * * * *'
+
+permissions: {}
+
+concurrency:
+  group: dashboard-data-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    # Enable deliberately after setting the two secrets and checking billing.
+    # Private repository runner minutes may exceed the free allowance at 5m.
+    if: vars.ENABLE_DATA_CAPTURE == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      DASHBOARD_URL: ${{ secrets.DASHBOARD_DEPLOYMENT_URL }}
+      CAPTURE_SECRET: ${{ secrets.DASHBOARD_CRON_SECRET }}
+    steps:
+      - name: Refresh all plot sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$CAPTURE_SECRET" || "$DASHBOARD_URL" != https://* ]]; then
+            echo 'Set the HTTPS deployment URL and capture secret before enabling this job.'
+            exit 1
+          fi
+          status=$(curl --silent --show-error --max-time 150 \
+            --output capture-result.json --write-out '%{http_code}' \
+            --header "Authorization: Bearer $CAPTURE_SECRET" \
+            --request POST "${DASHBOARD_URL%/}/api/data-refresh")
+          cat capture-result.json
+          if [[ "$status" == 409 ]]; then
+            echo 'Another capture is running; the next scheduled run will retry.'
+            exit 0
+          fi
+          [[ "$status" == 200 ]]

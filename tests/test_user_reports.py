@@ -50,12 +50,12 @@ def test_individual_daily_parity_and_category_sum():
     payload = data()
     report = prepare_user_report(payload, 'A')
     assert report['summary'] == summarize_daily(payload['today'], ['A'])
-    assert report['summary']['total_seconds'] == 180
-    assert report['summary']['rework_percentage'] == pytest.approx(200 / 3)
-    assert report['trend'][-1]['total_seconds'] == 180
+    assert report['summary']['total_seconds'] == 120
+    assert report['summary']['rework_percentage'] == pytest.approx(50)
+    assert report['trend'][-1]['total_seconds'] == 120
     assert report['change']['difference_seconds'] == 0
     donut = build_work_breakdown_donut(report['summary'])
-    assert sum(donut.data[0].values) == 180
+    assert sum(donut.data[0].values) == 120
 
 
 def test_zero_person_and_missing_dates_are_distinct():
@@ -81,15 +81,15 @@ def test_settlement_uses_real_boundaries_and_overall_includes_older_history():
     payload['days']['2026-10-07'] = day('2026-10-07', 999)
     report = prepare_user_report(payload, 'A')
     assert report['period']['calendar_days'] == 17
-    assert report['period']['seconds'] == 17 * 180
-    assert report['overall']['seconds'] == 31 * 180 + 360
+    assert report['period']['seconds'] == 17 * 120
+    assert report['overall']['seconds'] == 31 * 120 + 240
     assert report['overall']['start'] == '2026-08-01'
     assert report['overall']['partial']
 
 
 def test_partial_scope_is_reported_without_filling_missing_days():
     report = prepare_user_report(data(), 'A')
-    assert report['period']['seconds'] == 360
+    assert report['period']['seconds'] == 240
     assert report['period']['recorded_days'] == 2
     assert report['period']['calendar_days'] == 17
     assert report['period']['partial']
@@ -102,10 +102,10 @@ def test_means_exclude_today_and_require_consecutive_recorded_days():
     payload = data(complete=True)
     payload['days']['2026-10-06'] = day('2026-10-06', 9000)
     report = prepare_user_report(payload, 'A')
-    assert report['average_7'] == report['average_30'] == 180
-    assert report['best_day'][1] == 180
+    assert report['average_7'] == report['average_30'] == 120
+    assert report['best_day'][1] == 120
     assert report['trend'][-1]['rolling_mean_seconds'] is None
-    assert report['trend'][-2]['rolling_mean_seconds'] == 180
+    assert report['trend'][-2]['rolling_mean_seconds'] == 120
     payload['days']['2026-10-01']['metadata']['is_snapshot'] = True
     report = prepare_user_report(payload, 'A')
     assert report['average_7'] is None
@@ -130,7 +130,7 @@ def test_historical_date_never_counts_later_output_or_future_period():
     report = prepare_user_report(payload, 'A')
     assert report['period']['seconds'] is None
     assert report['overall']['end'] == '2026-09-19'
-    assert report['overall']['seconds'] == 14 * 180
+    assert report['overall']['seconds'] == 14 * 120
     assert report['trend'][-1]['date'] == '2026-09-19'
 
 
@@ -145,14 +145,17 @@ def test_loading_reads_history_once_and_selection_never_refetches():
     manager.get_available_periods.return_value = [payload['current_period']]
     manager._daily_report_start_date.return_value = '2026-08-01'
     manager._load_daily_report_records.return_value = {'2026-08-01': day('2026-08-01')}
-    prepared = get_user_report_data(manager, '2026-10-06', True)
+    with patch('slicing_dashboard.reporting.user_reports.completed_work_for_period',
+               return_value={'available': False}) as completed:
+        prepared = get_user_report_data(manager, '2026-10-06', True)
+    completed.assert_called_once_with(manager, '2026-09-20', '2026-10-06', force_refresh=True)
     before = copy.deepcopy(prepared)
     for user in ['A', 'B', 'A']:
         prepare_user_report(prepared, user)
     assert prepared == before
     manager.get_daily_report_data.assert_called_once_with('2026-10-06', force_refresh=True)
     manager._load_daily_report_records.assert_called_once_with('2026-08-01', '2026-10-06')
-    assert prepare_user_report(prepared, 'A')['overall']['seconds'] == 540
+    assert prepare_user_report(prepared, 'A')['overall']['seconds'] == 360
     json.dumps(prepared, allow_nan=False)
 
 
@@ -184,6 +187,7 @@ def test_real_manager_user_report_captures_shared_daily_source_and_remaps_aliase
     manager.settlement_periods = [{'start_date': '2026-09-20', 'end_date': '2026-10-06', 'settled': False}]
     with patch('slicing_dashboard.config.DATA_DIR', tmp_path), \
          patch('slicing_dashboard.management.periods.today_iso', return_value='2026-10-06'), \
+         patch('slicing_dashboard.reporting.user_reports.completed_work_for_period', return_value={'available': False}), \
          patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource.fetch',
                return_value=source([task('a'), task('b', raw='SSHD-A2', seconds=90)])) as fetch:
         payload = manager.get_user_report_data(force_refresh=True)
@@ -211,18 +215,19 @@ def test_trend_gaps_optional_categories_and_person_revision():
     report = prepare_user_report(data(), 'A')
     chart = build_individual_work_chart(report['trend'], 'A')
     assert chart.data[0].y[0] is None
-    assert chart.data[0].y[-1] == .05
+    assert chart.data[0].y[-1] == 120 / 3600
     assert all(not trace.connectgaps for trace in chart.data)
     assert all(trace.visible == 'legendonly' for trace in chart.data[1:])
     assert chart.layout.uirevision != build_individual_work_chart(report['trend'], 'B').layout.uirevision
 
 
-def test_page_contains_seven_kpis_scopes_and_all_error_states():
+def test_page_contains_eight_kpis_scopes_and_all_error_states():
     result = build_user_report_content(data(), 'A')
-    cards = [node for node in components(result) if getattr(node, 'className', None) == 'kpi-card']
-    assert len(cards) == 7
+    cards = [node for node in components(result) if 'user-metric-card' in (getattr(node, 'className', '') or '')]
+    assert len(cards) == 8
     text = payload_text(result)
     assert 'Partial' in text and 'Overall recorded' in text
+    assert 'Completed Video This Settlement' in text and 'Completion data unavailable' in text
     assert 'Saved submissions' not in text
     assert 'Choose an available' in payload_text(build_user_report_content(data(), 'invalid'))
     assert 'Loading' in payload_text(build_user_report_content(None, 'A'))
@@ -275,3 +280,52 @@ def test_user_date_follows_midnight_only_when_not_pinned():
          patch('dash.callback_context', MagicMock(triggered=[{'prop_id': 'auto-refresh-interval.n_intervals'}])):
         assert namespace['follow_user_date'](0, 1, '2026-10-06', True)[0] == '2026-10-07'
         assert namespace['follow_user_date'](0, 1, '2026-10-05', False)[0] is dash.no_update
+
+
+def test_user_report_batch_history_table():
+    payload = data()
+    payload['batches'] = [
+        {
+            'batch_id': 'ab_123',
+            'batch_date': '2026-10-06',
+            'username': 'SSHD-A',
+            'canonical_user': 'A',
+            'status': 'batch_member_assigned',
+            'total_duration_seconds': 3600.0,
+            'task_count': 30,
+            'completed_count': 10,
+            'pending_review_count': 5,
+            'rework_count': 1,
+            'return_count': 2,
+        },
+        {
+            'batch_id': 'ab_456',
+            'batch_date': '2026-10-06',
+            'username': 'SSHD-B',
+            'canonical_user': 'B',
+            'status': 'batch_completed',
+            'total_duration_seconds': 7200.0,
+            'task_count': 50,
+            'completed_count': 50,
+            'pending_review_count': 0,
+            'rework_count': 0,
+            'return_count': 0,
+        },
+    ]
+    report_a = prepare_user_report(payload, 'A')
+    assert len(report_a['batches']) == 1
+    assert report_a['batches'][0]['batch_id'] == 'ab_123'
+
+    content_a = build_user_report_content(payload, 'A')
+    text_a = payload_text(content_a)
+    assert 'Batch History' in text_a and '2026-10-06' in text_a
+    assert 'ab_123' in text_a
+    assert 'Assigned' in text_a
+
+    # User without batches on that day shows empty message
+    report_empty = prepare_user_report(payload, 'B')
+    assert len(report_empty['batches']) == 1
+    payload['batches'] = []
+    content_no_batches = build_user_report_content(payload, 'A')
+    text_no_batches = payload_text(content_no_batches)
+    assert 'No batches recorded for this user on the selected date.' in text_no_batches

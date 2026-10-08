@@ -9,6 +9,7 @@ import plotly.io as pio
 import pandas as pd
 from functools import lru_cache
 from hashlib import sha256
+from math import isfinite
 
 # ── Consistent user color palette ────────────────────────────────────────────
 USER_COLORS = {
@@ -64,14 +65,21 @@ def empty_fig() -> go.Figure:
         height=CHART_HEIGHT,
         margin=dict(l=0, r=0, t=0, b=0),
     )
+    fig.add_annotation(text='Loading…', x=.5, y=.5, xref='paper', yref='paper', showarrow=False)
     return fig
 
 
 def format_seconds(seconds):
     """Convert a duration in seconds to HH:MM string."""
-    if pd.isna(seconds) or seconds is None:
-        return "00:00"
-    seconds = int(seconds)
+    try:
+        value = float(seconds)
+        if not isfinite(value) or value < 0:
+            return 'Unavailable'
+    except (ValueError, TypeError, OverflowError):
+        return 'Unavailable'
+    if 0 < value < 60:
+        return f'{value:.3g}s'
+    seconds = int(value)
     h = seconds // 3600
     m = seconds % 3600 // 60
     return f"{h:02d}:{m:02d}"

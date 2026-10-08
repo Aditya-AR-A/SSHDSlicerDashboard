@@ -5,6 +5,7 @@ Assigned videos horizontal stacked bar chart builder segmented by ID.
 from datetime import datetime
 import pandas as pd
 import plotly.graph_objects as go
+from slicing_dashboard.plots.guardrails import safe_chart, checked_frame, add_bar_total_labels
 
 from slicing_dashboard.plots.theme import (
     CHART_HEIGHT,
@@ -41,6 +42,7 @@ def _get_rework_color(days: float) -> str:
         return "#991b1b"  # Deep Dark Red (5+ days ago)
 
 
+@safe_chart
 def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
     """Build horizontal stacked bar chart of assigned videos segmented by ID.
 
@@ -50,11 +52,13 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
     - Rework Assigned: Light Red/Pink -> Coral Red -> Dark Red (based on days assigned)
     """
     t = theme_ctx(is_dark)
+    assigned_df = checked_frame(assigned_df, ['User', 'Stage', 'Duration'], ['Duration', 'Count', 'DaysAssigned'])
+    errors = assigned_df.attrs.get('assignment_errors', [])
 
     if assigned_df.empty:
         fig = go.Figure()
         fig.add_annotation(
-            text="No assigned work active",
+            text="Current assignment data unavailable; refresh to retry" if errors else "No assigned work active",
             showarrow=False,
             font={"size": 14, "color": t["font_color"]},
         )
@@ -83,7 +87,8 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
     if "Count" not in df.columns:
         df["Count"] = 0
     if "AssignedDate" not in df.columns:
-        df["AssignedDate"] = datetime.now().strftime("%Y-%m-%d")
+        df["AssignedDate"] = ''
+    df['AssignedDate'] = df['AssignedDate'].fillna('')
 
     # Order users by total assigned duration (ascending for horizontal bar chart)
     user_totals = df.groupby("User")["Duration"].sum()
@@ -97,41 +102,45 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
     fig.add_trace(
         go.Scatter(
             name="Assigned (Fresh: Light Green)",
-            x=[],
-            y=[],
+            x=[None],
+            y=[None],
             mode="markers",
             marker=dict(size=10, symbol="square", color="#86efac"),
             showlegend=True,
+            visible='legendonly',
         )
     )
     fig.add_trace(
         go.Scatter(
             name="Assigned (Aged: Forest -> Olive)",
-            x=[],
-            y=[],
+            x=[None],
+            y=[None],
             mode="markers",
             marker=dict(size=10, symbol="square", color="#14532d"),
             showlegend=True,
+            visible='legendonly',
         )
     )
     fig.add_trace(
         go.Scatter(
             name="Rework (Fresh: Pink)",
-            x=[],
-            y=[],
+            x=[None],
+            y=[None],
             mode="markers",
             marker=dict(size=10, symbol="square", color="#fda4af"),
             showlegend=True,
+            visible='legendonly',
         )
     )
     fig.add_trace(
         go.Scatter(
             name="Rework (Aged: Dark Red)",
-            x=[],
-            y=[],
+            x=[None],
+            y=[None],
             mode="markers",
             marker=dict(size=10, symbol="square", color="#991b1b"),
             showlegend=True,
+            visible='legendonly',
         )
     )
 
@@ -161,7 +170,13 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
                 color = _get_assigned_color(days)
 
             fmt_dur = format_seconds(dur_sec)
-            date_label = f"Today (0d)" if days <= 0 else (f"1 day ago" if days == 1 else f"{int(days)} days ago ({date_str})")
+            date_label = 'Unknown'
+            if date_str:
+                age = 'Today' if days <= 0 else f'{int(days)}d ago'
+                date_label = f'{date_str} · {age}'
+                basis = row.get('AssignmentDateBasis')
+                if basis == 'Account batch date':
+                    date_label += ' (account batch date)'
             
             # Show ID on bar if block is wide enough
             in_bar_text = f"{raw_id}" if dur_hours >= 0.7 else (f"{fmt_dur}" if dur_hours >= 0.4 else "")
@@ -207,8 +222,7 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
         plot_bgcolor=t["bg_color"],
         paper_bgcolor=t["bg_color"],
         font=dict(family="Inter, sans-serif", size=12, color=t["font_color"]),
-        title_font=dict(size=15, weight="bold"),
-        title="Assigned & Rework by ID (Hours)",
+        title=dict(text="Assigned & Rework by ID (Hours)", font=dict(size=15, weight="bold")),
         height=dynamic_height,
         margin=dict(l=10, r=30, t=45, b=65),
         bargap=0.3,
@@ -229,6 +243,7 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
         ),
         xaxis_title="Hours",
         xaxis=dict(
+            type='linear',
             range=[0, max_range],
             automargin=True,
             tickfont=dict(size=11),
@@ -238,6 +253,7 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
         ),
         yaxis_title="",
         yaxis=dict(
+            type='category',
             categoryorder="array",
             categoryarray=users_sorted,
             automargin=True,
@@ -245,4 +261,7 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
         ),
     )
 
-    return fig
+    if errors:
+        fig.add_annotation(text="Current assignment data incomplete; refresh to retry",
+                           x=.5, y=1.1, xref='paper', yref='paper', showarrow=False)
+    return add_bar_total_labels(fig, 'h')

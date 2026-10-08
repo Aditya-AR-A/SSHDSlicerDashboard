@@ -12,6 +12,7 @@ import zlib
 from time import perf_counter
 import pandas as pd
 from slicing_dashboard.config import get_settings
+from slicing_dashboard.processing.source_policy import SOURCE_TTL_SECONDS
 
 
 class DatabaseManager:
@@ -58,8 +59,12 @@ class DatabaseManager:
 
     def is_connected(self) -> bool:
         """Check if MongoDB or PostgreSQL database is available and responsive."""
-        if self._connected is not None:
-            return self._connected
+        if self._connected is True:
+            return True
+        if (self._connected is False and
+                perf_counter() - getattr(self, '_last_connection_check', -float('inf')) < SOURCE_TTL_SECONDS):
+            return False
+        self._last_connection_check = perf_counter()
 
         # Check MongoDB first
         if self.mongo_client is not None and self.mongo_db is not None:
@@ -391,15 +396,19 @@ class DatabaseManager:
             print(f"Error saving user mappings to MongoDB: {e}")
             return False
 
-    def load_user_mappings(self) -> list[dict]:
+    def load_user_mappings(self, *, strict=False) -> list[dict]:
         """Load user mappings from MongoDB."""
         if not self.is_connected() or self.mongo_db is None:
+            if strict:
+                raise ConnectionError('Mapping storage unavailable')
             return []
         try:
             coll = self.mongo_db['user_mappings']
             docs = list(coll.find())
             return docs
         except Exception as e:
+            if strict:
+                raise ConnectionError('Mapping read failed') from None
             print(f"Error loading user mappings from MongoDB: {e}")
             return []
 
@@ -421,15 +430,19 @@ class DatabaseManager:
             print(f"Error saving settlement periods to MongoDB: {e}")
             return False
 
-    def load_settlement_periods(self) -> list[dict]:
+    def load_settlement_periods(self, *, strict=False) -> list[dict]:
         """Load settlement periods from MongoDB."""
         if not self.is_connected() or self.mongo_db is None:
+            if strict:
+                raise ConnectionError('Period storage unavailable')
             return []
         try:
             coll = self.mongo_db['settlement_periods']
             docs = list(coll.find())
             return docs
         except Exception as e:
+            if strict:
+                raise ConnectionError('Period read failed') from None
             print(f"Error loading settlement periods from MongoDB: {e}")
             return []
 
