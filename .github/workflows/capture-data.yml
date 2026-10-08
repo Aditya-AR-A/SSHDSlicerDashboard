@@ -39,4 +39,4 @@ jobs:
             echo 'Another capture is running; the next scheduled run will retry.'
             exit 0
           fi
-          [[ "$status" == 200 ]]
+          [[ "$status" == 200 || "$status" == 202 ]]

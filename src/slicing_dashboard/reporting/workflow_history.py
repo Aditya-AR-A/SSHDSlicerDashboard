@@ -10,6 +10,8 @@ def local_time(value):
 
 
 def notice_link(notice):
+    if notice.get('notification_type') == 'refresh_failed':
+        return '/reports/daily'
     reference = {'batch': notice['batch_id']} if notice.get('batch_id') else {'task': notice.get('task_id') or notice.get('task_alias') or ''}
     return '/workflow?' + urlencode({**reference, 'event': notice['event_id']})
 

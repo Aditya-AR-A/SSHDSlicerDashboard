@@ -3,10 +3,19 @@
   "builds": [
     {
       "src": "api/index.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": { "excludeFiles": "node_modules/**" }
+    },
+    {
+      "src": "api/data-refresh.mjs",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
+    {
+      "src": "/api/data-refresh/?$",
+      "dest": "api/data-refresh.mjs"
+    },
     {
       "src": "/(.*)",
       "dest": "api/index.py"

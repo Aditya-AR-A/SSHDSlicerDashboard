@@ -8,7 +8,12 @@ definition: fresh work plus same-day rework; old rework is separate.
 
 ## What runs without an open browser
 
-`POST /api/data-refresh` invokes one source registry:
+On Vercel, `POST /api/data-refresh` durably queues a job and returns **202 Accepted**.
+The protected health endpoint reports its progress; acceptance is not proof of
+successful capture. A small Node function uses Vercel's supported `waitUntil`
+mechanism to hold an HTTP connection to the Python collector after the scheduler
+receives its response. Each invocation collects one source and hands the next
+step to another invocation. All sources use the same registry:
 
 | Source | Consumers |
 | --- | --- |
@@ -27,6 +32,20 @@ or advance that source's last-success time. Complete daily observations are
 saved first, including a repeated reconciliation of yesterday. Evidence is merged
 by task/day identity, so tasks missing from a later inventory aren't subtracted.
 Missing captures and failed reads never become verified zero-work days.
+
+Job checkpoints and the active-job pointer use the same shared database as health.
+Repeated triggers reuse the current job; independently requested sources are
+added to it. Failed sources do not erase successful captures. Worker connection
+failures and source failures create one durable notification per job in the
+shared dashboard inbox. Further failures update that notice without resetting
+read state. A later scheduled run retries the sources.
+
+A worker terminated without an exception handler is detected by the next trigger
+or health check after its 330-second deadline. An unconfirmed handoff remains
+queued for the next trigger. Expired undispatched work is flagged after ten
+minutes. These checks require an active scheduler or independent health monitor;
+no serverless process runs a permanent watchdog. Database outages cannot reliably
+write an inbox notification, so enable the independent monitor's email alerts too.
 
 Assignable work is the normal plus urgent unassigned pool. The API supplies hours,
 which are converted to video seconds once for the existing UI. Overview/funnel
@@ -73,16 +92,24 @@ from the current inventory and isn't rewritten by ordinary refreshes.
    (or the supported PostgreSQL backend for evidence). Set `CRON_SECRET` to a long,
    randomly generated value. Put the same value in the scheduler's
    `Authorization: Bearer <secret>` header. Never put the secret in the URL.
-2. Enable Python Fluid compute and verify the function's maximum duration in Vercel
-   Project Settings is sufficient for a complete scan, up to Hobby's supported
-   limit. The existing legacy build configuration is preserved. Check a production
-   test invocation's duration; don't assume local performance matches Vercel.
+2. Enable Fluid compute and set the Python function's maximum duration to **300
+   seconds** in Vercel Project Settings. The Node dispatcher declares 300 seconds
+   in its function configuration and bounds its worker connection to 255 seconds,
+   reserving time to record failures and hand off. Both functions must be deployed.
+   The Python legacy build remains; Node is an additional explicit build and route.
+   `VERCEL_URL` supplies the trusted deployment origin. If Deployment Protection
+   applies, configure Vercel's `VERCEL_AUTOMATION_BYPASS_SECRET` for internal calls.
 3. Schedule `https://YOUR-PRODUCTION-HOST/api/data-refresh` every five minutes.
    Use POST with that authorization header. The daily Vercel job already specified
    in `vercel.json` runs at 19:00 UTC, or 00:30 India time the following day. It is
    a fallback, not the frequent capture schedule. Hobby can delay it within its
    scheduled hour and does not retry failed invocations automatically.
-4. Monitor authorized `GET /api/data-health` independently of refresh requests.
+4. Create a **second cron-job.org job** for authorized `GET /api/data-health`,
+   every five minutes, with the same Bearer header. Enable email notifications
+   for failures and recovery in this monitor's Notifications settings, and enable
+   failure notifications on the trigger job too. The monitor returns 503 for
+   failed jobs or missing/overdue captures, including failures after a trigger
+   already returned 202. Monitor independently of refresh requests.
    A source is overdue after ten minutes without a successful scheduled capture.
    Configure the scheduler/monitor's failure notifications in its own account.
    Keep health monitoring active even if a refresh job is disabled or runs long.
@@ -96,16 +123,24 @@ and [function duration limits](https://vercel.com/docs/functions/configuring-fun
 
 ### Scheduler choices
 
+The 8 October 2026 deployment test exceeded the standard cron-job.org timeout.
+The stored daily source attempt took 206 seconds; a separate authenticated
+`?sources=assignable_pool` test returned HTTP 200 with `refresh_ok: true` in
+4.5 seconds. The original scan had not confirmed workflow completion. These are
+observations from that deployment, not runtime guarantees. Splitting source
+groups alone cannot make the measured daily capture fit a 30-second request.
+The background dispatcher addresses the scheduler's short response timeout; it
+does **not** remove Vercel's execution limit. If one source consistently exceeds
+255 seconds, its job fails visibly and must be made resumable within that source
+or moved to a longer-running worker. The observed 206-second daily scan fits this
+budget, but a production test after redeployment is still required.
+
 * [cron-job.org](https://cron-job.org/en/) supports free frequent jobs and custom
   authorization headers. Its [standard timeout is 30 seconds](https://cron-job.org/en/faq/).
-  Measure the deployed scan before choosing it. If a full scan exceeds the timeout,
-  separate source groups using `?sources=daily`, `?sources=overview,efficiency`, etc.,
-  stagger their execution, and ensure each group finishes within the limit. All
-  source groups still need to run every five minutes. If even one source exceeds
-  that limit, use a longer-running scheduler/worker; don't detach an untracked
-  background thread inside a serverless request.
-* `.github/workflows/capture-data.yml` is an opt-in alternative with a longer HTTP
-  timeout. Set repository secrets `DASHBOARD_DEPLOYMENT_URL` and
+  Use the quick trigger and independent health monitor described above. The
+  30-second scheduler timeout covers enqueue/acknowledgment, not collection.
+* `.github/workflows/capture-data.yml` is an opt-in alternative trigger. It accepts
+  HTTP 202 on the new deployment. Set repository secrets `DASHBOARD_DEPLOYMENT_URL` and
   `DASHBOARD_CRON_SECRET`, and repository variable `ENABLE_DATA_CAPTURE=true`.
   It runs on the default branch and can also be invoked manually. Five-minute runs
   can exceed a private repository's [free runner-minute allowance](https://docs.github.com/en/actions/concepts/billing-and-usage).
@@ -123,15 +158,19 @@ Configuration is checked on every retry, including a targeted retry.
 
 | HTTP status | Meaning |
 | --- | --- |
-| 200 on refresh | Every requested source succeeded; inspect overall `ok` for other sources |
-| 200 on health | All registered sources are recent, current-version and successful |
+| 202 on Vercel refresh | Job persisted and accepted; inspect health for completion |
+| 200 on local synchronous refresh | Every requested source succeeded; inspect overall `ok` for other sources |
+| 200 on health | All registered sources are recent and successful; latest job has no failures |
 | 503 | Failed, absent, overdue source or persistence failure |
 | 409 | Another collector owns the lease; retry after it completes or expires |
 | 401 | Missing or incorrect secret (missing server configuration also fails closed) |
 | 400 | Unknown or empty source selection |
 
 Responses use `Cache-Control: no-store`. A health read never contacts the source
-API or changes captures. For a server/terminal install, the same service is:
+API or changes captures; it can reconcile an expired job and persist its failure
+notification. Local Flask `/api/data-refresh` and the CLI retain synchronous
+collection for operator use. The asynchronous trigger is a Vercel Node route.
+For a server/terminal install, the same source registry is:
 
 ```bash
 slicing-dashboard data-refresh
@@ -151,10 +190,16 @@ export or audit, not a guessed total or a cache reset.
 
 ## Verification
 
-The local suite passes 339 tests and 26 subtests. Recovery tests exercise source
+The local Python suite passes 351 tests and 26 subtests. Ten Node dispatcher tests
+cover quick acknowledgment of a blocked worker, authenticated triggers, failed
+enqueue, bounded connections, untrusted hosts, worker timeouts, duplicate claims,
+invalid selections and handoff races. Recovery tests exercise source
 failure isolation, retained success times, process restart, source expiry, deployment
 version changes, concurrent jobs, old checkpoint rejection, storage failure,
 endpoint authorization, targeted retries, raw-queue remapping and database reconnects.
+Job tests additionally cover process restart, duplicate triggers, concurrent
+workers, dead invocations, late results, remaining-source progress and persistent
+notification read state. Both suites use isolated storage and synthetic sources.
 An actual MongoDB wire-protocol fixture verifies an established workflow write
 times out and a subsequent write recovers through the same client. A concurrency
 regression checks cached workflow lookup while another thread owns the sync lock.

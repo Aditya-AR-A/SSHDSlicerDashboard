@@ -208,6 +208,11 @@ def register_data_health_routes(server, manager):
             service = DataHealth(manager)
             selected = request.args.get('sources')
             result = service.refresh(selected.split(',') if selected is not None else None) if refresh else service.health()
+            if not refresh:
+                from slicing_dashboard.reporting.refresh_jobs import RefreshJobs
+                result['job'] = RefreshJobs(service).current()
+                if result['job'] and result['job']['errors']:
+                    result['ok'] = False
             status = 409 if result.get('busy') else 200 if result.get('refresh_ok', result['ok']) else 503
         except ValueError:
             result, status = {'error': 'Invalid source selection'}, 400
@@ -217,3 +222,32 @@ def register_data_health_routes(server, manager):
 
     server.add_url_rule('/api/data-health', 'data_health', lambda: response(), methods=['GET'])
     server.add_url_rule('/api/data-refresh', 'data_refresh', lambda: response(True), methods=['GET', 'POST'])
+
+    def jobs_response(action):
+        if not authorized():
+            return jsonify(error='Unauthorized'), 401, {'Cache-Control': 'no-store'}
+        try:
+            from slicing_dashboard.reporting.refresh_jobs import RefreshJobs
+            jobs = RefreshJobs(DataHealth(manager))
+            if action == 'enqueue':
+                sources = request.args.get('sources')
+                result = {'job': jobs.enqueue(sources.split(',') if sources is not None else None)}
+            else:
+                payload = request.get_json(silent=True) or {}
+                step = payload.get('step')
+                if not isinstance(step, int) or isinstance(step, bool) or step < 0:
+                    raise ValueError('Invalid step')
+                identifier = payload.get('job_id')
+                result = jobs.run(identifier, step) if action == 'run' else {'job': jobs.fail(identifier, step)}
+            status = 200
+        except BlockingIOError:
+            result, status = {'error': 'Job checkpoint busy'}, 409
+        except ValueError:
+            result, status = {'error': 'Invalid job or source selection'}, 400
+        except Exception as error:
+            result, status = {'error': type(error).__name__}, 503
+        return jsonify(result), status, {'Cache-Control': 'no-store'}
+
+    for action in ('enqueue', 'run', 'fail'):
+        server.add_url_rule('/api/data-jobs/' + action, 'data_jobs_' + action,
+                            lambda action=action: jobs_response(action), methods=['POST'])

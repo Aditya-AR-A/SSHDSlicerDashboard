@@ -45,7 +45,7 @@ def notification_toasts(notices):
     return [dbc.Toast([
         html.P(f"{notice.get('member') or 'Member'} · {notice.get('actor') or 'Reviewer unknown'}", className='mb-1'),
         html.P(notice.get('reason') or '', className='small mb-2'),
-        dbc.Button('View batch', id={'type': 'workflow-toast-notice', 'id': notice['id']},
+        dbc.Button('View report' if notice.get('notification_type') == 'refresh_failed' else 'View batch', id={'type': 'workflow-toast-notice', 'id': notice['id']},
                    n_clicks=0, size='sm', color=notice['category']),
     ], header=notice['title'], icon=notice['category'], dismissable=True,
        is_open=True, duration=10000, className='workflow-toast') for notice in notices[:3]]
@@ -106,16 +106,18 @@ def notification_panel(data):
     for notice in inbox.get('rows', []):
         title = f"{notice.get('member') or 'Member'} · {notice['title']}"
         batch, task = notice.get('batch_id'), notice.get('task_alias') or notice.get('task_id')
-        reference = ('Batch …' + str(batch)[-8:] if batch else 'Task ' + str(task) if task else 'Reference unavailable')
+        operational = notice.get('notification_type') == 'refresh_failed'
+        reference = ('Scheduled dashboard update' if operational else
+                     'Batch …' + str(batch)[-8:] if batch else 'Task ' + str(task) if task else 'Reference unavailable')
         entries.append(dbc.ListGroupItem([
-            html.I(className='bi ' + ('bi-check-circle-fill text-success' if notice['category'] == 'success' else 'bi-arrow-counterclockwise text-warning') + ' me-2',
+            html.I(className='bi ' + ('bi-exclamation-triangle-fill text-danger' if operational else 'bi-check-circle-fill text-success' if notice['category'] == 'success' else 'bi-arrow-counterclockwise text-warning') + ' me-2',
                    **{'aria-hidden': 'true'}),
             dbc.Badge('Read' if notice.get('is_read') else 'Unread', color='secondary' if notice.get('is_read') else 'primary', className='me-2'),
             html.Strong(title), html.Div(notice.get('reason') or 'No additional message.', className='small mt-1'),
             html.Div(reference, className='small text-secondary', title=str(batch or task or '')),
             html.Div(f"{notification_time(notice)} · {notice.get('stage') or 'Reviewer'}: {notice.get('actor') or 'Identity unavailable'}", className='small text-secondary',
                      title=local_time(notice.get('event_at') or notice.get('observed_at')) + ' India'),
-            dbc.Button('View batch' if notice.get('batch_id') else 'View task', id={'type': 'workflow-notice', 'id': notice['id']},
+            dbc.Button('View report' if operational else 'View batch' if notice.get('batch_id') else 'View task', id={'type': 'workflow-notice', 'id': notice['id']},
                        n_clicks=0, size='sm', color=notice['category'], outline=True, className='mt-2'),
         ], className='workflow-notification ' + ('notice-read' if notice.get('is_read') else 'notice-unread')))
     return html.Div([
