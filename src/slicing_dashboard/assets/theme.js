@@ -34,8 +34,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             });
         });
     });
-    function watchGraphs() {
-        document.querySelectorAll('.dash-graph').forEach(function (graph) {
+    function watchGraphs(root = document) {
+        const graphs = root.matches?.('.dash-graph') ? [root] : root.querySelectorAll('.dash-graph');
+        graphs.forEach(function (graph) {
             if (!observed.has(graph)) {
                 observed.add(graph);
                 observer.observe(graph);
@@ -45,12 +46,21 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
     function start() {
         watchGraphs();
         let scheduled = false;
-        new MutationObserver(function () {
-            if (scheduled) return;
+        const roots = new Set();
+        new MutationObserver(function (records) {
+            records.forEach(function (record) {
+                if (record.target.closest?.('.dash-graph')) return;
+                record.addedNodes.forEach(function (node) {
+                    if (node.nodeType === 1 && (node.matches('.dash-graph') ||
+                        node.querySelector('.dash-graph'))) roots.add(node);
+                });
+            });
+            if (scheduled || !roots.size) return;
             scheduled = true;
             requestAnimationFrame(function () {
                 scheduled = false;
-                watchGraphs();
+                for (const root of roots) if (root.isConnected) watchGraphs(root);
+                roots.clear();
             });
         }).observe(document.body, {childList: true, subtree: true});
     }

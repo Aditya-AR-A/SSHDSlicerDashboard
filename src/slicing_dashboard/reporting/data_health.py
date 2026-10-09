@@ -17,7 +17,7 @@ SOURCES = ('configuration', 'daily', 'overview', 'efficiency', 'assignable_pool'
            'rework', 'pending_review', 'batches', 'returns', 'completion', 'workflow')
 HEALTH_MAX_AGE_SECONDS = 600  # Two missed five-minute runs.
 LEASE_SECONDS = 330  # Outlives a 300-second function; the next run can retry a killed job.
-PROCESSOR_VERSION = 2
+PROCESSOR_VERSION = 3
 
 
 def utc_now():
@@ -89,6 +89,7 @@ class DataHealth:
             summary, _ = manager.fetch_annotator_efficiency(start, end, force_refresh=True)
             if summary.get('_source_error'):
                 raise ValueError('Efficiency unavailable')
+            manager.capture_efficiency_history(yesterday, today, force_refresh=True)
 
         def pending():
             if manager.get_pending_review_df(force_refresh=True).attrs.get('pending_error'):
@@ -133,7 +134,9 @@ class DataHealth:
         A database lease prevents concurrent scheduled/manual jobs. If a job is
         killed, health ages out and the lease expires; a later run resumes.
         """
-        selected = tuple(selected) if selected is not None else SOURCES
+        selected = tuple(selected) if selected is not None else None
+        refresh_configuration = selected is not None and 'configuration' in selected
+        selected = selected if selected is not None else SOURCES
         if not selected or set(selected) - set(SOURCES):
             raise ValueError('Unknown or empty source selection')
         selected = tuple(dict.fromkeys(('configuration', *selected)))
@@ -149,7 +152,7 @@ class DataHealth:
                 raise TimeoutError('Newer capture already published')
             today = today_iso()
             # Load shared configuration before resolving period boundaries.
-            self.manager.refresh_shared_configuration(force=True)
+            self.manager.refresh_shared_configuration(force=refresh_configuration)
             periods = self.manager.get_available_periods()
             period = next((item for item in periods if item.get('is_current')), None)
             start = period['start_date'] if period else today[:8] + '01'

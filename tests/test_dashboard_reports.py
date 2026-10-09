@@ -272,10 +272,17 @@ class MemoryCollection:
     def find_one(self, query):
         return copy.deepcopy(self.records.get(query['_id']))
 
-    def find(self, query):
+    def find(self, query, projection=None):
         dates = query['_id']
-        return [copy.deepcopy(record) for day, record in self.records.items()
+        class Cursor(list):
+            def batch_size(self, size):
+                return self
+        rows = [copy.deepcopy(record) for day, record in self.records.items()
                 if dates['$gte'] <= day <= dates['$lte']]
+        if projection:
+            rows = [{key: value for key, value in record.items() if key == '_id' or projection.get(key)}
+                    for record in rows]
+        return Cursor(rows)
 
     def insert_one(self, record):
         if record['_id'] in self.records:

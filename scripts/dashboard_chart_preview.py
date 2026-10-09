@@ -59,10 +59,15 @@ manager.get_pending_review_df.side_effect = lambda force_refresh=False: pending_
 manager.invalidate_pending_review.side_effect = review_manager.invalidate_pending_review
 manager._refresh_worker.side_effect = lambda fn: fn
 manager.get_workflow_data.return_value = {'inbox': {'rows': [], 'unread': 0}, 'members': names, 'events': 0, 'synthetic': 0, 'checkpoints': []}
+def workflow(*args, **kwargs):
+    time.sleep(state.get('workflow_delay', 0))
+    return manager.get_workflow_data.return_value
+manager.get_workflow_data.side_effect = workflow
 manager.check_server_heartbeat.return_value = True
 
 
 def dashboard(*args, **kwargs):
+    time.sleep(state.get('dashboard_delay', 0))
     kpis = {key: 1 for key in ('total_approved_duration', 'approved_pct', 'prev_approved_duration',
         'total_pending_duration', 'leader_review_duration', 'auditor_review_duration', 'admin_review_duration',
         'rework_duration', 'rework_pct', 'prev_rework_duration', 'total_error_duration', 'error_pct',
@@ -107,6 +112,7 @@ def report(*args, **kwargs):
 
 manager.get_daily_report_data.side_effect = report
 manager.get_user_report_data.side_effect = report
+manager.get_dashboard_trend_data.side_effect = report
 
 # Optional inspection of a retained local capture; all API transports remain fake.
 if len(sys.argv) > 1:
@@ -126,6 +132,7 @@ if len(sys.argv) > 1:
     mapping = json.loads(Path('config/user_mapping.json').read_text(encoding='utf-8'))
     payload['users'] = report_users(mapping, history=history)
     manager.get_daily_report_data.side_effect = lambda *args, **kwargs: deepcopy(payload)
+    manager.get_dashboard_trend_data.side_effect = lambda *args, **kwargs: deepcopy(payload)
     from tests.test_daily_report_page import components
     for component in components(app.layout):
         if getattr(component, 'id', None) == 'daily-report-date':

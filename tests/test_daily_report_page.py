@@ -25,6 +25,9 @@ def application_namespace():
         "value": "2026-10-01|current", "label": "Current period",
     }]
     manager.get_server_status.return_value = {"is_live": True, "is_using_snapshot": False}
+    manager.get_approval_data.return_value = {}
+    manager.get_efficiency_history.return_value = []
+    manager.get_dashboard_trend_data.return_value = report_fixture()
     manager.refresh_scope.side_effect = lambda: nullcontext()
     tree = ast.parse(APP_PATH.read_text(encoding="utf-8"))
     replacements = 0
@@ -142,14 +145,13 @@ class DailyReportRoutingTests(unittest.TestCase):
 
     def test_registered_dashboard_dispatch_preserves_input_and_state_order(self):
         namespace, _ = application_namespace()
-        namespace["update_dashboard"] = MagicMock(return_value="dashboard result")
+        namespace["update_dashboard"] = MagicMock(return_value=tuple(range(9)))
         callback = next(value for key, value in namespace["app"].callback_map.items()
                         if "kpi-cards.children" in key)
         dispatch = callback["callback"].__wrapped__
         selected_users = ["Riya"]
-        result = dispatch(0, 1, "2026-10-01", "2026-10-06", None, 0,
-                          None, "/reports/daily", selected_users)
-        self.assertEqual(result, "dashboard result")
+        result = dispatch(0, 1, "2026-10-01", "2026-10-06", selected_users, 0, "/reports/daily")
+        self.assertEqual(result, (0, 1, 2, 3, 4, 5, 7, 8))
         namespace["update_dashboard"].assert_called_once_with(
             0, 1, "2026-10-01", "2026-10-06", None, 0, None, None,
             selected_users, "/reports/daily",

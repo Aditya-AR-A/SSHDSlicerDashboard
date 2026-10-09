@@ -13,6 +13,9 @@ def build_approval_trend_chart(report, is_dark=True):
     figure = go.Figure()
     series = [('total_seconds', 'Total Work Done'), *APPROVAL_STAGES]
     colors = ['#38bdf8', '#a78bfa', '#fbbf24', '#34d399']
+    if any('completed_seconds' in row for row in rows):
+        series.append(('completed_seconds', 'Completed Video (source date)'))
+        colors.append('#fb7185')
     for (field, label), color in zip(series, colors):
         values = [_seconds(row.get(field)) for row in rows]
         available = any(value is not None for value in values)
@@ -25,7 +28,8 @@ def build_approval_trend_chart(report, is_dark=True):
             fill='tozeroy', fillcolor=f'rgba({rgb[0]},{rgb[1]},{rgb[2]},0.16)',
             line={'color': color, 'width': 2}, marker={'size': 4},
             hovertemplate=('%{x|%d %b %Y}<br>%{customdata}'
-                           + ('<br>Batch-duration estimate' if field != 'total_seconds' else '')
+                           + ('<br>Source-date current status · Asia/Shanghai' if field == 'completed_seconds'
+                              else '<br>Batch-duration estimate' if field != 'total_seconds' else '')
                            + '<extra>%{fullData.name}</extra>'),
         ))
     revision = f"approval-trend:{report.get('range_start')}:{report.get('range_end')}"

@@ -6,6 +6,12 @@ the 60-second reuse policy and serializes identical source queries. Daily charts
 tables, comparisons, calendars and scope sums share the same submitted-video
 definition: fresh work plus same-day rework; old rework is separate.
 
+The efficiency source also retains independent daily completion/review-status
+captures for today and yesterday. To backfill older source-date metrics, run
+`python scripts/backfill_efficiency.py --start YYYY-MM-DD --end YYYY-MM-DD`.
+See [the API and October 6 recovery audit](api-recovery-audit.md) for scope,
+pagination checks, date semantics and the distinction from approval events.
+
 ## What runs without an open browser
 
 On Vercel, `POST /api/data-refresh` durably queues a job and returns **202 Accepted**.

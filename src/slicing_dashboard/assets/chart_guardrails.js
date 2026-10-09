@@ -1,4 +1,4 @@
-// Keep Plotly inside its card and provide exact, scrollable data for dense charts.
+// Keep dense charts readable without blocking page scrolling or building hidden tables.
 (function () {
     const bound = new WeakSet();
     let tooltip;
@@ -43,11 +43,6 @@
         window.Plotly.relayout(plot, update);
     }
     function hideTooltip() { if (tooltip) tooltip.hidden = true; }
-    function text(value) {
-        if (value === null || value === undefined) return 'Unavailable';
-        if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'Unavailable';
-        return String(value).replace(/<br\s*\/?\s*>/gi, '\n');
-    }
     function update(plot, graph) {
         const frame = graph.closest('.chart-frame');
         if (!frame || !plot.data) return;
@@ -67,53 +62,18 @@
         const viewport = frame.querySelector('.chart-viewport');
         const width = vertical.size > 14 ? Math.max(viewport.clientWidth, vertical.size * 38 + 90) : 0;
         const nextWidth = width ? width + 'px' : '100%';
-        const changed = graph.style.height !== height + 'px' || graph.style.width !== nextWidth;
-        graph.style.height = height + 'px';
-        graph.style.width = nextWidth;
-        if (changed && window.Plotly) requestAnimationFrame(() => window.Plotly.Plots.resize(plot));
-        const access = frame.querySelector('.chart-data-access');
-        if (!access) return;
-        const wasOpen = access.querySelector('details')?.open || false;
-        const details = document.createElement('details');
-        details.open = wasOpen;
-        const summary = document.createElement('summary');
-        summary.textContent = 'View chart values and full labels';
-        details.appendChild(summary);
-        const scroll = document.createElement('div');
-        scroll.className = 'chart-data-scroll';
-        const table = document.createElement('table');
-        const head = table.createTHead().insertRow();
-        ['Series', 'Label / date', 'Value', 'Details'].forEach(label => {
-            const cell = document.createElement('th'); cell.textContent = label; head.appendChild(cell);
-        });
-        const body = table.createTBody();
-        traces.forEach(trace => {
-            if (trace.type === 'heatmap') {
-                (trace.text || []).forEach((labels, y) => labels.forEach((label, x) => {
-                    if (!label || trace.z?.[y]?.[x] === null || trace.z?.[y]?.[x] === undefined) return;
-                    const row = body.insertRow(); row.insertCell().textContent = 'Calendar';
-                    const cell = row.insertCell(); cell.colSpan = 3; cell.textContent = text(label);
-                }));
-                return;
-            }
-            const labels = trace.type === 'pie' ? trace.labels : trace.orientation === 'h' ? trace.y : trace.x;
-            const values = trace.type === 'pie' ? trace.values : trace.orientation === 'h' ? trace.x : trace.y;
-            Array.from(labels || []).forEach((label, index) => {
-                if (label === null || label === undefined) return;
-                const row = body.insertRow();
-                const detail = trace.customdata?.[index];
-                [trace.name || '', label, values?.[index], Array.isArray(detail) ? detail.map(text).join(' · ') : detail ?? '']
-                    .forEach(value => { row.insertCell().textContent = text(value); });
-            });
-        });
-        if (body.rows.length) { scroll.appendChild(table); details.appendChild(scroll); access.replaceChildren(details); }
-        else access.replaceChildren();
+        // The shared ResizeObserver handles changed dimensions once.
+        if (graph.style.height !== height + 'px') graph.style.height = height + 'px';
+        if (graph.style.width !== nextWidth) graph.style.width = nextWidth;
     }
-    function watch() {
-        document.querySelectorAll('.chart-surface .js-plotly-plot').forEach(plot => {
+    function watch(root = document) {
+        const plots = root.matches?.('.js-plotly-plot') ? [root] :
+            root.querySelectorAll('.chart-surface .js-plotly-plot');
+        plots.forEach(plot => {
             if (bound.has(plot) || typeof plot.on !== 'function') return;
-            bound.add(plot);
             const graph = plot.closest('.chart-surface');
+            if (!graph) return;
+            bound.add(plot);
             plot.on('plotly_afterplot', () => update(plot, graph));
             plot.on('plotly_restyle', () => refreshHourLabels(plot));
             plot.on('plotly_unhover', hideTooltip);
@@ -135,7 +95,6 @@
                     const pointer = event.event || {};
                     tooltip.style.left = Math.max(12, Math.min((pointer.clientX || 12) + 14, innerWidth - rect.width - 12)) + 'px';
                     tooltip.style.top = Math.max(12, Math.min((pointer.clientY || 12) + 14, innerHeight - rect.height - 12)) + 'px';
-                    if (tooltip.scrollHeight > tooltip.clientHeight) tooltip.textContent += '\nFull details are available below the chart.';
                     plot.classList.add('bounded-hover');
                 });
             });
@@ -144,10 +103,27 @@
     }
     function start() {
         let queued = false;
-        new MutationObserver(() => {
-            if (queued) return;
+        const roots = new Set();
+        new MutationObserver(records => {
+            for (const record of records) {
+                const plot = record.target.closest?.('.js-plotly-plot');
+                // Plotly redraws and hover updates are already covered by its events.
+                if (plot) {
+                    if (!bound.has(plot)) roots.add(plot);
+                    continue;
+                }
+                for (const node of record.addedNodes) {
+                    if (node.nodeType === 1 && (node.matches('.js-plotly-plot') ||
+                        node.querySelector('.chart-surface, .js-plotly-plot'))) roots.add(node);
+                }
+            }
+            if (queued || !roots.size) return;
             queued = true;
-            requestAnimationFrame(() => { queued = false; watch(); });
+            requestAnimationFrame(() => {
+                queued = false;
+                for (const root of roots) if (root.isConnected) watch(root);
+                roots.clear();
+            });
         }).observe(document.body, {childList: true, subtree: true});
         document.addEventListener('scroll', hideTooltip, true);
         window.addEventListener('resize', hideTooltip);

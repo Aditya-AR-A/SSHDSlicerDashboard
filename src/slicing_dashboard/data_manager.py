@@ -134,7 +134,7 @@ class DataManager:
         self.invalidate_pending_review()
 
     def refresh_shared_configuration(self, force=False):
-        """Bound mapping lag across warm workers without restarting the app.
+        """Reuse verified mappings until a new account or an explicit admin refresh.
 
         Keep the last valid mappings on a database outage and report failure to
         operations. Raw source caches are remapped when next rendered.
@@ -152,22 +152,35 @@ class DataManager:
             if not force and perf_counter() - getattr(self, '_configuration_checked_at', -float('inf')) < SOURCE_TTL_SECONDS:
                 return not getattr(self, '_configuration_error', None)
             self._configuration_checked_at = perf_counter()
+            mapping_read = False
             try:
-                records = database.load_user_mappings(strict=True)
-                mappings = {row['id']: {key: value for key, value in row.items() if key != '_id'} for row in records}
+                missing = set(self.get_unassigned_users(discover_users=False))
+                checked = getattr(self, '_mapping_checked_accounts', set())
+                mapping_read = force or not getattr(self, '_mappings_verified', False) or bool(missing - checked)
+                if mapping_read:
+                    # Remember discovered accounts even if they still need a manual
+                    # assignment. They must not trigger another request each minute.
+                    self._mapping_checked_accounts = checked | missing
+                    records = database.load_user_mappings(strict=True)
+                    mappings = {row['id']: {key: value for key, value in row.items() if key != '_id'} for row in records}
+                    if any(not row.get('mapped_user') for row in mappings.values()):
+                        raise ValueError('Invalid shared mappings')
+                    if mappings != getattr(self, 'user_mapping_full', {}):
+                        self.user_mapping_full = mappings
+                        self.user_mapping = {key: row['mapped_user'] for key, row in mappings.items()}
+                        self.exempt_ids = {key for key, row in mappings.items() if row.get('mapping_type') == 'Exempt'}
+                        self.invalidate_reporting_caches()
+                    self._mappings_verified = True
+                    self._mapping_configuration_error = None
+                    mapping_read = False
                 periods = database.load_settlement_periods(strict=True)
-                if any(not row.get('mapped_user') for row in mappings.values()):
-                    raise ValueError('Invalid shared mappings')
-                if mappings != getattr(self, 'user_mapping_full', {}):
-                    self.user_mapping_full = mappings
-                    self.user_mapping = {key: row['mapped_user'] for key, row in mappings.items()}
-                    self.exempt_ids = {key for key, row in mappings.items() if row.get('mapping_type') == 'Exempt'}
-                    self.invalidate_reporting_caches()
                 self.settlement_periods = periods
-                self._configuration_error = None
-                return True
+                self._configuration_error = getattr(self, '_mapping_configuration_error', None)
+                return not self._configuration_error
             except Exception as error:
                 self._configuration_error = type(error).__name__
+                if mapping_read:
+                    self._mapping_configuration_error = self._configuration_error
                 return False
 
     def _daily_work_reader(self):
@@ -422,6 +435,10 @@ class DataManager:
                 if v == "Exempt":
                     return "Exempt"
                 return v
+        if u_str:
+            if not hasattr(self, '_observed_unmapped_users'):
+                self._observed_unmapped_users = set()
+            self._observed_unmapped_users.add(u_str)
         return u_str
 
     def _batch_canonical_name(self, batch: dict) -> str:
@@ -431,14 +448,15 @@ class DataManager:
             return self._get_canonical_name(batch.get('assignee_id', 0), username)
         return batch.get('canonical_user', '')
 
-    def get_unassigned_users(self, force_refresh: bool = False, force_refresh_users: bool = False, **kwargs) -> list[str]:
+    def get_unassigned_users(self, force_refresh: bool = False, force_refresh_users: bool = False,
+                             discover_users: bool = True, **kwargs) -> list[str]:
         """Find all usernames/IDs that appear in API or batches or records but are not in user_mapping."""
         force_refresh = force_refresh or force_refresh_users
-        candidates = set()
+        candidates = set(getattr(self, '_observed_unmapped_users', set()))
 
         # 1. Scraper users from API
         try:
-            if not self.scraper._users or force_refresh:
+            if discover_users and (not self.scraper._users or force_refresh):
                 self.scraper._fetch_users(force=force_refresh)
             for u in self.scraper._users.values():
                 uname = u.get("username")
@@ -450,7 +468,7 @@ class DataManager:
             pass
 
         # 2. Batches master cache
-        for b in self._batches_master_cache.values():
+        for b in getattr(self, '_batches_master_cache', {}).values():
             u = b.get("username")
             if u:
                 candidates.add(u)
@@ -467,17 +485,17 @@ class DataManager:
                     candidates.add(u)
 
         # 4. Local master CSV if present
-        if self._data is not None and not self._data.empty and "user_name" in self._data.columns:
+        if getattr(self, '_data', None) is not None and not self._data.empty and "user_name" in self._data.columns:
             for u in self._data["user_name"].dropna().unique():
                 candidates.add(str(u))
 
         ignore_names = {"All Slicers", "TOTAL", "Admin", "Test", "Dep", "user-None", "", "(unassigned)", "None"}
-        ignore_names.update(self.user_mapping.values())
-        mapped_keys = set(self.user_mapping_full.keys())
+        ignore_names.update(getattr(self, 'user_mapping', {}).values())
+        mapped_keys = {str(key).casefold() for key in getattr(self, 'user_mapping', {})}
 
         unassigned = sorted([
             u for u in candidates
-            if u not in ignore_names and u not in mapped_keys and not u.startswith("user-None")
+            if u not in ignore_names and u.casefold() not in mapped_keys and not u.startswith("user-None")
         ])
         return unassigned
 
@@ -1212,7 +1230,11 @@ class DataManager:
                         day = record.get('date', '')
                         if start_date <= day <= end_date:
                             prior = self._daily_report_records.get(day)
-                            self._daily_report_records[day] = merge_daily_reports(prior, record) if prior and 'tasks' in record else record
+                            if prior and 'tasks' in prior and record.get('metadata', {}).get('error') and 'tasks' not in record:
+                                self._daily_report_records[day] = {**prior, 'metadata': {
+                                    **prior.get('metadata', {}), 'error': record['metadata']['error'], 'is_snapshot': True}}
+                            else:
+                                self._daily_report_records[day] = merge_daily_reports(prior, record) if prior and 'tasks' in record else record
                 except Exception as error:
                     self._daily_report_load_error = str(error)
             count = (datetime.fromisoformat(end_date) - datetime.fromisoformat(start_date)).days + 1
@@ -1288,7 +1310,7 @@ class DataManager:
         from datetime import timezone
         from slicing_dashboard.management.periods import today_iso
         from slicing_dashboard.reporting.dashboard_reports import get_daily_report_data
-        self.refresh_shared_configuration(force=force_refresh)
+        self.refresh_shared_configuration()
         report_date = report_date or today_iso()
         # One capture serves simultaneous dashboard/report callbacks. Mapping
         # edits change the key so cached canonical names cannot survive them.
@@ -1360,7 +1382,7 @@ class DataManager:
             return self._workflow_history_service
 
     def get_workflow_data(self, force_refresh=False):
-        self.refresh_shared_configuration(force=force_refresh)
+        self.refresh_shared_configuration()
         history = self._workflow_history()
         history.sync(force=force_refresh)
         checkpoints = [row for row in history.store.records('checkpoint') if row.get('instance') == history.instance]
@@ -1368,13 +1390,74 @@ class DataManager:
         _, total = history.store.query('event', history.instance)
         from slicing_dashboard.reporting.approval_reports import approval_records
         approvals = approval_records(
-            (row for row in history.store.records('event') if row.get('instance') == history.instance),
+            history.store.approval_events(history.instance),
             self._batches_master_cache.values(), checkpoints)
         return {'inbox': history.notifications(), 'storage': history.store.storage_label,
                 'checkpoints': checkpoints, 'synthetic': synthetic, 'events': total,
                 'approvals': approvals,
                 'members': sorted((set(self.user_mapping.values()) | set(history.store.members(history.instance)))
                                   - {'Admin', 'Test', 'Dep', 'Exempt'})}
+
+    def get_approval_data(self, start_date, end_date):
+        """Read saved approvals even while the independent workflow scan fails."""
+        from slicing_dashboard.reporting.approval_reports import approval_records
+        try:
+            history = self.__dict__.get('_workflow_history_service')
+            if history is not None:
+                store, instance = history.store.chart_reader(), history.instance
+            else:
+                from hashlib import sha256
+                from slicing_dashboard.processing.workflow_history import WorkflowStore
+                store = WorkflowStore(self.db, initialize=False)
+                instance = sha256(self.scraper._base_url.rstrip('/').encode()).hexdigest()[:16]
+            approvals = approval_records(
+                store.approval_events(instance, start_date, end_date, chart_only=True),
+                self._batches_master_cache.values(),
+                store.records('checkpoint', instance))
+            if not hasattr(self, '_saved_approval_data'):
+                self._saved_approval_data = {}
+            self._saved_approval_data[(start_date, end_date)] = approvals
+            return approvals
+        except Exception:
+            return {**getattr(self, '_saved_approval_data', {}).get((start_date, end_date), {}),
+                    'error': 'ApprovalReadFailed'}
+
+    def get_efficiency_history(self, start_date, end_date, force_refresh=False, capture_live=True):
+        from slicing_dashboard.reporting.efficiency_history import EfficiencyHistory
+        from slicing_dashboard.management.periods import today_iso
+        key = (start_date, end_date)
+        try:
+            if capture_live:
+                history = EfficiencyHistory(self)
+            else:
+                from slicing_dashboard.processing.workflow_history import WorkflowStore
+                history = EfficiencyHistory(self, WorkflowStore(self.db, initialize=False))
+            failure = None
+            today = today_iso()
+            if capture_live and start_date <= today <= end_date:
+                try:
+                    history.capture(today, force=force_refresh)
+                except Exception:
+                    failure = 'EfficiencyCaptureFailed'
+            rows = history.read(start_date, end_date) if capture_live else history.read_completed(start_date, end_date)
+            if failure:
+                rows = [{**row, 'metadata': {**row['metadata'], 'error': failure}} for row in rows]
+            if not hasattr(self, '_efficiency_history_cache'):
+                self._efficiency_history_cache = {}
+            self._efficiency_history_cache[key] = rows
+            return rows
+        except Exception:
+            return [{**row, 'metadata': {**row['metadata'], 'error': 'EfficiencyReadFailed'}}
+                    for row in getattr(self, '_efficiency_history_cache', {}).get(key, [])]
+
+    def capture_efficiency_history(self, start_date, end_date, force_refresh=False):
+        from slicing_dashboard.reporting.efficiency_history import EfficiencyHistory
+        return EfficiencyHistory(self).capture_range(start_date, end_date, force=force_refresh)
+
+    def get_dashboard_trend_data(self, report_date=None, force_refresh=False):
+        """Read chart-sized saved evidence without running the live inventory scan."""
+        from slicing_dashboard.reporting.dashboard_trend import saved_trend
+        return saved_trend(self, report_date, force_refresh)
 
     def get_workflow_page(self, filters=None, page=1, page_size=25):
         from slicing_dashboard.reporting.workflow_history import history_page
@@ -1767,7 +1850,6 @@ class DataManager:
         return res_df
 
     def get_pending_review_df(self, force_refresh=False):
-        self.refresh_shared_configuration(force=force_refresh)
         from slicing_dashboard.processing.pending_review import pending_frame
         return pending_frame(self, force_refresh)
 

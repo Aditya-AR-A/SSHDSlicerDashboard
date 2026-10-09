@@ -141,6 +141,7 @@ def test_same_batch_stage_cycle_is_counted_once_and_later_cycle_is_distinct():
 def test_source_refresh_loads_once_and_editor_content_stays_mounted():
     namespace, manager = application_namespace()
     manager.get_daily_report_data.return_value = fixture()
+    manager.get_dashboard_trend_data.return_value = {**fixture(), 'approvals': {}, 'efficiency_history': []}
     manager.fetch_dashboard_data.return_value = {'breakdowns': {'slice_funnel': []}}
     manager.get_summary_kpis.return_value = defaultdict(int)
     manager.get_user_breakdown_df.return_value = pd.DataFrame()
@@ -157,8 +158,10 @@ def test_source_refresh_loads_once_and_editor_content_stays_mounted():
     manager.get_daily_report_data.assert_not_called()
     manager.get_slice_data_overview_df.assert_not_called()
     with patch('dash.ctx', MagicMock(triggered_id='refresh-btn')):
-        assert namespace['load_dashboard_trend']('2026-10-06', 1, 1, '/') == fixture()
-    manager.get_daily_report_data.assert_called_once_with('2026-10-06', force_refresh=True)
+        assert namespace['load_dashboard_trend']('2026-10-06', 1, 1, '/') == {
+            **fixture(), 'approvals': {}, 'efficiency_history': []}
+    manager.get_daily_report_data.assert_not_called()
+    manager.get_dashboard_trend_data.assert_called_once_with('2026-10-06', force_refresh=True)
     manager.prepare_daily_work.assert_not_called()
 
 

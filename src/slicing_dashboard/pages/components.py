@@ -4,7 +4,7 @@ import dash_bootstrap_components as dbc
 
 
 def chart_graph(**kwargs):
-    """A measurable chart surface inside a scroll boundary, with stable loading space."""
+    """A measurable chart surface that keeps page scrolling and loading space stable."""
     figure = kwargs.get('figure')
     height = getattr(getattr(figure, 'layout', None), 'height', None) or 340
     style = {'height': f'{height}px', 'width': '100%', 'minWidth': 0, **kwargs.pop('style', {})}
@@ -15,9 +15,9 @@ def chart_graph(**kwargs):
     # Put borders/padding on the wrapper, not inside Plotly's measured surface.
     classes = ' '.join(value for value in classes.split() if value not in ('glass-panel', 'p-1', 'rounded', 'shadow-sm', 'chart-compact'))
     kwargs.setdefault('responsive', True)
+    kwargs['config'] = {**(kwargs.pop('config', None) or {}), 'scrollZoom': False}
     graph = dcc.Graph(**kwargs, style=style, className='chart-surface ' + classes)
-    return html.Div([html.Div(graph, className='chart-viewport'),
-                     html.Div(className='chart-data-access')],
+    return html.Div(html.Div(graph, className='chart-viewport'),
                     className='chart-frame' + (' glass-panel' if panel else ''))
 
 

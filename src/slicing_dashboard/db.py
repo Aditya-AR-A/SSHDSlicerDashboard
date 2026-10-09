@@ -464,13 +464,24 @@ class DatabaseManager:
         if not self.is_connected():
             return []
         if self.mongo_db is not None:
+            result = {}
             try:
-                records = self.mongo_db['daily_work_reports'].find(
-                    {'_id': {'$gte': start_date, '$lte': end_date}})
-                return [{key: value for key, value in record.items() if key not in ('_id', '_revision')}
-                        for record in records]
+                collection = self.mongo_db['daily_work_reports']
+                query = {'_id': {'$gte': start_date, '$lte': end_date}}
+                # Small summaries stay usable if downloading the larger task
+                # evidence times out. Never rewrite a report from this fallback.
+                for record in collection.find(query, {'date': 1, 'rows': 1, 'metadata': 1}):
+                    result[record['date']] = {key: value for key, value in record.items() if key != '_id'}
+                for record in collection.find(query).batch_size(1):
+                    result[record['date']] = {key: value for key, value in record.items()
+                                              if key not in ('_id', '_revision')}
+                return list(result.values())
             except Exception as error:
                 print(f"Could not read daily work reports from MongoDB: {error}")
+                for record in result.values():
+                    record['metadata'] = {**record.get('metadata', {}), 'is_snapshot': True,
+                                          'error': 'DailyEvidenceReadFailed'}
+                return list(result.values())
         if self.engine is not None:
             try:
                 from sqlalchemy import text
@@ -483,6 +494,26 @@ class DatabaseManager:
             except Exception as error:
                 print(f"Could not read daily work reports from PostgreSQL: {error}")
         return []
+
+    def load_daily_chart_reports(self, start_date: str, end_date: str) -> list[dict]:
+        """Read only the fields needed to remap and aggregate saved video hours."""
+        if self.mongo_db is not None:
+            query = {'_id': {'$gte': start_date, '$lte': end_date}}
+            collection = self.mongo_db['daily_work_reports']
+            if hasattr(collection, 'with_options'):
+                from pymongo import ReadPreference
+                collection = collection.with_options(read_preference=ReadPreference.SECONDARY_PREFERRED)
+            records = list(collection.find({**query, 'chart_version': 1},
+                           {'_id': 0, 'date': 1, 'chart_rows': 1, 'metadata': 1}).batch_size(100))
+            # Reduce legacy reports too; never download their audit metadata.
+            projection = {'_id': 0, 'date': 1, 'rows': 1, 'metadata': 1,
+                          'tasks.username': 1, 'tasks.user_id': 1,
+                          'tasks.bucket': 1, 'tasks.duration_seconds': 1}
+            records.extend(collection.find({**query, 'chart_version': {'$ne': 1}}, projection).batch_size(100))
+            return records
+        # SQL/local installs retain the same semantics; chart callers never persist
+        # these reduced records back over complete task evidence.
+        return self.load_daily_work_reports(start_date, end_date)
 
     def daily_work_start_date(self, end_date: str):
         """Earliest retained daily record, including history outside the chart range."""
@@ -534,6 +565,10 @@ class DatabaseManager:
                     merged = merge_daily_reports(existing, report)
                     revision = (existing or {}).get('_revision', 0)
                     document = {**merged, '_id': day, '_revision': revision + 1}
+                    from slicing_dashboard.reporting.chart_projections import daily_chart_rows
+                    chart_rows = daily_chart_rows(merged)
+                    if chart_rows is not None:
+                        document.update(chart_rows=chart_rows, chart_version=1)
                     if existing is None:
                         try:
                             collection.insert_one(document)

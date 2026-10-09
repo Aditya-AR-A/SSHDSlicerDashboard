@@ -106,19 +106,13 @@ body {
 /* ─── Compact chart wrapper ───────────────────────────────────────────── */
 .chart-frame { position: relative; min-width: 0; width: 100%; max-width: 100%; border-radius: 12px; }
 .chart-frame.glass-panel { padding: 12px; }
-.chart-viewport { min-width: 0; width: 100%; max-width: 100%; max-height: 660px; overflow: auto; overscroll-behavior: contain; }
+.chart-viewport { min-width: 0; width: 100%; max-width: 100%; overflow-x: auto; overscroll-behavior: auto; touch-action: pan-x pan-y; }
 .chart-surface { position: relative; min-width: 0; width: 100%; }
 .chart-frame .chart-surface { min-height: 280px; }
 .chart-frame .js-plotly-plot, .chart-frame .plot-container { min-width: 0; }
-.chart-surface[data-dash-is-loading="true"] { opacity: .55; pointer-events: none; }
+.chart-surface[data-dash-is-loading="true"] { opacity: .75; }
 .chart-frame:has([data-dash-is-loading="true"])::after,
-.chart-updating-label { content: 'Updating · previous capture shown'; position: absolute; top: 8px; right: 12px; z-index: 3; padding: 5px 9px; border-radius: 6px; background: var(--dropdown-bg); color: var(--text-primary); font-size: 12px; box-shadow: var(--glass-shadow); }
-.chart-data-access { color: var(--text-secondary); font-size: 12px; }
-.chart-data-access:empty { display: none; }
-.chart-data-access summary { cursor: pointer; padding: 6px 12px; }
-.chart-data-access .chart-data-scroll { max-height: 240px; overflow: auto; padding: 0 12px; }
-.chart-data-access table { width: 100%; table-layout: fixed; }
-.chart-data-access th, .chart-data-access td { padding: 5px; overflow-wrap: anywhere; vertical-align: top; }
+.chart-updating-label { content: 'Updating · previous capture shown'; position: absolute; top: 8px; right: 12px; z-index: 3; pointer-events: none; padding: 5px 9px; border-radius: 6px; background: var(--dropdown-bg); color: var(--text-primary); font-size: 12px; box-shadow: var(--glass-shadow); }
 .chart-tooltip { position: fixed; z-index: 2000; pointer-events: none; max-width: min(380px, calc(100vw - 24px)); max-height: 50vh; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; padding: 9px 12px; border-radius: 7px; background: var(--dropdown-bg, #1e293b); color: var(--text-primary, #f8fafc); border: 1px solid var(--glass-border); font: 12px/1.5 Inter, sans-serif; box-shadow: var(--glass-shadow); }
 .bounded-hover .hoverlayer { opacity: 0; }
 #dashboard-page .row > *, .glass-panel, .report-content > *, .report-header > * { min-width: 0; }

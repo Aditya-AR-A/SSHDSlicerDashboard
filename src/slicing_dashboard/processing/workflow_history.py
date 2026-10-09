@@ -43,13 +43,16 @@ class WorkflowStore:
     Configured database failures propagate; do not silently create a divergent
     inbox/history on a serverless instance. Source versions are insert-only.
     """
-    def __init__(self, database=None, path=None):
+    def __init__(self, database=None, path=None, *, initialize=True):
         self.mongo = getattr(database, "mongo_db", None)
         self.engine = getattr(database, "engine", None)
         if path is None:
             from slicing_dashboard.config import DATA_DIR
             path = DATA_DIR / 'reports' / 'workflow.sqlite3'
         self.path = Path(path)
+        if not initialize:
+            self.mongo = self._chart_database(self.mongo)
+            return  # Chart reads must not run schema/index writes or acquire capture locks.
         if self.mongo is None and self.engine is None:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self._sqlite() as conn:
@@ -76,6 +79,20 @@ class WorkflowStore:
     def storage_label(self):
         return "MongoDB" if self.mongo is not None else "PostgreSQL" if self.engine is not None else "Local SQLite (this server)"
 
+    @staticmethod
+    def _chart_database(database):
+        if database is not None and hasattr(database, 'with_options'):
+            from pymongo import ReadPreference
+            return database.with_options(read_preference=ReadPreference.SECONDARY_PREFERRED)
+        return database
+
+    def chart_reader(self):
+        """Saved chart evidence may use a healthy replica; writes keep their primary."""
+        from copy import copy
+        reader = copy(self)
+        reader.mongo = self._chart_database(self.mongo)
+        return reader
+
     def _sqlite(self):
         return sqlite3.connect(self.path, timeout=20)
 
@@ -100,6 +117,10 @@ class WorkflowStore:
             record.update({key: payload.get(key) for key in
                            ('instance', 'sort_at', 'member', 'batch_id', 'task_id', 'task_alias', 'stage',
                             'action', 'result', 'provenance', 'active', 'search_text', 'display_date')})
+            from slicing_dashboard.reporting.chart_projections import workflow_chart
+            chart = workflow_chart(kind, payload)
+            if chart is not None:
+                record.update(chart=chart, chart_version=1)
         return record
 
     def save_newer(self, identifier, kind, payload):
@@ -293,16 +314,67 @@ class WorkflowStore:
             else:
                 with self._sqlite() as conn: conn.execute(sql, params)
 
-    def records(self, kind):
+    def records(self, kind, instance=None, start=None, end=None):
         if self.mongo is not None:
-            return [json.loads(row["payload"]) for row in self.mongo["workflow_records"].find({"kind": kind}, {"payload": 1})]
+            query = {"kind": kind}
+            if instance is not None:
+                query['instance'] = instance
+            if start or end:
+                query['display_date'] = {}
+                if start:
+                    query['display_date']['$gte'] = start
+                if end:
+                    query['display_date']['$lte'] = end
+            return [json.loads(row["payload"]) for row in self.mongo["workflow_records"].find(query, {"payload": 1})
+                    .batch_size(100)]
         if self.engine is not None:
             from sqlalchemy import text
             with self.engine.connect() as conn:
                 rows = conn.execute(text("SELECT payload FROM workflow_records WHERE kind=:kind"), {"kind": kind})
-                return [json.loads(row[0]) for row in rows]
+                decoded = [json.loads(row[0]) for row in rows]
+                return [row for row in decoded if instance is None or row.get('instance') == instance]
         with self._sqlite() as conn:
-            return [json.loads(row[0]) for row in conn.execute("SELECT payload FROM workflow_records WHERE kind=?", (kind,))]
+            decoded = [json.loads(row[0]) for row in conn.execute("SELECT payload FROM workflow_records WHERE kind=?", (kind,))]
+            return [row for row in decoded if instance is None or row.get('instance') == instance]
+
+    def _chart_records(self, query):
+        collection = self.mongo['workflow_records']
+        rows = [row['chart'] for row in collection.find({**query, 'chart_version': 1},
+                                                       {'chart': 1}).batch_size(1000)]
+        # Existing installations remain correct before projection backfill.
+        rows.extend(json.loads(row['payload']) for row in collection.find(
+            {**query, 'chart_version': {'$ne': 1}}, {'payload': 1}).batch_size(100))
+        return rows
+
+    def chart_records(self, kind, instance, start, end):
+        if self.mongo is None:
+            return self.records(kind, instance, start, end)
+        return self._chart_records({'kind': kind, 'instance': instance,
+                                   'display_date': {'$gte': start, '$lte': end}})
+
+    def approval_events(self, instance, start=None, end=None, *, chart_only=False):
+        """Read only dated batch approvals, independently of task-log ingestion."""
+        if self.mongo is not None:
+            query = {'kind': 'event', 'instance': instance, 'active': True,
+                     'action': 'Approved', 'stage': {'$in': ['Leader', 'Auditor', 'Admin']},
+                     'provenance': {'$ne': 'Synthetic'}}
+            if start or end:
+                query['display_date'] = {}
+                if start:
+                    query['display_date']['$gte'] = start
+                if end:
+                    query['display_date']['$lte'] = end
+            rows = self._chart_records(query) if chart_only else (
+                json.loads(row['payload']) for row in self.mongo['workflow_records']
+                .find(query, {'payload': 1}).batch_size(100))
+        else:
+            rows = self.records('event', instance)
+        return [row for row in rows if row.get('source') == 'batch-review'
+                and row.get('active') and row.get('action') == 'Approved'
+                and row.get('stage') in ('Leader', 'Auditor', 'Admin')
+                and not row.get('is_synthetic') and row.get('event_at')
+                and (not start or row.get('display_date', '') >= start)
+                and (not end or row.get('display_date', '') <= end)]
 
 
 def observation(source, row, instance, directory, canonical_name, phase=None):

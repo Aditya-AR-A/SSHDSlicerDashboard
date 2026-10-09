@@ -64,7 +64,7 @@ async function until(expression, timeout = 20000) {
 const visible = `el => !!(el.offsetWidth && el.offsetHeight && el.getClientRects().length)`;
 const results = [];
 try {
-    for (const mode of (['lifecycle', 'labels'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
+    for (const mode of (['lifecycle', 'labels', 'latency'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
         await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode, seconds: 3600, auditor_seconds: 0, admin_seconds: 0, delay: 0})});
         for (const width of (mode === 'normal' || mode === 'many' ? [390, 768, 1366, 1920] : [390])) {
             await call('Emulation.setDeviceMetricsOverride', {width, height: 950, deviceScaleFactor: 1, mobile: false});
@@ -103,6 +103,32 @@ try {
             }
         }
     }
+    if (process.argv[2] === 'latency') {
+        await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'normal', seconds: 3600, delay: .3, dashboard_delay: 10, workflow_delay: 10})});
+        await call('Emulation.setDeviceMetricsOverride', {width: 1366, height: 950, deviceScaleFactor: 1, mobile: false});
+        const began = Date.now();
+        await call('Page.navigate', {url: 'http://127.0.0.1:8059/'});
+        await until(`document.querySelector('#pending-chart .js-plotly-plot')?.data?.length && document.querySelector('#approval-trend-chart .js-plotly-plot')?.data?.length`);
+        const loadedMs = Date.now() - began;
+        const mainLoading = await evaluate(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`);
+        if (loadedMs >= 6000 || !mainLoading) throw new Error('Independent plots waited for the ten-second main/workflow callbacks');
+        results.push({initialPlotsMs: loadedMs, mainStillLoading: mainLoading});
+        await until(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') !== 'true'`);
+        await evaluate(`document.querySelector('#refresh-btn').click()`);
+        await until(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`);
+        await evaluate(`document.querySelector('#universal-legend').scrollIntoView({block: 'center', behavior: 'instant'})`);
+        const pointer = await evaluate(`(() => {const r = document.querySelector('#universal-legend .legendtoggle').getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2};})()`);
+        const selectionBegan = Date.now();
+        await call('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', clickCount: 1, ...pointer});
+        await call('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...pointer});
+        await until(`document.querySelector('#pending-chart .js-plotly-plot')?.data?.[0]?.x?.length === 1`, 2500);
+        results.push({selectionMs: Date.now() - selectionBegan,
+            mainStillLoading: await evaluate(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`)});
+        await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({delay: 0, dashboard_delay: 0, workflow_delay: 0})});
+        console.log(JSON.stringify(results));
+    }
     if (process.argv[2] === 'labels') {
         await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({mode: 'normal', seconds: 3600, auditor_seconds: 7200, admin_seconds: 1800, delay: 0})});
@@ -140,10 +166,18 @@ try {
         await scenario({mode: 'normal', seconds: 3600, delay: 0});
         await call('Page.navigate', {url: 'http://127.0.0.1:8059/'});
         await until(`${current} === 1`);
-        await scenario({seconds: 1800, delay: 2});
+        await evaluate(`document.querySelector('#pending-chart').scrollIntoView({block: 'center', behavior: 'instant'})`);
+        await new Promise(accept => setTimeout(accept, 400));
+        await scenario({seconds: 1800, delay: 5});
         await evaluate(`document.querySelector('#refresh-btn').click()`);
         await until(`document.querySelector('#pending-chart').getAttribute('data-dash-is-loading') === 'true'`);
-        results.push({slow: await evaluate(`({hours: ${current}, opacity: getComputedStyle(document.querySelector('#pending-chart')).opacity, label: getComputedStyle(document.querySelector('#pending-chart').closest('.chart-frame'), '::after').content})`)});
+        const slow = await evaluate(`({hours: ${current}, pointerEvents: getComputedStyle(document.querySelector('#pending-chart')).pointerEvents, label: getComputedStyle(document.querySelector('#pending-chart').closest('.chart-frame'), '::after').content})`);
+        if (slow.hours !== 1 || slow.pointerEvents === 'none') throw new Error('Refresh disabled the previous chart');
+        const legendPointer = await evaluate(`(() => {const r = ${pendingPlot}.querySelector('.legendtoggle').getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2};})()`);
+        await call('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', clickCount: 1, ...legendPointer});
+        await call('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...legendPointer});
+        await until(`${pendingPlot}.data[0].visible === 'legendonly'`, 1000);
+        results.push({slow, legendInteractiveDuringRefresh: true});
         await until(`${current} === .5 && document.querySelector('#pending-chart').getAttribute('data-dash-is-loading') !== 'true'`);
         await scenario({mode: 'failure', delay: 0});
         await evaluate(`document.querySelector('#refresh-btn').click()`);
@@ -175,7 +209,30 @@ try {
         await call('Input.dispatchMouseEvent', {type: 'mouseMoved', ...pointer});
         await until(`document.querySelector('.chart-tooltip:not([hidden])')`);
         results.push({tooltip: await evaluate(`(() => {const t = document.querySelector('.chart-tooltip'); const r = t.getBoundingClientRect(); return {text: t.textContent, withinViewport: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight};})()`)});
-        results.push({details: await evaluate(`Array.from(document.querySelector('#pending-chart').closest('.chart-frame').querySelectorAll('.chart-data-access tbody tr')).map(row => row.textContent)`)});
+        const hiddenTables = await evaluate(`document.querySelectorAll('.chart-data-access, .chart-frame details, .chart-frame table').length`);
+        if (hiddenTables) throw new Error('Chart data tables are still mounted');
+        results.push({hiddenTables});
+        // Dense horizontal bars must remain fully visible and let vertical wheel
+        // input scroll the page even when the pointer is over the plot itself.
+        await scenario({mode: 'many', seconds: 3600, delay: 0});
+        await evaluate(`document.querySelector('#refresh-btn').click()`);
+        await until(`new Set((document.querySelector('#assigned-chart .js-plotly-plot')?.data || []).filter(t => t.type === 'bar').flatMap(t => t.y || [])).size === 35`);
+        await new Promise(accept => setTimeout(accept, 400));
+        await evaluate(`document.querySelector('#assigned-chart').scrollIntoView({block: 'start', behavior: 'instant'})`);
+        const dense = await evaluate(`(() => {
+            const graph = document.querySelector('#assigned-chart'), viewport = graph.closest('.chart-viewport');
+            const r = graph.getBoundingClientRect();
+            return {graphHeight: r.height, viewportHeight: viewport.clientHeight, scrollY,
+                    x: r.left + r.width / 2, y: Math.min(innerHeight - 100, Math.max(100, r.top + 180))};
+        })()`);
+        if (dense.graphHeight <= 660 || dense.viewportHeight < dense.graphHeight - 1)
+            throw new Error('Dense plot has a vertical scroll trap');
+        await call('Input.dispatchMouseEvent', {type: 'mouseWheel', x: dense.x, y: dense.y, deltaX: 0, deltaY: 350});
+        await until(`scrollY > ${dense.scrollY + 100}`);
+        const down = await evaluate('scrollY');
+        await call('Input.dispatchMouseEvent', {type: 'mouseWheel', x: dense.x, y: dense.y, deltaX: 0, deltaY: -350});
+        await until(`scrollY < ${down - 100}`);
+        results.push({dense, wheelScrollDown: down, wheelScrollUp: await evaluate('scrollY')});
         console.log(JSON.stringify(results));
     }
     const reportName = process.argv[2] === 'lifecycle' ? 'lifecycle' : process.argv[2] ? `audit-${process.argv[2].replaceAll(',', '-')}` : 'audit';

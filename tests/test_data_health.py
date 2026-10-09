@@ -193,6 +193,12 @@ def test_targeted_retry_does_not_ignore_failed_configuration(service):
     assert not result['refresh_ok']
     assert result['sources']['configuration']['error'] == 'ConnectionError'
     assert result['sources']['daily']['state'] == 'fresh'
+    assert service.manager.refresh_shared_configuration.call_args_list[0].kwargs == {'force': False}
+
+
+def test_explicit_configuration_retry_can_reload_shared_mappings(service):
+    service.refresh(['configuration'])
+    assert service.manager.refresh_shared_configuration.call_args_list[0].kwargs == {'force': True}
 
 
 def test_mapping_change_invalidates_every_derived_cache_and_failure_preserves_mapping():
@@ -227,12 +233,43 @@ def test_midnight_does_not_turn_an_afternoon_capture_into_a_final_total():
         assert not day_for_ui(record, '2026-10-07')['metadata']['reconciliation_pending']
 
 
-def test_api_heartbeat_cannot_label_failed_mappings_live():
+def test_mapping_health_does_not_repeat_dashboard_prompts():
     from tests.test_daily_report_page import application_namespace, payload_text
     namespace, _ = application_namespace()
     status = {'is_live': True, 'is_using_snapshot': False, 'configuration_error': 'ConnectionError'}
-    assert 'Mappings unverified' in payload_text(namespace['_build_status_badge'](status))
-    assert 'person totals may be attributed incorrectly' in payload_text(namespace['_build_status_banner'](status))
+    assert 'Mappings unverified' not in payload_text(namespace['_build_status_badge'](status))
+    assert namespace['_build_status_banner'](status) is None
+
+
+def test_known_accounts_do_not_reload_mappings_but_new_accounts_do():
+    dm = DataManager.__new__(DataManager)
+    dm.settings = SimpleNamespace(mongo_uri='configured', database_url=None)
+    dm.db = MagicMock(mongo_db=object())
+    dm.db.load_user_mappings.return_value = [{'id': 'SSHD-A', 'mapped_user': 'Aditya'}]
+    dm.db.load_settlement_periods.return_value = []
+    dm.user_mapping = {'SSHD-A': 'Aditya'}
+    dm.user_mapping_full = {'SSHD-A': {'id': 'SSHD-A', 'mapped_user': 'Aditya'}}
+    dm.scraper = MagicMock()
+    dm.scraper._users = {1: {'username': 'SSHD-A'}}
+    with patch('slicing_dashboard.data_manager.perf_counter', return_value=100):
+        assert dm.refresh_shared_configuration()
+    # Even expired configuration checks reuse mappings for known accounts.
+    with patch('slicing_dashboard.data_manager.perf_counter', return_value=161):
+        assert dm.refresh_shared_configuration()
+    assert dm.db.load_user_mappings.call_count == 1
+    assert dm.db.load_settlement_periods.call_count == 2
+    assert dm._get_canonical_name(2, 'SSHD-New') == 'SSHD-New'
+    with patch('slicing_dashboard.data_manager.perf_counter', return_value=222):
+        assert dm.refresh_shared_configuration()
+    assert dm.db.load_user_mappings.call_count == 2
+    with patch('slicing_dashboard.data_manager.perf_counter', return_value=283):
+        assert dm.refresh_shared_configuration()
+    assert dm.db.load_user_mappings.call_count == 2
+    dm.scraper._fetch_users.assert_not_called()
+    # A deliberate admin read can pick up assignments saved by another worker.
+    dm.db.load_user_mappings.return_value += [{'id': 'SSHD-New', 'mapped_user': 'Riya'}]
+    assert dm.refresh_shared_configuration(force=True)
+    assert dm._get_canonical_name(2, 'SSHD-New') == 'Riya'
 
 
 def test_cached_workflow_service_does_not_wait_for_an_active_projection():

@@ -46,7 +46,8 @@ def approval_records(events, batches=(), checkpoints=()):
                      'inferred': event.get('provenance') == 'Stage inferred'})
     checkpoint = next((row for row in checkpoints if row.get('source') == 'batch-review'), {})
     captured = instant(checkpoint.get('last_complete_at'))
-    complete = bool(captured and not checkpoint.get('limited') and not checkpoint.get('error'))
+    complete = bool(captured and checkpoint.get('complete') is not False
+                    and not checkpoint.get('limited') and not checkpoint.get('error'))
     return {'rows': rows, 'coverage_start': min((row['date'] for row in rows), default=None),
             'coverage_end': captured.date().isoformat() if complete else None,
             'complete': complete, 'error': checkpoint.get('error')}
@@ -62,6 +63,15 @@ def prepare_approval_trend(data, selected_users=None, approvals=None):
     approvals = approvals or {}
     selected = set(selected_users) if selected_users else None
     lookup = {row['date']: row for row in rows}
+    efficiency = data.get('efficiency_history')
+    if isinstance(efficiency, list) and efficiency:
+        for row in rows:
+            row['completed_seconds'] = None
+        for day in efficiency:
+            if day['date'] in lookup and day.get('metadata', {}).get('available'):
+                lookup[day['date']]['completed_seconds'] = sum(
+                    float(item['completed_duration_seconds']) for item in day['rows']
+                    if selected is None or item['User'] in selected)
     unknown, inferred, dated = 0, 0, 0
     stage_fields = {'Leader': 'leader_seconds', 'Auditor': 'auditor_seconds', 'Admin': 'admin_seconds'}
     start, end = approvals.get('coverage_start'), approvals.get('coverage_end')
@@ -94,6 +104,8 @@ def prepare_approval_trend(data, selected_users=None, approvals=None):
         status += ' Review history is incomplete; unrecorded days remain gaps.'
     if approvals.get('error'):
         status += ' Saved approvals shown; source refresh failed.'
+    if isinstance(efficiency, list) and efficiency:
+        status += ' Completed video uses source-date current status (Asia/Shanghai), not the approval date.'
     return {
         'rows': rows,
         'recorded_days': sum(row['total_seconds'] is not None for row in rows),
@@ -103,6 +115,6 @@ def prepare_approval_trend(data, selected_users=None, approvals=None):
         'stale': any(day.get('metadata', {}).get('error')
                      or day.get('metadata', {}).get('is_snapshot')
                      or day.get('metadata', {}).get('persistence_error')
-                     for day in data.get('history', [])),
+                     for day in [*data.get('history', []), *(efficiency if isinstance(efficiency, list) else [])]),
         'approval_status': status,
     }

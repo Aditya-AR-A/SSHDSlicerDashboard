@@ -711,10 +711,6 @@ def quick_filters(btn_today, dropdown_val, n_intervals, selected_start, selected
 
 
 def _build_status_badge(status: dict):
-    if status.get('configuration_error'):
-        return html.Span('Mappings unverified',
-                         className='text-warning me-2 px-2 py-1 glass-panel rounded border border-warning',
-                         title='Account mappings could not be refreshed. Attribution may be outdated.')
     is_live = status.get("is_live", True)
     using_snap = status.get("is_using_snapshot", False)
     if is_live and not using_snap:
@@ -757,13 +753,6 @@ def _build_status_badge(status: dict):
 
 
 def _build_status_banner(status: dict):
-    if status.get('configuration_error'):
-        return html.Div([
-            dbc.Alert('Account mappings could not be refreshed. Showing the last verified mappings; '
-                      'person totals may be attributed incorrectly. Refresh to retry.',
-                      color='warning', className='py-2 small'),
-            _build_status_banner({**status, 'configuration_error': None}),
-        ])
     is_live = status.get("is_live", True)
     using_snap = status.get("is_using_snapshot", False)
     if not is_live or using_snap:
@@ -810,7 +799,7 @@ def _prepare_pending_sources(force_refresh):
 
 def _dashboard_sources(start_date, end_date, force_refresh, selected_users):
     """Overlap independent queues and batch reads while sharing return histories."""
-    dm.refresh_shared_configuration(force=force_refresh)
+    dm.refresh_shared_configuration()
     def attempt(read, fallback):
         try:
             return read()
@@ -857,7 +846,6 @@ def _refresh_scope(callback):
         Output("assigned-chart", "figure"),
         Output("refresh-status", "children"),
         Output("theme-toggle", "children"),
-        Output("selected-users-store", "data"),
         Output("server-status-banner", "children"),
         Output("server-status-badge", "children"),
     ],
@@ -866,36 +854,67 @@ def _refresh_scope(callback):
         Input("auto-refresh-interval", "n_intervals"),
         Input("date-from", "value"),
         Input("date-to", "value"),
-        Input("universal-legend", "restyleData"),
+        Input("selected-users-store", "data"),
         Input("theme-toggle", "n_clicks"),
-        Input("individual-chart", "clickData"),
         Input("report-location", "pathname"),
     ],
-    [State("selected-users-store", "data")],
     running=[(Output("refresh-btn", "disabled"), True, False),
              (Output("auto-refresh-interval", "disabled"), True, False)],
 )
-def _dispatch_dashboard(n_clicks, n_intervals, start_date, end_date, restyle_data,
-                        theme_clicks, ind_click, pathname, stored_users):
-    # Dash passes Inputs before State; the handler keeps selection before route.
-    return update_dashboard(n_clicks, n_intervals, start_date, end_date, restyle_data,
-                            theme_clicks, None, ind_click, stored_users, pathname)
+def _dispatch_dashboard(n_clicks, n_intervals, start_date, end_date, stored_users,
+                        theme_clicks, pathname):
+    result = update_dashboard(n_clicks, n_intervals, start_date, end_date, None,
+                             theme_clicks, None, None, stored_users, pathname)
+    return result[:6] + result[7:]
+
+
+@app.callback(
+    Output('selected-users-store', 'data'),
+    Input('universal-legend', 'restyleData'), Input('individual-chart', 'clickData'),
+    State('selected-users-store', 'data'), prevent_initial_call=True,
+)
+def select_dashboard_users(restyle_data, click_data, stored_users):
+    """Apply user controls without waiting for KPI and batch source reads."""
+    selection = list(available_users if stored_users is None else stored_users)
+    trigger = dash.ctx.triggered_id
+    if trigger == 'universal-legend' and restyle_data:
+        updates, indices = restyle_data
+        if 'visible' in updates:
+            for position, index in enumerate(indices):
+                if index < len(available_users):
+                    visible = updates['visible']
+                    visible = visible[position] if isinstance(visible, list) else visible
+                    user = available_users[index]
+                    if visible == 'legendonly' and user in selection:
+                        selection.remove(user)
+                    elif (visible is True or visible is None) and user not in selection:
+                        selection.append(user)
+    elif trigger == 'individual-chart' and click_data and click_data.get('points'):
+        point = click_data['points'][0]
+        user = point.get('x') or point.get('label')
+        if user:
+            if user in selection:
+                selection.remove(user)
+            else:
+                selection.append(user)
+    return selection if selection != stored_users else dash.no_update
 
 
 @app.callback(
     Output('pending-chart', 'figure'),
     Input('refresh-btn', 'n_clicks'), Input('report-location', 'pathname'),
-    Input('workflow-sync-store', 'data'), Input('selected-users-store', 'data'),
+    Input('workflow-notification-interval', 'n_intervals'), Input('selected-users-store', 'data'),
     Input('theme-toggle', 'n_clicks'),
+    Input('auto-refresh-interval', 'n_intervals'), Input('workflow-bell', 'n_clicks'),
 )
-def update_pending_review(clicks, pathname, workflow, selected_users, theme_clicks):
+def update_pending_review(clicks, pathname, notification_intervals, selected_users, theme_clicks,
+                          intervals=0, bell_clicks=0):
     if pathname not in (None, '/', '/dashboard'):
         return dash.no_update
     trigger = dash.ctx.triggered_id
-    # Workflow polling observes upstream mutations; there are no local review actions.
-    force = trigger in (None, 'refresh-btn', 'report-location', 'workflow-sync-store')
-    if trigger == 'workflow-sync-store':
-        dm.invalidate_pending_review()
+    # Read the aggregate directly, independently of slow workflow ingestion.
+    force = trigger in (None, 'refresh-btn', 'report-location', 'auto-refresh-interval',
+                        'workflow-notification-interval', 'workflow-bell')
     dark = (theme_clicks or 0) % 2 == 0
     try:
         frame = dm.get_pending_review_df(force_refresh=force)
@@ -1101,13 +1120,14 @@ def render_dashboard_legend(selected_users, theme_clicks, pathname):
     Output("dashboard-trend-store", "data"),
     Input("date-to", "value"), Input("refresh-btn", "n_clicks"),
     Input("auto-refresh-interval", "n_intervals"), Input("report-location", "pathname"),
+    Input('workflow-notification-interval', 'n_intervals'),
 )
-def load_dashboard_trend(end_date, n_clicks, n_intervals, pathname):
-    """Load history independently, so aggregate/queue latency cannot block it."""
+def load_dashboard_trend(end_date, n_clicks, n_intervals, pathname, notification_intervals=0):
+    """Read saved chart evidence without running task or workflow backfills."""
     if pathname not in (None, "/", "/dashboard") or not end_date:
         raise dash.exceptions.PreventUpdate
     trigger = dash.ctx.triggered_id
-    return dm.get_daily_report_data(min(end_date, today_iso()),
+    return dm.get_dashboard_trend_data(min(end_date, today_iso()),
         force_refresh=trigger in ("refresh-btn", "auto-refresh-interval"))
 
 
@@ -1115,7 +1135,6 @@ def load_dashboard_trend(end_date, n_clicks, n_intervals, pathname):
     Output("approval-trend-chart", "figure"), Output("approval-trend-status", "children"),
     Input("dashboard-trend-store", "data"), Input("selected-users-store", "data"),
     Input("theme-toggle", "n_clicks"), Input("report-location", "pathname"),
-    Input('workflow-sync-store', 'data'),
 )
 def render_dashboard_trend(data, selected_users, theme_clicks, pathname, workflow=None):
     if pathname not in (None, "/", "/dashboard"):
@@ -1124,14 +1143,17 @@ def render_dashboard_trend(data, selected_users, theme_clicks, pathname, workflo
         return empty_fig(), "Loading recorded work history…"
     # The dashboard's initial all-users selection must include new accounts.
     users = selected_users if selected_users and len(selected_users) < len(available_users) else None
-    report = prepare_approval_trend(data, users, workflow.get('approvals') if workflow else None)
+    approvals = (workflow or {}).get('approvals') or data.get('approvals')
+    if (workflow or {}).get('error') and approvals:
+        approvals = {**approvals, 'error': (workflow or {})['error']}
+    report = prepare_approval_trend(data, users, approvals)
     is_dark = theme_clicks is None or theme_clicks % 2 == 0
     note = (f"{report['recorded_days']} of {report['calendar_days']} days recorded · Asia/Kolkata. "
             "Missing dates appear as gaps. " + report['approval_status'])
     if report['range_end'] == today_iso():
         note += " Today is provisional."
     if report['captured_at']:
-        note += f" Latest capture: {report['captured_at']}."
+        note += f" Latest saved capture: {report['captured_at']}."
     if report['stale']:
         note += " Saved evidence is shown; refresh or persistence could not be verified."
     if workflow and not workflow.get('error'):
