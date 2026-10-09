@@ -83,6 +83,7 @@ def aggregate_daily_work(tasks, returned_accounts, reviews, target_date, canonic
         stats[user][bucket] += duration
         stats[user][bucket + " Count"] += 1
         stats[user].setdefault("accounts", set()).add(raw)
+        stats[user].setdefault("bucket_accounts", defaultdict(set))[bucket].add(raw)
         evidence.append({"task_id": task["id"], "username": raw, "user": user, "slice_batch": task.get("slice_batch"),
                          "submitted_at": submitted.isoformat(), "duration_seconds": duration, "bucket": bucket,
                          "first_observed_batch_work_date": prior_dates.get(key),
@@ -99,5 +100,7 @@ def aggregate_daily_work(tasks, returned_accounts, reviews, target_date, canonic
                      "Same-day Rework Tasks": int(values["Same-day Rework Count"]),
                      "Old Rework Tasks": int(values["Old Rework Count"]),
                      "Rework %": f"{same / total * 100:.1f}%" if total else "0.0%",
-                     "RawID": ",".join(sorted(values["accounts"]))})
+                     "RawID": ",".join(sorted(values["accounts"])),
+                     "Bucket IDs": {bucket: ','.join(sorted(values['bucket_accounts'][bucket]))
+                                    for bucket in ('Fresh', 'Same-day Rework', 'Old Rework')}})
     return pd.DataFrame(rows), evidence

@@ -93,6 +93,7 @@ def test_daily_summary_survives_task_evidence_download_timeout():
     cursor.batch_size.return_value = cursor
     cursor.__iter__.side_effect = TimeoutError('Large evidence read stalled')
     collection = MagicMock()
+    collection.with_options.return_value = collection
     collection.find.side_effect = [[summary], cursor]
     database.mongo_db = {'daily_work_reports': collection}
     database.engine = None

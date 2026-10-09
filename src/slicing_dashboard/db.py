@@ -461,12 +461,13 @@ class DatabaseManager:
 
     def load_daily_work_reports(self, start_date: str, end_date: str) -> list[dict]:
         """Read dated submission observations, never current task-state snapshots."""
-        if not self.is_connected():
-            return []
         if self.mongo_db is not None:
             result = {}
             try:
                 collection = self.mongo_db['daily_work_reports']
+                if hasattr(collection, 'with_options'):
+                    from pymongo import ReadPreference
+                    collection = collection.with_options(read_preference=ReadPreference.SECONDARY_PREFERRED)
                 query = {'_id': {'$gte': start_date, '$lte': end_date}}
                 # Small summaries stay usable if downloading the larger task
                 # evidence times out. Never rewrite a report from this fallback.
@@ -482,6 +483,8 @@ class DatabaseManager:
                     record['metadata'] = {**record.get('metadata', {}), 'is_snapshot': True,
                                           'error': 'DailyEvidenceReadFailed'}
                 return list(result.values())
+        if not self.is_connected():
+            return []
         if self.engine is not None:
             try:
                 from sqlalchemy import text

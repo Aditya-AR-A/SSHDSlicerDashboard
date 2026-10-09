@@ -33,6 +33,7 @@ def layout_user_report(today, users=()):
                          searchable=True, placeholder='Select a team member')], className='user-report-selector'),
         dcc.Store(id='user-date-follows-today', data=True),
         dcc.Store(id='user-completion-store'),
+        dcc.Store(id='user-batches-store'),
         dcc.Loading([dcc.Store(id='user-report-store'),
                      html.Div(id='user-report-content', children='Loading user report…')], type='circle',
                     overlay_style={'visibility': 'visible', 'opacity': .55},
@@ -77,7 +78,7 @@ STATUS_LABELS = {
 
 def _batch_history_table(batches, is_dark, table_id="user-batch-history-table"):
     if not batches:
-        return html.P("No batches recorded for this user on the selected date.", className="text-secondary mb-0")
+        return html.P("No batches assigned or worked on the selected date.", className="text-secondary mb-0")
 
     rows = []
     for b in batches:
@@ -90,6 +91,7 @@ def _batch_history_table(batches, is_dark, table_id="user-batch-history-table"):
             "Batch ID": b.get("batch_id", ""),
             "Account": b.get("username", ""),
             "Status": status_display,
+            "Date Scope": b.get('report_scope', ''),
             "Total Duration (h)": dur_hrs,
             "Duration Clock": clock_dur,
             "Tasks": int(b.get("task_count", 0) or 0),
@@ -103,6 +105,7 @@ def _batch_history_table(batches, is_dark, table_id="user-batch-history-table"):
         {"name": "Batch ID", "id": "Batch ID"},
         {"name": "Account", "id": "Account"},
         {"name": "Status", "id": "Status"},
+        {"name": "Date Scope", "id": "Date Scope"},
         {"name": "Total Duration (h)", "id": "Total Duration (h)", "type": "numeric", "format": Format(precision=3, scheme=Scheme.fixed)},
         {"name": "Tasks", "id": "Tasks", "type": "numeric"},
         {"name": "Completed", "id": "Completed", "type": "numeric"},
@@ -234,5 +237,6 @@ def build_user_report_content(data, selected_user, is_dark=True):
             html.P('Means and best day require every day in the preceding 7 or 30 completed calendar days to be recorded. '
                    'Today is excluded. Values measure recorded video output, not labor time.', className='text-secondary small')]),
         report_section(f"Batch History · {report['report_date']}",
-                       _batch_history_table(report.get('batches', []), is_dark)),
+                       html.Div([html.P('Updating batches assigned or worked on this date…', className='text-secondary small'),
+                                 _batch_history_table(report.get('batches', []), is_dark)], id='user-report-batches')),
     ], className='report-content')

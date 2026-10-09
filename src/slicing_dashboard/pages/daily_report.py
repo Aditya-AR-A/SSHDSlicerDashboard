@@ -33,6 +33,8 @@ def layout_daily_report(today):
             ], className="report-controls"),
         ], className="report-header"),
         dcc.Store(id="daily-date-follows-today", data=True),
+        dcc.Store(id="daily-live-request"),
+        dcc.Store(id="daily-live-store"),
         dcc.Loading([
             dcc.Store(id="daily-report-store"),
             html.Div(id="daily-report-content", children=html.P("Loading daily report…", className="text-secondary")),
@@ -175,6 +177,10 @@ def build_daily_report_content(data, is_dark=True):
         coverage += f" · Available from {min(day['date'] for day in available_days)}"
     history_note = "Missing dates appear as gaps. History grows from recorded daily submissions; earlier work is not backfilled."
     return html.Div([
+        dbc.Alert('Showing recorded figures while checking the latest submissions…',
+                  color='info', className='py-2 small') if data.get('refresh_pending') else
+        dbc.Alert('Latest submissions could not be verified. Showing recorded figures; Refresh to retry.',
+                  color='warning', className='py-2 small') if data.get('live_refresh_error') else None,
         html.Div([html.Div([html.Span("DAILY OUTPUT", className="daily-eyebrow"),
                            html.H2(current_label, className="daily-overview-title")]),
                   html.Span("Today so far · provisional" if report_date == today_iso() else

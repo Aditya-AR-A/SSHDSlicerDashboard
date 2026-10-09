@@ -1226,7 +1226,8 @@ class DataManager:
             database = getattr(self, 'db', None)
             if database is not None:
                 try:
-                    for record in database.load_daily_work_reports(start_date, end_date):
+                    from slicing_dashboard.reporting.dashboard_trend import bounded_read
+                    for record in bounded_read(lambda: database.load_daily_work_reports(start_date, end_date)):
                         day = record.get('date', '')
                         if start_date <= day <= end_date:
                             prior = self._daily_report_records.get(day)
@@ -1299,10 +1300,15 @@ class DataManager:
         database = getattr(self, 'db', None)
         if database is not None:
             try:
-                persisted = bool(database.save_daily_work_report(record)) or persisted
+                from slicing_dashboard.reporting.dashboard_trend import bounded_read
+                persisted = bool(bounded_read(lambda: database.save_daily_work_report(record))) or persisted
             except Exception as error:
                 self._daily_report_save_error = str(error)
         return persisted
+
+    def get_saved_daily_report_data(self, report_date=None, force_refresh=False):
+        from slicing_dashboard.reporting.dashboard_reports import get_saved_daily_report_data
+        return get_saved_daily_report_data(self, report_date, force_refresh)
 
     def get_daily_report_data(self, report_date=None, force_refresh=False):
         """Share a recent capture across routes; explicit Refresh always reads live."""

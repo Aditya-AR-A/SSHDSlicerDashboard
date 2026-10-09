@@ -25,9 +25,16 @@ def build_error_rework_chart(active_work_df, chart_date_label, is_dark):
             buckets += [("Rework", "Rework Duration", "#f97316")]
         total_seconds = rows['New Work Duration'] + rows.get('Same-day Rework Duration', rows.get('Rework Duration', 0))
         total = total_seconds.apply(format_seconds)
-        ids = rows["IDs"].tolist() if "IDs" in rows else [""] * len(rows)
         for label, column, color in buckets:
             durations = rows[column].apply(format_seconds)
+            bucket = {'New Work Duration': 'Fresh', 'Same-day Rework Duration': 'Same-day Rework',
+                      'Old Rework Duration': 'Old Rework', 'Rework Duration': 'Same-day Rework'}[column]
+            ids = []
+            for _, row in rows.iterrows():
+                scoped = row.get('Bucket IDs')
+                raw = str(row.get('IDs') or '')
+                ids.append(scoped.get(bucket, '') if isinstance(scoped, dict) else
+                           raw if len(raw.split(',')) == 1 else 'Unavailable in saved capture')
             if column == 'Old Rework Duration':
                 figure.add_trace(go.Scatter(name='Old Rework (excluded)', x=rows['User'], y=rows[column] / 3600,
                     mode='markers', marker={'color': color, 'size': 8, 'symbol': 'diamond'},

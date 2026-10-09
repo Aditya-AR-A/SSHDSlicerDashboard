@@ -64,7 +64,7 @@ async function until(expression, timeout = 20000) {
 const visible = `el => !!(el.offsetWidth && el.offsetHeight && el.getClientRects().length)`;
 const results = [];
 try {
-    for (const mode of (['lifecycle', 'labels', 'latency', 'user-latency'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
+    for (const mode of (['lifecycle', 'labels', 'latency', 'user-latency', 'daily-latency'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
         await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode, seconds: 3600, auditor_seconds: 0, admin_seconds: 0, delay: 0})});
         for (const width of (mode === 'normal' || mode === 'many' ? [390, 768, 1366, 1920] : [390])) {
             await call('Emulation.setDeviceMetricsOverride', {width, height: 950, deviceScaleFactor: 1, mobile: false});
@@ -127,6 +127,35 @@ try {
             mainStillLoading: await evaluate(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`)});
         await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({delay: 0, dashboard_delay: 0, workflow_delay: 0})});
+        console.log(JSON.stringify(results));
+    }
+    if (process.argv[2] === 'daily-latency') {
+        const scenario = values => fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST',
+            headers: {'Content-Type': 'application/json'}, body: JSON.stringify(values)});
+        await scenario({mode: 'normal', daily_live_delay: 10, daily_live_failure: false});
+        await call('Emulation.setDeviceMetricsOverride', {width: 1366, height: 950, deviceScaleFactor: 1, mobile: false});
+        const began = Date.now();
+        await call('Page.navigate', {url: 'http://127.0.0.1:8059/reports/daily'});
+        await until(`document.querySelectorAll('#daily-report-content .js-plotly-plot').length === 4 && document.querySelector('#daily-work-chart .js-plotly-plot')?.data?.length`);
+        const chartsMs = Date.now() - began;
+        const pendingText = `document.querySelector('#daily-report-content')?.textContent.includes('checking the latest')`;
+        if (chartsMs >= 6000 || !await evaluate(pendingText)) throw new Error('Daily first paint waited for live verification');
+        const total = `Array.from(document.querySelector('#daily-work-chart .js-plotly-plot')._fullData).filter(t => t.type === 'bar').reduce((s,t) => s + Array.from(t.y).reduce((a,b) => a + b, 0), 0)`;
+        const savedHours = await evaluate(total);
+        if (!(savedHours > 0)) throw new Error('Saved daily figures missing');
+        await evaluate(`document.querySelector('#theme-toggle').click()`);
+        await until(`!!document.querySelector('#theme-toggle .bi-moon-stars-fill')`);
+        if (!await evaluate(pendingText)) throw new Error('Theme change lost the pending notice');
+        await until(`!(${pendingText})`, 15000);
+        const liveHours = await evaluate(total);
+        if (liveHours !== savedHours * 2) throw new Error('Fresh daily figures did not replace saved figures');
+        results.push({initialChartsMs: chartsMs, savedHours, liveHours, themeDuringLiveCapture: true});
+        await scenario({daily_live_delay: .5, daily_live_failure: true});
+        await evaluate(`document.querySelector('#refresh-btn').click()`);
+        await until(`document.querySelector('#daily-report-content')?.textContent.includes('Latest submissions could not be verified')`);
+        if (await evaluate(total) !== savedHours) throw new Error('Failed capture lost recorded figures');
+        results.push({failedLiveCaptureRetainsSavedFigures: true});
+        await scenario({daily_live_delay: 0, daily_live_failure: false});
         console.log(JSON.stringify(results));
     }
     if (process.argv[2] === 'user-latency') {

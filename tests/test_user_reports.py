@@ -337,4 +337,4 @@ def test_user_report_batch_history_table():
     payload['batches'] = []
     content_no_batches = build_user_report_content(payload, 'A')
     text_no_batches = payload_text(content_no_batches)
-    assert 'No batches recorded for this user on the selected date.' in text_no_batches
+    assert 'No batches assigned or worked on the selected date.' in text_no_batches

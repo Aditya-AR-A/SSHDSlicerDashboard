@@ -13,6 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dash import ALL, Input, Output, State, dcc, html
 from datetime import datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 from slicing_dashboard.data_manager import DataManager
 from slicing_dashboard.plots import (
@@ -557,8 +558,9 @@ def load_daily_report(pathname, n_clicks, n_intervals, report_date):
     # Reuse a recent capture on entry; explicit/timed refresh reads live. Pure
     # theme/legend interactions do not invoke this callback.
     try:
-        return dm.get_daily_report_data(report_date=report_date or today_iso(),
-            force_refresh=trigger in ("refresh-btn", "auto-refresh-interval"))
+        force = trigger in ("refresh-btn", "auto-refresh-interval")
+        return {**dm.get_saved_daily_report_data(report_date=report_date or today_iso(), force_refresh=force),
+                'request_id': uuid4().hex, 'force_refresh': force}
     except ValueError:
         return {"validation_error": "Choose a valid report date on or before today in India time."}
 
@@ -567,18 +569,61 @@ def load_daily_report(pathname, n_clicks, n_intervals, report_date):
     Output("daily-report-content", "children"),
     Output("refresh-status", "children", allow_duplicate=True),
     Output("theme-toggle", "children", allow_duplicate=True),
+    Output('daily-live-request', 'data'),
     Input("daily-report-store", "data"), Input("theme-toggle", "n_clicks"),
     Input("report-location", "pathname"),
+    State('daily-live-request', 'data'), State('daily-live-store', 'data'),
     prevent_initial_call=True,
 )
-def render_daily_report(data, theme_clicks, pathname):
+def render_daily_report(data, theme_clicks, pathname, request=None, live=None):
+    if pathname != '/reports/daily':
+        raise dash.exceptions.PreventUpdate
+    display = live if (data and live and live.get('request_id') == data.get('request_id')
+                       and live.get('report_date') == data.get('report_date')) else data
+    next_request = dash.no_update
+    if data and data.get('refresh_pending') and data.get('request_id') != (request or {}).get('request_id'):
+        next_request = data
+    # Start the scan only after this saved report has actually rendered.
+    return (*_daily_report_view(display, theme_clicks, pathname), next_request)
+
+
+@app.callback(
+    Output('daily-live-store', 'data'), Input('daily-live-request', 'data'),
+    State('report-location', 'pathname'), prevent_initial_call=True,
+)
+def load_daily_live(request, pathname):
+    if pathname != '/reports/daily' or not request or not request.get('refresh_pending'):
+        raise dash.exceptions.PreventUpdate
+    try:
+        return {**dm.get_daily_report_data(request['report_date'], force_refresh=request.get('force_refresh', False)),
+                'request_id': request['request_id'], 'refresh_pending': False}
+    except Exception:
+        return {**request, 'refresh_pending': False, 'live_refresh_error': True}
+
+
+@app.callback(
+    Output('daily-report-content', 'children', allow_duplicate=True),
+    Output('refresh-status', 'children', allow_duplicate=True),
+    Output('theme-toggle', 'children', allow_duplicate=True),
+    Input('daily-live-store', 'data'), State('daily-report-store', 'data'),
+    State('theme-toggle', 'n_clicks'), State('report-location', 'pathname'), prevent_initial_call=True,
+)
+def render_daily_live(live, saved, theme_clicks, pathname):
+    if (pathname != '/reports/daily' or not live or not saved or
+            live.get('request_id') != saved.get('request_id') or
+            live.get('report_date') != saved.get('report_date')):
+        raise dash.exceptions.PreventUpdate
+    return _daily_report_view(live, theme_clicks, pathname)
+
+
+def _daily_report_view(data, theme_clicks, pathname):
     if pathname != "/reports/daily":
         raise dash.exceptions.PreventUpdate
     is_dark = (theme_clicks or 0) % 2 == 0
     metadata = (data or {}).get("today", {}).get("metadata", {})
     status = "Loading report…" if not data else (
         "Daily data unavailable" if not metadata.get("available") else
-        f"Saved: {metadata.get('captured_at', 'earlier capture')}" if metadata.get("is_snapshot") else
+        f"Saved: {metadata.get('captured_at', 'earlier capture')}" if metadata.get("is_snapshot") or data.get('saved_only') else
         f"Recorded: {metadata.get('captured_at', 'available daily history')}"
     )
     icon = html.I(className="bi bi-sun-fill text-warning fs-5" if is_dark else "bi bi-moon-stars-fill text-primary fs-5",
@@ -683,6 +728,48 @@ def render_user_report(data, user, theme_clicks, pathname):
     )
     icon = html.I(className="bi bi-sun-fill text-warning fs-5" if is_dark else "bi bi-moon-stars-fill text-primary fs-5")
     return build_user_report_content(data, user, is_dark), status, icon
+
+
+@app.callback(
+    Output('user-batches-store', 'data'),
+    Input('report-location', 'pathname'), Input('refresh-btn', 'n_clicks'),
+    Input('auto-refresh-interval', 'n_intervals'), Input('user-report-date', 'value'),
+)
+def load_user_batches(pathname, clicks, intervals, report_date):
+    if pathname != '/reports/user':
+        raise dash.exceptions.PreventUpdate
+    from slicing_dashboard.reporting.user_batches import get_user_batches_data
+    try:
+        return get_user_batches_data(dm, report_date or today_iso(),
+            force_refresh=dash.ctx.triggered_id in ('refresh-btn', 'auto-refresh-interval'))
+    except ValueError:
+        return {'available': False, 'report_date': report_date, 'error': 'Invalid report date'}
+
+
+@app.callback(
+    Output('user-report-batches', 'children'),
+    Input('user-batches-store', 'data'), Input('user-report-person', 'value'),
+    Input('user-report-store', 'data'), Input('theme-toggle', 'n_clicks'),
+    Input('report-location', 'pathname'), prevent_initial_call=True,
+)
+def render_user_batches(capture, user, data, theme_clicks, pathname):
+    if pathname != '/reports/user' or not data:
+        raise dash.exceptions.PreventUpdate
+    from slicing_dashboard.pages.user_report import _batch_history_table
+    if not capture or capture.get('report_date') != data.get('report_date'):
+        return html.P('Loading batches for this report date…', className='text-secondary')
+    if not capture.get('available'):
+        return dbc.Alert('Batch history unavailable. Refresh to retry.', color='warning')
+    rows = [row for row in capture.get('batches', [])
+            if dm._get_reporting_name(row.get('assignee_id'), row.get('username')) == user]
+    unknown = [row for row in capture.get('unresolved', [])
+               if dm._get_reporting_name(None, row.get('username')) == user]
+    notice = [dbc.Alert('Some worked-on legacy batches could not be linked uniquely; this table is incomplete.',
+                        color='warning')] if unknown else []
+    if capture.get('work_available') is False:
+        notice.append(dbc.Alert('Showing assigned batches. Complete work evidence for this date is unavailable; '
+                                'the worked-on batch list is incomplete.', color='warning'))
+    return notice + [_batch_history_table(rows, (theme_clicks or 0) % 2 == 0)]
 
 
 app.clientside_callback(

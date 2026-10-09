@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import time
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd
@@ -45,12 +45,15 @@ def api(*args, **kwargs):
     time.sleep(state['delay'])
     if state['mode'] == 'failure':
         raise ConnectionError('Fixture failure')
-    rows = [dict(user_id=i, username=name, **{
-        key: value for stage in ('leader', 'auditor', 'admin') for key, value in
-        ((f'{stage}_review_duration_seconds', seconds() if stage == 'leader' else state.get(stage + '_seconds', 0)),
-         (f'{stage}_review_count', 1 if stage == 'leader' else 0))}) for i, name in enumerate(people())]
+    status = kwargs['params']['status']
+    stage = {'slice_submitted': 'leader', 'slice_pending_auditor_review': 'auditor',
+             'slice_pending_admin_review': 'admin'}[status]
+    duration = seconds() if stage == 'leader' else state.get(stage + '_seconds', 0)
+    rows = [dict(id=f'{stage}-{i}', slicer_id=i, slicer=name, status=status,
+                 duration_seconds=duration) for i, name in enumerate(people())
+            if stage == 'leader' or duration]
     result = MagicMock()
-    result.json.return_value = {'items': rows, 'total': len(rows)}
+    result.json.return_value = {'data': rows, 'meta': {'has_more': False, 'total': len(rows)}}
     return result
 
 
@@ -110,7 +113,24 @@ def report(*args, **kwargs):
     return result
 
 
-manager.get_daily_report_data.side_effect = report
+def saved_daily(*args, **kwargs):
+    return {**report(*args, **kwargs), 'saved_only': True, 'refresh_pending': True}
+
+
+def live_daily(*args, **kwargs):
+    time.sleep(state.get('daily_live_delay', 0))
+    if state.get('daily_live_failure'):
+        raise ConnectionError('Fixture live capture failure')
+    result = report(*args, **kwargs)
+    for day in result['history'][-2:]:
+        for row in day['rows']:
+            row['New Videos (First Time)'] *= 2
+            row['Total Duration'] *= 2
+    return result
+
+
+manager.get_saved_daily_report_data.side_effect = saved_daily
+manager.get_daily_report_data.side_effect = live_daily
 manager.get_user_report_data.side_effect = report
 manager.get_dashboard_trend_data.side_effect = report
 
@@ -127,6 +147,20 @@ def user_completion(*args, **kwargs):
 
 manager.get_user_report_data.side_effect = user_report
 namespace['get_user_completion_data'] = user_completion
+manager._get_reporting_name.side_effect = lambda uid, username: username
+
+
+def user_batches(_manager, report_date, force_refresh=False):
+    return {'report_date': report_date, 'available': state['mode'] != 'failure', 'unresolved': [],
+            'batches': [{'batch_id': f'fixture-{user}-{index}', 'username': user,
+                         'batch_date': report_date, 'status': 'batch_in_progress', 'task_count': 2,
+                         'total_duration_seconds': seconds(), 'report_scope': scope}
+                        for user in people() for index, scope in enumerate(('Assigned', 'Assigned', 'Worked'))]}
+
+
+# Keep the independent batch callback synthetic, like every other preview source.
+batch_source_patch = patch('slicing_dashboard.reporting.user_batches.get_user_batches_data', user_batches)
+batch_source_patch.start()
 
 # Optional inspection of a retained local capture; all API transports remain fake.
 if len(sys.argv) > 1:
@@ -146,6 +180,7 @@ if len(sys.argv) > 1:
     mapping = json.loads(Path('config/user_mapping.json').read_text(encoding='utf-8'))
     payload['users'] = report_users(mapping, history=history)
     manager.get_daily_report_data.side_effect = lambda *args, **kwargs: deepcopy(payload)
+    manager.get_saved_daily_report_data.side_effect = lambda *args, **kwargs: {**deepcopy(payload), 'saved_only': True, 'refresh_pending': False}
     manager.get_dashboard_trend_data.side_effect = lambda *args, **kwargs: deepcopy(payload)
     from tests.test_daily_report_page import components
     for component in components(app.layout):

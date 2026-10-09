@@ -121,12 +121,15 @@ class DailyReportRoutingTests(unittest.TestCase):
             namespace["load_daily_report"]("/", 1, 1, "2026-10-06")
         manager.get_daily_report_data.assert_not_called()
         data = report_fixture()
-        manager.get_daily_report_data.return_value = data
+        manager.get_saved_daily_report_data.return_value = data
         context = MagicMock(triggered=[{"prop_id": "refresh-btn.n_clicks"}])
         with patch("dash.callback_context", context):
-            self.assertEqual(namespace["load_daily_report"]("/reports/daily", 1, 1, "2026-10-06"), data)
-        manager.get_daily_report_data.assert_called_once()
-        self.assertEqual(manager.get_daily_report_data.call_args.kwargs.get("force_refresh"), True)
+            loaded = namespace["load_daily_report"]("/reports/daily", 1, 1, "2026-10-06")
+            self.assertEqual({key: loaded[key] for key in data}, data)
+            self.assertTrue(loaded['request_id'])
+        manager.get_saved_daily_report_data.assert_called_once()
+        manager.get_daily_report_data.assert_not_called()
+        self.assertEqual(manager.get_saved_daily_report_data.call_args.kwargs.get("force_refresh"), True)
         callback = next(value for key, value in namespace["app"].callback_map.items()
                         if "daily-report-store.data" in key)
         self.assertNotIn("theme-toggle", {entry["id"] for entry in callback["inputs"]})
@@ -136,7 +139,7 @@ class DailyReportRoutingTests(unittest.TestCase):
         data = report_fixture()
         for clicks in (0, 1):
             result = namespace["render_daily_report"](data, clicks, "/reports/daily")
-            self.assertEqual(len(result), 3)
+            self.assertEqual(len(result), 4)
             self.assertIsInstance(result[0], Component)
         manager.get_daily_report_data.assert_not_called()
         manager.get_todays_work_df.assert_not_called()
@@ -159,12 +162,12 @@ class DailyReportRoutingTests(unittest.TestCase):
 
     def test_invalid_report_date_returns_a_visible_validation_state(self):
         namespace, manager = application_namespace()
-        manager.get_daily_report_data.side_effect = ValueError("Invalid report date")
+        manager.get_saved_daily_report_data.side_effect = ValueError("Invalid report date")
         context = MagicMock(triggered=[{"prop_id": "daily-report-date.value"}])
         with patch("dash.callback_context", context):
             payload = namespace["load_daily_report"]("/reports/daily", 0, 0, "not-a-date")
         self.assertIn("validation_error", payload)
-        content, _, _ = namespace["render_daily_report"](payload, 0, "/reports/daily")
+        content, _, _, _ = namespace["render_daily_report"](payload, 0, "/reports/daily")
         self.assertIn(payload["validation_error"], payload_text(content))
         self.assertFalse(any(getattr(component, "id", None) == "daily-work-chart"
                              for component in components(content)))

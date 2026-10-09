@@ -67,7 +67,7 @@ def test_cold_worker_reuses_only_recent_verified_durable_capture(age, unverified
 
 def test_route_entry_uses_cache_but_explicit_refresh_forces_live_data():
     namespace, manager = application_namespace()
-    for name, path, method in [('load_daily_report', '/reports/daily', 'get_daily_report_data'),
+    for name, path, method in [('load_daily_report', '/reports/daily', 'get_saved_daily_report_data'),
                                ('load_user_report', '/reports/user', 'get_user_report_data')]:
         for trigger, force in [('report-location.pathname', False), ('refresh-btn.n_clicks', True)]:
             with patch('dash.callback_context', MagicMock(triggered=[{'prop_id': trigger}])):

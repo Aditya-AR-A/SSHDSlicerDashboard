@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from slicing_dashboard.data_manager import DataManager
-from slicing_dashboard.processing.pending_review import PendingReviewCapture, current_review_end, fetch_items, pending_frame
+from slicing_dashboard.processing.pending_review import PendingReviewCapture, current_review_end, fetch_efficiency_items, fetch_items, pending_frame
 from slicing_dashboard.plots.pending_chart import build_pending_chart
 
 
@@ -38,12 +38,13 @@ def stable_review_date():
         yield
 
 
-def test_latest_api_matches_every_stage_after_alias_mapping_and_remapping():
+@patch('slicing_dashboard.processing.pending_review.fetch_items')
+def test_latest_api_matches_every_stage_after_alias_mapping_and_remapping(source):
     dm = manager()
     rows = [account(), account(2, 'alias', 1800)]
     rows[1]['admin_review_duration_seconds'] = 23
     rows[1]['admin_review_count'] = 2
-    dm.scraper._client.get.return_value = response({'items': rows, 'total': 2})
+    source.return_value = rows
     frame = pending_frame(dm)
     assert frame.set_index('Stage').Duration.to_dict() == {'Pending Leader': 5400, 'Pending Auditor': 0, 'Pending Admin': 23}
     figure = build_pending_chart(frame, True)
@@ -51,22 +52,23 @@ def test_latest_api_matches_every_stage_after_alias_mapping_and_remapping():
     assert frame.attrs['captured_at'] and not frame.attrs['pending_error']
     dm.user_mapping['alias'] = 'Other person'
     assert set(pending_frame(dm).User) == {'Person', 'Other person'}
-    assert dm.scraper._client.get.call_count == 1
+    assert source.call_count == 1
 
 
-def test_refresh_failure_never_restores_previous_or_other_range_cache():
+@patch('slicing_dashboard.processing.pending_review.fetch_items')
+def test_refresh_failure_never_restores_previous_or_other_range_cache(source):
     dm = manager()
-    dm.scraper._client.get.side_effect = [response({'items': [account()], 'total': 1}),
-                                        ConnectionError(), response({'items': [], 'total': 0})]
+    source.side_effect = [[account()], ConnectionError(), []]
     assert not pending_frame(dm).empty
     failed = pending_frame(dm, True)
     assert failed.empty and failed.attrs['pending_error']
     assert 'unavailable' in build_pending_chart(failed, True).layout.annotations[0].text
     assert pending_frame(dm).empty  # failed capture is not cached
-    assert dm.scraper._client.get.call_count == 3
+    assert source.call_count == 3
 
 
-def test_expiry_date_boundary_and_targeted_invalidation():
+@patch('slicing_dashboard.processing.pending_review.fetch_items', return_value=[])
+def test_expiry_date_boundary_and_targeted_invalidation(source):
     dm = manager()
     dm.scraper._client.get.return_value = response({'items': [], 'total': 0})
     with patch('slicing_dashboard.processing.pending_review.monotonic', return_value=100):
@@ -78,9 +80,8 @@ def test_expiry_date_boundary_and_targeted_invalidation():
     pending_frame(dm)
     with patch('slicing_dashboard.processing.pending_review.current_review_end', return_value='2026-10-08'):
         pending_frame(dm)
-    assert dm.scraper._client.get.call_count == 4
-    assert dm.scraper._client.get.call_args.kwargs['params']['end_date'] == '2026-10-08'
-    assert dm.scraper._client.get.call_args.kwargs['params']['start_date'] == '2020-01-01'
+    assert source.call_count == 4
+    assert source.call_args.args[1] == '2026-10-08'
 
 
 def test_source_next_day_is_included_at_india_evening_boundary():
@@ -143,17 +144,18 @@ def test_incomplete_duplicate_or_invalid_response_is_not_a_plausible_total(paylo
     dm = manager()
     dm.scraper._client.get.return_value = response(payload)
     with pytest.raises(ValueError):
-        fetch_items(dm.scraper, '2026-10-07')
+        fetch_efficiency_items(dm.scraper, '2026-10-07')
 
 
 def test_short_page_with_remaining_total_is_fully_paginated():
     dm = manager()
     dm.scraper._client.get.side_effect = [response({'items': [account()], 'total': 2}),
                                         response({'items': [account(2, 'alias')], 'total': 2})]
-    assert len(fetch_items(dm.scraper, '2026-10-07')) == 2
+    assert len(fetch_efficiency_items(dm.scraper, '2026-10-07')) == 2
 
 
-def test_zero_duration_with_pending_tasks_is_not_dropped():
+@patch('slicing_dashboard.processing.pending_review.fetch_items', return_value=[account(seconds=0)])
+def test_zero_duration_with_pending_tasks_is_not_dropped(source):
     dm = manager()
     dm.scraper._client.get.return_value = response({'items': [account(seconds=0)], 'total': 1})
     figure = build_pending_chart(pending_frame(dm), True)

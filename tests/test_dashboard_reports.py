@@ -175,7 +175,8 @@ class TestManagerDailyReports(unittest.TestCase):
         self.assertEqual(sum(day['metadata']['available'] for day in payload['history']), 2)
         self.assertEqual(summarize_daily(payload['today'])['total_seconds'], 60)
         self.assertEqual(summarize_daily(payload['yesterday'])['total_seconds'], 0)
-        self.dm.db.load_daily_work_reports.assert_called_once_with('2026-09-07', '2026-10-06')
+        self.dm.db.load_daily_work_reports.assert_called_once_with('2026-10-05', '2026-10-06')
+        self.dm.db.load_daily_chart_reports.assert_called_once_with('2026-09-07', '2026-10-06')
         json.dumps(payload, allow_nan=False)
 
     def test_restart_preserves_prior_day_and_never_refetches_closed_audit(self):

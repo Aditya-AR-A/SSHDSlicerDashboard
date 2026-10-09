@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 import math
+import json
 from typing import Any
 
 import pandas as pd
@@ -86,6 +87,7 @@ def aggregate_observations(tasks, canonical_name=None) -> list[dict]:
     """Aggregate one preserved evidence entry per task/day using current mappings."""
     stats = defaultdict(lambda: defaultdict(float))
     accounts = defaultdict(set)
+    bucket_accounts = defaultdict(lambda: defaultdict(set))
     for task in tasks:
         raw = str(task.get("username") or "")
         user = canonical_name(task.get("user_id"), raw) if canonical_name else task.get("user", raw)
@@ -98,6 +100,8 @@ def aggregate_observations(tasks, canonical_name=None) -> list[dict]:
         stats[user][bucket] += seconds
         stats[user][bucket + " Count"] += 1
         accounts[user].add(raw)
+        if raw:
+            bucket_accounts[user][bucket].add(raw)
     rows = []
     for user in sorted(stats, key=str.casefold):
         values = stats[user]
@@ -109,7 +113,8 @@ def aggregate_observations(tasks, canonical_name=None) -> list[dict]:
                      "Reworks": same, "New Tasks": counts[0], "Same-day Rework Tasks": counts[1],
                      "Old Rework Tasks": counts[2],
                      "Rework %": f"{same / total * 100:.1f}%" if total else "0.0%",
-                     "RawID": ",".join(sorted(accounts[user]))})
+                     "RawID": ",".join(sorted(accounts[user])),
+                     "Bucket IDs": {bucket: ','.join(sorted(bucket_accounts[user][bucket])) for bucket in BUCKETS}})
     return rows
 
 
@@ -253,7 +258,7 @@ def prepare_daily_table(day: dict, users=None, numeric_durations=False) -> list[
 def prepare_daily_work_chart_rows(day: dict, users=None) -> pd.DataFrame:
     """Use the comparison's per-person totals and retain the verified zero roster."""
     columns = ['User', 'New Work Duration', 'Same-day Rework Duration', 'Old Rework Duration',
-               'Total Work Duration', 'IDs', 'Rework Duration']
+               'Total Work Duration', 'IDs', 'Rework Duration', 'Bucket IDs']
     if not day.get('metadata', {}).get('available'):
         return pd.DataFrame(columns=columns)
     source_rows = _rows(day, users)
@@ -265,11 +270,28 @@ def prepare_daily_work_chart_rows(day: dict, users=None) -> pd.DataFrame:
         summary = summarize_daily(day, [user])
         accounts = {account.strip() for row in source_rows if row['User'] == user
                     for account in str(row.get('RawID') or '').split(',') if account.strip()}
+        bucket_ids = {}
+        for bucket, duration, count in (('Fresh', 'New Videos (First Time)', 'New Tasks'),
+                                       ('Same-day Rework', 'Same-day Rework', 'Same-day Rework Tasks'),
+                                       ('Old Rework', 'Old Rework', 'Old Rework Tasks')):
+            ids, unknown = set(), False
+            for row in source_rows:
+                if row['User'] != user or not (row.get(duration) or row.get(count)):
+                    continue
+                scoped = row.get('Bucket IDs')
+                raw = {value.strip() for value in str(row.get('RawID') or '').split(',') if value.strip()}
+                if isinstance(scoped, dict):
+                    ids.update(value.strip() for value in str(scoped.get(bucket) or '').split(',') if value.strip())
+                elif len(raw) == 1:
+                    ids.update(raw)
+                else:
+                    unknown = True  # A legacy person summary cannot attribute aliases to buckets.
+            bucket_ids[bucket] = 'Unavailable in saved capture' if unknown else ','.join(sorted(ids))
         rows.append({'User': user, 'New Work Duration': summary['new_seconds'],
                      'Same-day Rework Duration': summary['same_day_rework_seconds'],
                      'Old Rework Duration': summary['old_rework_seconds'],
                      'Total Work Duration': summary['total_seconds'], 'IDs': ','.join(sorted(accounts)),
-                     'Rework Duration': summary['same_day_rework_seconds']})
+                     'Rework Duration': summary['same_day_rework_seconds'], 'Bucket IDs': bucket_ids})
     return pd.DataFrame(rows, columns=columns)
 
 
@@ -293,6 +315,40 @@ def prepare_team_composition_rows(history: list[dict]) -> list[dict]:
     return result
 
 
+def get_saved_daily_report_data(manager, report_date=None, force_refresh=False) -> dict:
+    """Prepare saved figures without the live-capture lock or task inventory scan."""
+    from copy import deepcopy
+    from time import perf_counter
+    from slicing_dashboard.management.periods import today_iso
+    from slicing_dashboard.reporting.dashboard_trend import CACHE_SECONDS, work_records
+    from slicing_dashboard.reporting.chart_projections import remap_daily_chart
+
+    report_date = report_date or today_iso()
+    dates = date_range(report_date)
+    if report_date > today_iso():
+        raise ValueError('The daily report cannot end after today in India time.')
+    key = (report_date, today_iso(), json.dumps([
+        getattr(manager, 'user_mapping', {}), getattr(manager, 'user_mapping_full', {})], sort_keys=True))
+    cache = getattr(manager, '_saved_daily_report_cache', {})
+    entry = cache.get(key)
+    if entry and not force_refresh and perf_counter() - entry[0] < CACHE_SECONDS:
+        return deepcopy(entry[1])
+    canonical = manager._get_reporting_name
+    records = work_records(manager, dates[0], dates[-1])
+    records = {day: {**record, 'rows': remap_daily_chart(record['chart_rows'], canonical)}
+               if 'chart_rows' in record else record for day, record in records.items()}
+    history = [day_for_ui(records.get(day), day, canonical) for day in dates]
+    payload = json_safe({'report_date': report_date, 'previous_date': dates[-2],
+        'range_start': dates[0], 'range_end': report_date, 'today': history[-1], 'yesterday': history[-2],
+        'history': history, 'users': report_users(getattr(manager, 'user_mapping', {}),
+            getattr(manager, '_snapshot_payload', {}), history,
+            list(getattr(manager, 'user_mapping_full', {}).values())),
+        'saved_only': True, 'refresh_pending': report_date in (today_iso(),
+            (date.fromisoformat(today_iso()) - timedelta(days=1)).isoformat())})
+    manager._saved_daily_report_cache = {key: (perf_counter(), deepcopy(payload))}
+    return payload
+
+
 def get_daily_report_data(manager, report_date=None, force_refresh=False) -> dict:
     """Capture today and reconcile yesterday; earlier dates use saved observations."""
     from slicing_dashboard.management.periods import today_iso
@@ -305,22 +361,45 @@ def get_daily_report_data(manager, report_date=None, force_refresh=False) -> dic
     previous_date = (date.fromisoformat(report_date) - timedelta(days=1)).isoformat()
     yesterday_date = (date.fromisoformat(current_date) - timedelta(days=1)).isoformat()
     with manager.refresh_scope():
-        records = manager._load_daily_report_records(dates[0], dates[-1])
-        overrides = {}
-        if report_date in (current_date, yesterday_date):
-            for day in (report_date, previous_date):
-                if day not in (current_date, yesterday_date):
-                    continue
-                stored = records.get(day, {})
-                kind = stored.get('metadata', {}).get('capture_kind')
-                reconcile = day == yesterday_date and kind != 'verified_audit_import' and (
-                    force_refresh or kind != 'day_end_reconciliation')
-                if day == current_date or reconcile:
-                    frame = manager.get_todays_work_df(day, force_refresh=force_refresh or reconcile)
-                    if frame.attrs.get("error"):
-                        overrides[day] = {"date": day, "rows": frame.to_dict("records"),
-                                          "metadata": dict(frame.attrs)}
-            records.update(getattr(manager, "_daily_report_records", {}))
+        from concurrent.futures import ThreadPoolExecutor
+        from time import perf_counter
+        from slicing_dashboard.reporting.dashboard_trend import work_records
+        from slicing_dashboard.reporting.chart_projections import remap_daily_chart
+        started = perf_counter()
+        # Older dates need chart summaries, not full task evidence. Read them
+        # while capturing live work; neither request must wait for the other.
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            history_read = pool.submit(work_records, manager, dates[0], dates[-1])
+            overrides = {}
+            if report_date in (current_date, yesterday_date):
+                # Complete evidence is needed only for the two mutable dates.
+                # One scoped read is reused by both per-day captures.
+                records = manager._load_daily_report_records(yesterday_date, current_date)
+                for day in (report_date, previous_date):
+                    if day not in (current_date, yesterday_date):
+                        continue
+                    stored = records.get(day, {})
+                    kind = stored.get('metadata', {}).get('capture_kind')
+                    reconcile = day == yesterday_date and kind != 'verified_audit_import' and (
+                        force_refresh or kind != 'day_end_reconciliation')
+                    if day == current_date or reconcile:
+                        frame = manager.get_todays_work_df(day, force_refresh=force_refresh or reconcile)
+                        if frame.attrs.get("error"):
+                            overrides[day] = {"date": day, "rows": frame.to_dict("records"),
+                                              "metadata": dict(frame.attrs)}
+            live_seconds = perf_counter() - started
+            records = history_read.result()
+        canonical_name = getattr(manager, '_get_reporting_name', manager._get_canonical_name)
+        records = {day: {**record, 'rows': remap_daily_chart(record['chart_rows'], canonical_name)}
+                   if 'chart_rows' in record else record for day, record in records.items()}
+        # Fresh complete captures win over chart-only copies read concurrently.
+        for day, record in getattr(manager, "_daily_report_records", {}).items():
+            if report_date in (current_date, yesterday_date) and day in (current_date, yesterday_date):
+                records[day] = record
+            else:
+                records.setdefault(day, record)
+        manager.last_daily_report_profile = {'live_seconds': round(live_seconds, 3),
+                                             'total_seconds': round(perf_counter() - started, 3)}
         canonical_name = getattr(manager, '_get_reporting_name', manager._get_canonical_name)
         history = [day_for_ui(records.get(day), day, canonical_name) for day in dates]
         for day in history:

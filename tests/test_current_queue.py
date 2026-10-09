@@ -17,6 +17,8 @@ def manager():
     dm.scraper._users = {1: {}}
     dm._get_reporting_name = lambda uid, name: 'Aditya'
     dm.fetch_annotator_efficiency = MagicMock(return_value=({}, []))
+    # Assignment tests isolate their two queues from the independent review read.
+    dm.get_pending_review_df = MagicMock(return_value=pd.DataFrame())
     return dm
 
 

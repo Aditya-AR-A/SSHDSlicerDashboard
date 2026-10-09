@@ -34,12 +34,18 @@ def daily_chart_rows(report):
 
 def remap_daily_chart(rows, canonical_name):
     totals, accounts = defaultdict(lambda: defaultdict(float)), defaultdict(set)
+    bucket_accounts = defaultdict(lambda: defaultdict(set))
     for row in rows:
         raw = row['User']
         user = canonical_name(None, raw)
         if not reporting_user(user):
             continue
         accounts[user].add(raw)
+        for bucket, duration, count in (('Fresh', 'New Videos (First Time)', 'New Tasks'),
+                                       ('Same-day Rework', 'Same-day Rework', 'Same-day Rework Tasks'),
+                                       ('Old Rework', 'Old Rework', 'Old Rework Tasks')):
+            if row.get(duration) or row.get(count):
+                bucket_accounts[user][bucket].add(raw)
         for field in DAILY_FIELDS:
             value = float(row.get(field) or 0)
             if not math.isfinite(value) or value < 0:
@@ -50,6 +56,8 @@ def remap_daily_chart(rows, canonical_name):
         row = dict(totals[user])
         fresh, same = row['New Videos (First Time)'], row['Same-day Rework']
         row.update(User=user, RawID=','.join(sorted(accounts[user])),
+                   **{'Bucket IDs': {bucket: ','.join(sorted(bucket_accounts[user][bucket]))
+                                    for bucket in ('Fresh', 'Same-day Rework', 'Old Rework')}},
                    **{'Total Duration': fresh + same, 'Reworks': same,
                       'Rework %': f'{same / (fresh + same) * 100:.1f}%' if fresh + same else '0.0%'})
         result.append(row)
