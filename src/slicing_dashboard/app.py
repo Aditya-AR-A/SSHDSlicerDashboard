@@ -5,12 +5,14 @@ Layout and callbacks. All chart/table builders live in the plots/ package.
 """
 
 import dash
+import sys
 import dash_bootstrap_components as dbc
 import pandas as pd
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor
-from dash import Input, Output, State, dcc, html
+from dash import ALL, Input, Output, State, dcc, html
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from slicing_dashboard.data_manager import DataManager
 from slicing_dashboard.plots import (
@@ -21,15 +23,23 @@ from slicing_dashboard.plots import (
     build_individual_chart,
     build_pending_chart,
     build_assigned_chart,
-    build_error_rework_chart,
     build_legend_figure,
     build_kpi_layout,
     create_table,
 )
 from slicing_dashboard.plots.theme import CHART_HEIGHT
+from slicing_dashboard.plots.guardrails import state_figure
 from slicing_dashboard.management.ui import layout_settlement_management, layout_user_mapping, register_management_callbacks
 from slicing_dashboard.management.periods import today_iso
-from slicing_dashboard.processing.daily_work import EXCLUDED, format_video_seconds
+from slicing_dashboard.processing.daily_work import EXCLUDED
+from slicing_dashboard.pages.components import add_reporting_shell, contain_graphs
+from slicing_dashboard.pages.daily_report import build_daily_report_content
+from slicing_dashboard.pages.user_report import build_user_report_content, completion_card, completion_note
+from slicing_dashboard.reporting.dashboard_reports import report_users
+from slicing_dashboard.reporting.user_reports import prepare_user_report, get_user_completion_data
+from slicing_dashboard.reporting.approval_reports import prepare_approval_trend
+from slicing_dashboard.plots.approval_trend_chart import build_approval_trend_chart
+from slicing_dashboard.pages.workflow_history import notification_panel, history_table, notification_updates, notification_toasts
 
 # ── Bootstrap / initialise ───────────────────────────────────────────────
 dm = DataManager()
@@ -45,8 +55,12 @@ app = dash.Dash(
     title="SSHD Slicing Dashboard",
     update_title=None,
     external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP],
+    assets_folder=str(Path(__file__).resolve().parent / "assets"),
     suppress_callback_exceptions=True,
 )
+
+from slicing_dashboard.reporting.data_health import register_data_health_routes
+register_data_health_routes(app.server, dm)
 
 def _available_user_names(snapshot, mappings):
     names = list(snapshot.get("available_users", [])) + list(mappings.values())
@@ -58,8 +72,8 @@ if not available_users:
     available_users = ["Aditya", "Deepak", "Komal", "Pawan", "Priya", "Rajni", "Riya", "Sanddep"]
 
 # ── Chart style shorthand ────────────────────────────────────────────────
-_graph_style = {"height": f"{CHART_HEIGHT}px"}
-_graph_cfg = {"displayModeBar": False}
+_graph_style = {"height": "340px", "width": "100%", "minWidth": 0}
+_graph_cfg = {"displayModeBar": False, "responsive": True}
 _initial_fig = empty_fig()
 
 # ── Layout ───────────────────────────────────────────────────────────────
@@ -204,6 +218,14 @@ app.layout = html.Div(
                 # ── KPI Cards (flex grid — all 7 in one row) ─────────
                 html.Div(id="kpi-cards", className="kpi-grid mb-2"),
 
+                dcc.Store(id="dashboard-trend-store"),
+                html.Section([
+                    dcc.Graph(id="approval-trend-chart", figure=_initial_fig,
+                              config=_graph_cfg, responsive=True, className="report-comparison-chart"),
+                    html.Div(id="approval-trend-status", className="small text-secondary px-3 pb-3",
+                             **{"aria-live": "polite"}),
+                ], className="glass-panel report-section mb-2"),
+
                 # ── Stores & Intervals ───────────────────────────────
                 dcc.Store(id="selected-users-store", data=available_users),
                 dcc.Store(id="current-period-range", data={"start": default_start, "end": default_end}),
@@ -251,7 +273,7 @@ app.layout = html.Div(
                     style={"display": "flex", "alignItems": "stretch"},
                 ),
 
-                # ── Chart row 2: Pending + New Work + Legend ─────────
+                # ── Chart row 2: Pending reviews + Legend ───────────
                 dbc.Row(
                     [
                         dbc.Col(
@@ -263,19 +285,7 @@ app.layout = html.Div(
                                 style=_graph_style,
                             ),
                             width=12,
-                            lg=5,
-                            className="mb-2 mb-lg-0",
-                        ),
-                        dbc.Col(
-                            dcc.Graph(
-                                id="error-rework-chart",
-                                figure=_initial_fig,
-                                config=_graph_cfg,
-                                className="glass-panel p-1 rounded shadow-sm chart-compact",
-                                style=_graph_style,
-                            ),
-                            width=12,
-                            lg=4,
+                            lg=9,
                             className="mb-2 mb-lg-0",
                         ),
                         dbc.Col(
@@ -314,55 +324,6 @@ app.layout = html.Div(
                 ),
 
                 # ── Tabs + Table ─────────────────────────────────────
-                dbc.Row(
-                    [
-                        dbc.Col(
-                            [
-                                dbc.Tabs(
-                                    [
-                                        dbc.Tab(
-                                            label="Today's Work",
-                                            tab_id="tab-today",
-                                            label_class_name="d-flex align-items-center gap-2",
-                                        ),
-                                        dbc.Tab(
-                                            label="Yesterday's Work",
-                                            tab_id="tab-yesterday",
-                                            label_class_name="d-flex align-items-center gap-2",
-                                        ),
-                                        dbc.Tab(
-                                            label="Settlement Overview",
-                                            tab_id="tab-settlement",
-                                            label_class_name="d-flex align-items-center gap-2",
-                                        ),
-                                        dbc.Tab(
-                                            label="Slice Data Overview",
-                                            tab_id="tab-overview",
-                                            label_class_name="d-flex align-items-center gap-2",
-                                        ),
-                                        dbc.Tab(
-                                            label="Settlement Management",
-                                            tab_id="tab-manage-settlement",
-                                            label_class_name="d-flex align-items-center gap-2",
-                                        ),
-                                        dbc.Tab(
-                                            label="User Mapping",
-                                            tab_id="tab-manage-mapping",
-                                            label_class_name="d-flex align-items-center gap-2",
-                                        ),
-                                    ],
-                                    id="tabs",
-                                    active_tab="tab-today",
-                                    className="mb-1",
-                                ),
-                                html.Div(
-                                    id="tabs-content",
-                                    className="glass-panel p-2 rounded shadow-sm",
-                                ),
-                            ]
-                        )
-                    ]
-                ),
             ],
             fluid=True,
             className="p-3",
@@ -371,6 +332,359 @@ app.layout = html.Div(
 )
 
 # ── Client-side theme toggle ─────────────────────────────────────────────
+app.layout = add_reporting_shell(app.layout, today_iso(), report_users(
+    dm.user_mapping, dm._snapshot_payload,
+    mapping_records=list(getattr(dm, 'user_mapping_full', {}).values())))
+app.layout = contain_graphs(app.layout)
+
+
+@app.callback(
+    Output("dashboard-page", "style"), Output("daily-report-page", "style"),
+    Output("report-not-found", "style"), Output("nav-dashboard", "active"),
+    Output("nav-daily-report", "active"), Output("dashboard-period-controls", "style"),
+    Output("dashboard-date-controls", "style"),
+    Output("user-report-page", "style"), Output("nav-user-report", "active"),
+    Output('workflow-page', 'style'), Output('nav-workflow', 'active'),
+    Output('settings-page', 'style'), Output('nav-settings', 'active'),
+    Input("report-location", "pathname"),
+)
+def route_pages(pathname):
+    dashboard = pathname in (None, "/", "/dashboard")
+    daily = pathname == "/reports/daily"
+    individual = pathname == "/reports/user"
+    workflow = pathname == '/workflow'
+    settings = pathname == '/settings'
+    hidden = {"display": "none"}
+    return (({}, hidden, hidden, True, False, {}, {}) if dashboard else (
+        hidden, {} if daily else hidden, hidden if daily or individual or workflow or settings else {}, False, daily, hidden, hidden,
+    )) + ({} if individual else hidden, individual, {} if workflow else hidden, workflow,
+          {} if settings else hidden, settings)
+
+
+@app.callback(Output('settings-settlement-panel', 'style'), Output('settings-mapping-panel', 'style'),
+              Input('settings-tabs', 'active_tab'))
+def show_settings_tab(tab):
+    return ({}, {'display': 'none'}) if tab == 'settings-settlement' else ({'display': 'none'}, {})
+
+
+@app.callback(
+    Output('workflow-sync-store', 'data'),
+    Input('report-location', 'pathname'), Input('refresh-btn', 'n_clicks'),
+    Input('auto-refresh-interval', 'n_intervals'), Input('workflow-bell', 'n_clicks'),
+    Input('workflow-notification-interval', 'n_intervals'),
+    State('workflow-sync-store', 'data'),
+)
+def load_workflow_data(pathname, clicks, intervals, bell_clicks, notification_intervals=0, previous=None):
+    if pathname not in (None, '/', '/dashboard', '/reports/daily', '/reports/user', '/workflow', '/settings'):
+        raise dash.exceptions.PreventUpdate
+    try:
+        trigger = dash.ctx.triggered_id
+    except dash.exceptions.MissingCallbackContextException:
+        trigger = None
+    try:
+        return dm.get_workflow_data(force_refresh=trigger in ('refresh-btn', 'auto-refresh-interval', 'workflow-notification-interval', 'workflow-bell'))
+    except Exception:
+        # Source/store exceptions can include URLs/auth headers. Keep the UI
+        # useful without exposing their raw bodies or forking into local storage.
+        return {**(previous or {}), 'error': 'Workflow history could not be refreshed. Retry Refresh; configured storage has not been replaced.'}
+
+
+@app.callback(Output('workflow-notification-modal', 'is_open'),
+              Input('workflow-bell', 'n_clicks'), State('workflow-notification-modal', 'is_open'),
+              prevent_initial_call=True)
+def open_workflow_notifications(clicks, is_open):
+    return not is_open
+
+
+@app.callback(Output('workflow-notification-content', 'children'), Output('workflow-unread', 'children'),
+              Output('workflow-mark-all-read', 'disabled'),
+              Input('workflow-sync-store', 'data'), Input('workflow-read-change', 'data'))
+def render_workflow_notifications(data, read_change):
+    if read_change and read_change.get('error'):
+        unread = (data or {}).get('inbox', {}).get('unread', 0)
+        return dbc.Alert(read_change['error'], color='warning'), str(unread), not unread
+    if read_change and data and not data.get('error'):
+        # Re-read persistent state, rather than allowing an old browser Store
+        # to undo later source updates or another viewer's read action.
+        try:
+            data = {**data, 'inbox': dm._workflow_history().notifications()}
+        except Exception:
+            return dbc.Alert('Shared inbox storage unavailable. Retry Refresh.', color='warning'), '—', True
+    unread = (data or {}).get('inbox', {}).get('unread', 0)
+    return notification_panel(data), str(unread), not unread
+
+
+@app.callback(Output('workflow-toast-container', 'children'), Output('workflow-notice-seen', 'data'),
+              Input('workflow-sync-store', 'data'), State('workflow-notice-seen', 'data'))
+def show_new_workflow_notifications(data, seen):
+    notices, seen = notification_updates(data, seen)
+    return notification_toasts(notices), seen
+
+
+@app.callback(Output('workflow-read-change', 'data', allow_duplicate=True),
+              Input('workflow-mark-all-read', 'n_clicks'), prevent_initial_call=True)
+def read_all_workflow_notifications(clicks):
+    if not clicks:
+        raise dash.exceptions.PreventUpdate
+    try:
+        dm.mark_all_workflow_notifications_read()
+        from uuid import uuid4
+        return {'all': True, 'read': True, 'change_id': uuid4().hex}
+    except Exception:
+        return {'error': 'Could not save read state. Retry Mark all read.'}
+
+
+@app.callback(Output('report-location', 'href'), Output('workflow-read-change', 'data'),
+              Output('workflow-notification-modal', 'is_open', allow_duplicate=True),
+              Input({'type': 'workflow-notice', 'id': ALL}, 'n_clicks'),
+              Input({'type': 'workflow-toast-notice', 'id': ALL}, 'n_clicks'), prevent_initial_call=True)
+def read_workflow_notification(clicks, toast_clicks=None):
+    trigger = dash.ctx.triggered_id
+    if not isinstance(trigger, dict) or not any((clicks or []) + (toast_clicks or [])):
+        raise dash.exceptions.PreventUpdate
+    try:
+        link, inbox = dm.mark_workflow_notification_read(trigger['id'])
+    except Exception:
+        # Keep the current location and show a retry instead of claiming read.
+        return dash.no_update, {'error': 'Could not save read state. Retry this entry.'}, True
+    return link, {'id': trigger['id'], 'read': True}, False
+
+
+@app.callback(Output('workflow-batch', 'value'), Output('workflow-task', 'value'),
+              Output('workflow-member', 'value'), Output('workflow-stage', 'value'),
+              Output('workflow-evidence', 'value'), Output('workflow-action', 'value'),
+              Output('workflow-search', 'value'), Output('workflow-from', 'value'), Output('workflow-to', 'value'),
+              Input('report-location', 'search'))
+def workflow_deep_link(search):
+    from urllib.parse import parse_qs
+    query = parse_qs((search or '').lstrip('?'))
+    return (query.get('batch', [None])[0], query.get('task', [None])[0]) + (None,) * 7
+
+
+@app.callback(Output('workflow-member', 'options'), Input('workflow-sync-store', 'data'))
+def workflow_members(data):
+    return [{'label': member, 'value': member} for member in (data or {}).get('members', [])]
+
+
+@app.callback(Output('workflow-history-table', 'page_current'),
+              Input('workflow-member', 'value'), Input('workflow-batch', 'value'), Input('workflow-task', 'value'),
+              Input('workflow-stage', 'value'), Input('workflow-evidence', 'value'), Input('workflow-action', 'value'),
+              Input('workflow-search', 'value'), Input('workflow-from', 'value'), Input('workflow-to', 'value'))
+def reset_workflow_page(*filters):
+    return 0
+
+
+@app.callback(Output('workflow-history-table', 'data'), Output('workflow-history-table', 'columns'),
+              Output('workflow-history-table', 'page_count'), Output('workflow-history-status', 'children'),
+              Output('workflow-batch-state', 'children'), Output('workflow-history-table', 'style_cell'),
+              Output('workflow-history-table', 'style_header'),
+              Output('workflow-history-table', 'tooltip_data'),
+              Input('report-location', 'pathname'), Input('workflow-sync-store', 'data'),
+              Input('workflow-member', 'value'), Input('workflow-batch', 'value'), Input('workflow-task', 'value'),
+              Input('workflow-stage', 'value'), Input('workflow-evidence', 'value'), Input('workflow-action', 'value'),
+              Input('workflow-search', 'value'), Input('workflow-from', 'value'), Input('workflow-to', 'value'),
+              Input('workflow-history-table', 'page_current'), Input('theme-toggle', 'n_clicks'))
+def render_workflow_history(pathname, status, member, batch, task, stage, evidence, action, search, start, end, page, theme):
+    from datetime import date
+    if pathname != '/workflow':
+        raise dash.exceptions.PreventUpdate
+    dark = (theme or 0) % 2 == 0
+    style = {'textAlign': 'left', 'padding': '10px', 'minWidth': '140px', 'maxWidth': '300px',
+             'whiteSpace': 'normal', 'overflowWrap': 'anywhere',
+             'backgroundColor': '#161b26' if dark else '#fff', 'color': '#e2e8f0' if dark else '#1e293b',
+             'border': '1px solid #64748b'}
+    header = {'fontWeight': 'bold', 'backgroundColor': '#252530' if dark else '#f1f5f9'}
+    try:
+        for value in (start, end):
+            if value: date.fromisoformat(value)
+        if start and end and start > end:
+            raise ValueError('Date range')
+    except ValueError:
+        return [], [], 0, 'Choose a valid inclusive date range.', None, style, header, []
+    if not status:
+        return [], [], 0, 'Loading recorded history…', None, style, header, []
+    filters = {'member': member, 'batch_id': (batch or '').strip(), 'task_id': (task or '').strip(),
+               'stage': stage, 'provenance': evidence, 'action': action, 'search': search, 'start': start, 'end': end}
+    try:
+        data = dm.get_workflow_page(filters, (page or 0) + 1, 25)
+        rows, columns = history_table(data)
+    except Exception:
+        return [], [], 0, 'Workflow storage unavailable. Retry Refresh.', None, style, header, []
+    count = data['total']
+    message = f"{count} matching actions · {data['storage']} · observed times and synthetic prerequisites are distinct."
+    if status.get('error'):
+        message += ' Refresh failed; showing persisted history.'
+    elif any(row.get('error') or not row.get('complete') or row.get('limited') for row in status.get('checkpoints', [])):
+        message += ' Source history is partial; further refreshes continue ingestion.'
+    ledger = getattr(dm, '_batches_master_cache', {})
+    current = ledger.get(batch) if isinstance(ledger, dict) and batch else None
+    state = dbc.Alert(f"Latest batch state: {current.get('status')} · observed {current.get('last_updated') or 'time unavailable'}. "
+                      'This current state is separate from historical action times.', color='info') if current else None
+    tooltips = [{key: {'value': row.get(key) or '', 'type': 'text'} for key in ('Reason', 'Cycle')} for row in rows]
+    return rows, columns, (count + 24) // 25, message, state, style, header, tooltips
+
+
+@app.callback(
+    Output("daily-report-date", "value"), Output("daily-date-follows-today", "data"),
+    Output("daily-report-date", "max"),
+    Input("daily-report-today", "n_clicks"), Input("auto-refresh-interval", "n_intervals"),
+    Input("daily-report-date", "value"),
+    State("daily-date-follows-today", "data"),
+    prevent_initial_call=True,
+)
+def follow_daily_date(n_clicks, n_intervals, selected_date, follows_today):
+    current = today_iso()
+    trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    if trigger == "daily-report-today":
+        return current, True, current
+    if trigger == "daily-report-date":
+        return dash.no_update, selected_date == current, current
+    return current if follows_today else dash.no_update, follows_today, current
+
+
+@app.callback(
+    Output("daily-report-store", "data"),
+    Input("report-location", "pathname"), Input("refresh-btn", "n_clicks"),
+    Input("auto-refresh-interval", "n_intervals"), Input("daily-report-date", "value"),
+)
+def load_daily_report(pathname, n_clicks, n_intervals, report_date):
+    if pathname != "/reports/daily":
+        raise dash.exceptions.PreventUpdate
+    try:
+        trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    except (AttributeError, IndexError, dash.exceptions.MissingCallbackContextException):
+        trigger = None
+    # Reuse a recent capture on entry; explicit/timed refresh reads live. Pure
+    # theme/legend interactions do not invoke this callback.
+    try:
+        return dm.get_daily_report_data(report_date=report_date or today_iso(),
+            force_refresh=trigger in ("refresh-btn", "auto-refresh-interval"))
+    except ValueError:
+        return {"validation_error": "Choose a valid report date on or before today in India time."}
+
+
+@app.callback(
+    Output("daily-report-content", "children"),
+    Output("refresh-status", "children", allow_duplicate=True),
+    Output("theme-toggle", "children", allow_duplicate=True),
+    Input("daily-report-store", "data"), Input("theme-toggle", "n_clicks"),
+    Input("report-location", "pathname"),
+    prevent_initial_call=True,
+)
+def render_daily_report(data, theme_clicks, pathname):
+    if pathname != "/reports/daily":
+        raise dash.exceptions.PreventUpdate
+    is_dark = (theme_clicks or 0) % 2 == 0
+    metadata = (data or {}).get("today", {}).get("metadata", {})
+    status = "Loading report…" if not data else (
+        "Daily data unavailable" if not metadata.get("available") else
+        f"Saved: {metadata.get('captured_at', 'earlier capture')}" if metadata.get("is_snapshot") else
+        f"Recorded: {metadata.get('captured_at', 'available daily history')}"
+    )
+    icon = html.I(className="bi bi-sun-fill text-warning fs-5" if is_dark else "bi bi-moon-stars-fill text-primary fs-5",
+                  title="Switch to Light Theme" if is_dark else "Switch to Dark Theme")
+    return build_daily_report_content(data, is_dark), status, icon
+
+
+@app.callback(
+    Output("user-report-date", "value"), Output("user-date-follows-today", "data"),
+    Output("user-report-date", "max"),
+    Input("user-report-today", "n_clicks"), Input("auto-refresh-interval", "n_intervals"),
+    Input("user-report-date", "value"), State("user-date-follows-today", "data"),
+    prevent_initial_call=True,
+)
+def follow_user_date(n_clicks, n_intervals, selected_date, follows_today):
+    current = today_iso()
+    trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    if trigger == "user-report-today":
+        return current, True, current
+    if trigger == "user-report-date":
+        return dash.no_update, selected_date == current, current
+    return current if follows_today else dash.no_update, follows_today, current
+
+
+@app.callback(
+    Output("user-report-store", "data"),
+    Input("report-location", "pathname"), Input("refresh-btn", "n_clicks"),
+    Input("auto-refresh-interval", "n_intervals"), Input("user-report-date", "value"),
+)
+def load_user_report(pathname, n_clicks, n_intervals, report_date):
+    if pathname != "/reports/user":
+        raise dash.exceptions.PreventUpdate
+    try:
+        trigger = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    except (AttributeError, IndexError, dash.exceptions.MissingCallbackContextException):
+        trigger = None
+    try:
+        return dm.get_user_report_data(report_date=report_date or today_iso(),
+            force_refresh=trigger in ("refresh-btn", "auto-refresh-interval"))
+    except ValueError:
+        return {"validation_error": "Choose a valid report date on or before today in India time."}
+
+
+@app.callback(
+    Output('user-completion-store', 'data'),
+    Input('report-location', 'pathname'), Input('refresh-btn', 'n_clicks'),
+    Input('auto-refresh-interval', 'n_intervals'), Input('user-report-date', 'value'),
+)
+def load_user_completion(pathname, n_clicks, n_intervals, report_date):
+    if pathname != '/reports/user':
+        raise dash.exceptions.PreventUpdate
+    try:
+        return get_user_completion_data(dm, report_date or today_iso(),
+            force_refresh=dash.ctx.triggered_id in ('refresh-btn', 'auto-refresh-interval'))
+    except ValueError:
+        return {'available': False, 'error': 'InvalidReportDate'}
+
+
+@app.callback(
+    Output('user-report-completed-card', 'children'), Output('user-completion-note', 'children'),
+    Input('user-completion-store', 'data'), Input('user-report-person', 'value'),
+    Input('user-report-store', 'data'), Input('report-location', 'pathname'),
+)
+def render_user_completion(completed, user, data, pathname):
+    if pathname != '/reports/user' or not data or data.get('validation_error'):
+        raise dash.exceptions.PreventUpdate
+    report = prepare_user_report({**data, 'completed_period': completed or {'loading': True}}, user)
+    if report is None:
+        raise dash.exceptions.PreventUpdate
+    return completion_card(report).children, completion_note(report['completed_period'])
+
+
+@app.callback(
+    Output("user-report-person", "options"), Output("user-report-person", "value"),
+    Input("user-report-store", "data"), State("user-report-person", "value"),
+)
+def update_report_people(data, selected):
+    if not data or data.get("validation_error"):
+        return dash.no_update, dash.no_update
+    users = data.get("users", [])
+    return [{"label": user, "value": user} for user in users], (
+        dash.no_update if selected in users else users[0] if users else None)
+
+
+@app.callback(
+    Output("user-report-content", "children"),
+    Output("refresh-status", "children", allow_duplicate=True),
+    Output("theme-toggle", "children", allow_duplicate=True),
+    Input("user-report-store", "data"), Input("user-report-person", "value"),
+    Input("theme-toggle", "n_clicks"), Input("report-location", "pathname"),
+    prevent_initial_call=True,
+)
+def render_user_report(data, user, theme_clicks, pathname):
+    if pathname != "/reports/user":
+        raise dash.exceptions.PreventUpdate
+    is_dark = (theme_clicks or 0) % 2 == 0
+    metadata = (data or {}).get("today", {}).get("metadata", {})
+    status = "Loading report…" if not data else (
+        "Daily data unavailable" if not metadata.get("available") else
+        f"Saved: {metadata.get('captured_at', 'earlier capture')}" if metadata.get("is_snapshot") else
+        f"Recorded: {metadata.get('captured_at', 'available daily history')}"
+    )
+    icon = html.I(className="bi bi-sun-fill text-warning fs-5" if is_dark else "bi bi-moon-stars-fill text-primary fs-5")
+    return build_user_report_content(data, user, is_dark), status, icon
+
+
 app.clientside_callback(
     dash.ClientsideFunction(namespace="clientside", function_name="toggleTheme"),
     Output("main-container", "className"),
@@ -508,38 +822,43 @@ def _build_status_banner(status: dict):
 
 # ── Main dashboard callback ──────────────────────────────────────────────
 def _prepare_pending_sources(force_refresh):
-    """Fetch queues concurrently; build assigned rows after the batch sync."""
-    dm.fetch_annotator_efficiency(
-        "2020-01-01", today_iso(), role=2, force_refresh=force_refresh, include_summary=False,
-    )
+    """Prefetch current assignments; review inventory has its own callback."""
+    for status in ('slice_assigned', 'slice_rework'):
+        try:
+            dm._current_task_stats(status, force_refresh)
+        except Exception:
+            pass  # The detailed frame records the individual queue failure.
 
 
 def _dashboard_sources(start_date, end_date, force_refresh, selected_users):
-    """Overlap independent queues and inventory while sharing return histories."""
-    raw = dm.fetch_dashboard_data(start_date, end_date, force_refresh)
-    daily_date = start_date if start_date == end_date else today_iso()
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        inventory = pool.submit(dm._refresh_worker(dm.prepare_daily_work), daily_date) if force_refresh else None
+    """Overlap independent queues and batch reads while sharing return histories."""
+    dm.refresh_shared_configuration()
+    def attempt(read, fallback):
+        try:
+            return read()
+        except Exception:
+            return fallback
+    def unavailable(message):
+        frame = pd.DataFrame()
+        frame.attrs['chart_error'] = message
+        return frame
+    raw = attempt(lambda: dm.fetch_dashboard_data(start_date, end_date, force_refresh), {'_source_error': 'Unavailable'})
+    with ThreadPoolExecutor(max_workers=2) as pool:
         pending = pool.submit(dm._refresh_worker(_prepare_pending_sources), force_refresh)
         batches = pool.submit(
             dm._refresh_worker(dm.sync_batches_master), start_date, end_date, force_refresh=force_refresh,
         )
-        kpis = dm.get_summary_kpis(start_date, end_date, selected_users=selected_users, force_refresh=force_refresh)
-        breakdown = dm.get_user_breakdown_df(start_date, end_date, force_refresh)
+        kpis = attempt(lambda: dm.get_summary_kpis(start_date, end_date, selected_users=selected_users, force_refresh=force_refresh), {})
+        breakdown = attempt(lambda: dm.get_user_breakdown_df(start_date, end_date, force_refresh), unavailable('Completion data unavailable. Refresh to retry.'))
         # Return histories and dated batch reads run alongside KPI comparisons.
         # Both the ratio and assigned rows must use the completed batch sync.
-        batches.result()
-        ratio = dm.get_batch_rework_ratio_df(start_date, end_date, force_refresh=force_refresh)
-        if inventory is not None:
-            try:
-                inventory.result()
-            except Exception:
-                # The daily getter retains its existing retry and dated fallback.
-                pass
-        pending.result()
-        detailed = dm.get_detailed_pending_assigned_df(
+        attempt(batches.result, None)
+        ratio = attempt(lambda: dm.get_batch_rework_ratio_df(start_date, end_date, force_refresh=force_refresh), unavailable('Batch history unavailable. Refresh to retry.'))
+        attempt(pending.result, None)
+        detailed = attempt(lambda: dm.get_detailed_pending_assigned_df(
             start_date="2020-01-01", end_date=today_iso(), force_refresh=force_refresh, overview_data=raw,
-        )
+            include_pending=False,
+        ), unavailable('Current assignments unavailable. Refresh to retry.'))
     return raw, kpis, breakdown, ratio, detailed
 
 
@@ -555,16 +874,11 @@ def _refresh_scope(callback):
 @app.callback(
     [
         Output("kpi-cards", "children"),
-        Output("universal-legend", "figure"),
         Output("rework-ratio-chart", "figure"),
-        Output("error-rework-chart", "figure"),
         Output("individual-chart", "figure"),
-        Output("pending-chart", "figure"),
         Output("assigned-chart", "figure"),
-        Output("tabs-content", "children"),
         Output("refresh-status", "children"),
         Output("theme-toggle", "children"),
-        Output("selected-users-store", "data"),
         Output("server-status-banner", "children"),
         Output("server-status-badge", "children"),
     ],
@@ -573,16 +887,77 @@ def _refresh_scope(callback):
         Input("auto-refresh-interval", "n_intervals"),
         Input("date-from", "value"),
         Input("date-to", "value"),
-        Input("universal-legend", "restyleData"),
+        Input("selected-users-store", "data"),
         Input("theme-toggle", "n_clicks"),
-        Input("tabs", "active_tab"),
-        Input("individual-chart", "clickData"),
-        Input("error-rework-chart", "clickData"),
+        Input("report-location", "pathname"),
     ],
-    [State("selected-users-store", "data")],
     running=[(Output("refresh-btn", "disabled"), True, False),
              (Output("auto-refresh-interval", "disabled"), True, False)],
 )
+def _dispatch_dashboard(n_clicks, n_intervals, start_date, end_date, stored_users,
+                        theme_clicks, pathname):
+    result = update_dashboard(n_clicks, n_intervals, start_date, end_date, None,
+                             theme_clicks, None, None, stored_users, pathname)
+    return result[:6] + result[7:]
+
+
+@app.callback(
+    Output('selected-users-store', 'data'),
+    Input('universal-legend', 'restyleData'), Input('individual-chart', 'clickData'),
+    State('selected-users-store', 'data'), prevent_initial_call=True,
+)
+def select_dashboard_users(restyle_data, click_data, stored_users):
+    """Apply user controls without waiting for KPI and batch source reads."""
+    selection = list(available_users if stored_users is None else stored_users)
+    trigger = dash.ctx.triggered_id
+    if trigger == 'universal-legend' and restyle_data:
+        updates, indices = restyle_data
+        if 'visible' in updates:
+            for position, index in enumerate(indices):
+                if index < len(available_users):
+                    visible = updates['visible']
+                    visible = visible[position] if isinstance(visible, list) else visible
+                    user = available_users[index]
+                    if visible == 'legendonly' and user in selection:
+                        selection.remove(user)
+                    elif (visible is True or visible is None) and user not in selection:
+                        selection.append(user)
+    elif trigger == 'individual-chart' and click_data and click_data.get('points'):
+        point = click_data['points'][0]
+        user = point.get('x') or point.get('label')
+        if user:
+            if user in selection:
+                selection.remove(user)
+            else:
+                selection.append(user)
+    return selection if selection != stored_users else dash.no_update
+
+
+@app.callback(
+    Output('pending-chart', 'figure'),
+    Input('refresh-btn', 'n_clicks'), Input('report-location', 'pathname'),
+    Input('workflow-notification-interval', 'n_intervals'), Input('selected-users-store', 'data'),
+    Input('theme-toggle', 'n_clicks'),
+    Input('auto-refresh-interval', 'n_intervals'), Input('workflow-bell', 'n_clicks'),
+)
+def update_pending_review(clicks, pathname, notification_intervals, selected_users, theme_clicks,
+                          intervals=0, bell_clicks=0):
+    if pathname not in (None, '/', '/dashboard'):
+        return dash.no_update
+    trigger = dash.ctx.triggered_id
+    # Read the aggregate directly, independently of slow workflow ingestion.
+    force = trigger in (None, 'refresh-btn', 'report-location', 'auto-refresh-interval',
+                        'workflow-notification-interval', 'workflow-bell')
+    dark = (theme_clicks or 0) % 2 == 0
+    try:
+        frame = dm.get_pending_review_df(force_refresh=force)
+        if selected_users and set(selected_users) != set(available_users):
+            frame = frame[frame['User'].isin(selected_users)]
+        return build_pending_chart(frame, dark)
+    except Exception:
+        return state_figure('Pending review unavailable. Refresh to retry.', dark)
+
+
 @_refresh_scope
 def update_dashboard(
     n_clicks,
@@ -593,9 +968,11 @@ def update_dashboard(
     theme_clicks,
     active_tab,
     ind_click,
-    err_click,
     stored_users,
+    pathname="/",
 ):
+    if pathname not in (None, "/", "/dashboard"):
+        return tuple([dash.no_update] * 9)
     # ── Theme ────────────────────────────────────────────────────────
     is_dark = True if theme_clicks is None else theme_clicks % 2 == 0
     toggle_label = (
@@ -648,10 +1025,8 @@ def update_dashboard(
                     ) and user not in current_selection:
                         current_selection.append(user)
 
-    if triggered_id in ["individual-chart", "error-rework-chart"]:
-        click_data = (
-            ind_click if triggered_id == "individual-chart" else err_click
-        )
+    if triggered_id == "individual-chart":
+        click_data = ind_click
         if click_data and "points" in click_data:
             pt = click_data["points"][0]
             clicked_user = pt.get("x") or pt.get("label")
@@ -667,14 +1042,6 @@ def update_dashboard(
         and len(effective_users) < len(available_users)
     )
 
-    if triggered_id == "tabs":
-        # Charts are independent of the selected table or management form.
-        outputs = [dash.no_update] * 13
-        outputs[7] = _render_tab(
-            active_tab, is_dark, is_filtering, effective_users, end_date, False,
-        )
-        return tuple(outputs)
-
     # ── Fetch data ───────────────────────────────────────────────────
     raw_data, kpis, breakdown_df, ratio_df, detailed_df = _dashboard_sources(
         start_date, end_date, force_refresh, effective_users if is_filtering else None,
@@ -684,16 +1051,18 @@ def update_dashboard(
     funnel_map = {f.get("key"): f for f in funnel_list}
 
     # ── KPI cards ────────────────────────────────────────────────────
-    kpi_layout = build_kpi_layout(kpis, funnel_map, is_dark)
+    try:
+        kpi_layout = build_kpi_layout(kpis, funnel_map, is_dark)
+        if raw_data.get('_source_error') or kpis.get('_source_error'):
+            kpi_layout = [dbc.Alert('Summary data unavailable. Refresh to retry.', color='warning')]
+    except Exception:
+        kpi_layout = [dbc.Alert('Summary data unavailable. Refresh to retry.', color='warning')]
 
     # ── Legend ───────────────────────────────────────────────────────
-    selection_changed = triggered_id in (None, "universal-legend", "individual-chart", "error-rework-chart")
-    fig_legend = build_legend_figure(available_users, current_selection, is_dark) if (
-        selection_changed or triggered_id == "theme-toggle"
-    ) else dash.no_update
+    selection_changed = triggered_id in ("universal-legend", "individual-chart")
 
     # ── Breakdown data ───────────────────────────────────────────────
-    if is_filtering and effective_users:
+    if is_filtering and effective_users and 'User' in breakdown_df:
         breakdown_df = breakdown_df[
             breakdown_df["User"].isin(effective_users)
         ]
@@ -708,16 +1077,6 @@ def update_dashboard(
         breakdown_df, start_date, end_date, is_dark
     )
 
-    # ── Error / Rework chart ─────────────────────────────────────────
-    fig_err = _build_work_chart(
-        breakdown_df,
-        start_date,
-        end_date,
-        is_dark,
-        effective_users if is_filtering else None,
-        force_refresh,
-    )
-
     # ── Pending + Assigned charts ────────────────────────────────────
     if is_filtering and effective_users and not detailed_df.empty:
         detailed_df = detailed_df[
@@ -725,40 +1084,16 @@ def update_dashboard(
             | (detailed_df["User"] == "Assignable Pool")
         ]
 
-    pending_df = (
-        detailed_df[
-            detailed_df["Stage"].isin(
-                ["Pending Leader", "Pending Auditor", "Pending Admin"]
-            )
-        ]
-        if not detailed_df.empty
-        else pd.DataFrame()
-    )
-    fig_pending = build_pending_chart(pending_df, is_dark)
-
     assigned_df = (
         detailed_df[
             detailed_df["Stage"].isin(["New Assigned", "Rework Assigned"])
         ]
         if not detailed_df.empty
-        else pd.DataFrame()
+        else detailed_df
     )
     fig_assigned = build_assigned_chart(assigned_df, is_dark)
 
     # ── Tab content ──────────────────────────────────────────────────
-    tab_content = dash.no_update if (
-        active_tab in ["tab-manage-settlement", "tab-manage-mapping"]
-        and triggered_id != "tabs"
-        and triggered_id is not None
-    ) else _render_tab(
-        active_tab,
-        is_dark,
-        is_filtering,
-        effective_users,
-        end_date,
-        force_refresh,
-        daily_work_date=start_date if start_date == end_date else today_iso(),
-    )
 
     srv_status = dm.get_server_status()
     badge_el = _build_status_badge(srv_status)
@@ -771,13 +1106,9 @@ def update_dashboard(
 
     return (
         kpi_layout,
-        fig_legend,
         fig_rework,
-        fig_err,
         fig_ind,
-        fig_pending,
         fig_assigned,
-        tab_content,
         status_msg,
         toggle_label if triggered_id in (None, "theme-toggle") else dash.no_update,
         current_selection if selection_changed else dash.no_update,
@@ -804,154 +1135,76 @@ def heartbeat_check(n_intervals):
     return status, badge, banner
 
 
-# ── Helper: build the New Work + Rework chart ────────────────────────────
-def _build_work_chart(
-    breakdown_df,
-    start_date,
-    end_date,
-    is_dark,
-    effective_users,
-    force_refresh,
-):
-    """Daily chart uses the same verified submission rows as the daily table."""
-    target_date = start_date if start_date == end_date else today_iso()
-    label = "Today" if target_date == today_iso() else target_date
-    daily = dm.get_todays_work_df(target_date, force_refresh=force_refresh)
-    if daily.empty:
-        fig = build_error_rework_chart(pd.DataFrame(), label, is_dark)
-        if daily.attrs.get('error'):
-            fig.layout.annotations[0].text = "Daily submissions could not be verified. Retry Refresh."
-        return fig
-    if effective_users:
-        daily = daily[daily['User'].isin(effective_users)]
-    work = pd.DataFrame({'User': daily['User'], 'New Work Duration': daily['New Videos (First Time)'],
-                         'Same-day Rework Duration': daily['Same-day Rework'], 'Old Rework Duration': daily['Old Rework'],
-                         'Rework Duration': daily['Reworks'], 'Total Work Duration': daily['Total Duration'], 'IDs': daily['RawID']})
-    figure = build_error_rework_chart(work, label, is_dark)
-    if daily.attrs.get('is_snapshot'):
-        figure.update_layout(title=f"{label} · Submitted Video Duration (cached)")
-    return figure
+@app.callback(
+    Output("universal-legend", "figure"),
+    Input("selected-users-store", "data"), Input("theme-toggle", "n_clicks"),
+    Input("report-location", "pathname"),
+)
+def render_dashboard_legend(selected_users, theme_clicks, pathname):
+    """Paint the user controls immediately, independently of upstream latency."""
+    if pathname not in (None, "/", "/dashboard"):
+        raise dash.exceptions.PreventUpdate
+    return build_legend_figure(available_users,
+        available_users if selected_users is None else selected_users,
+        theme_clicks is None or theme_clicks % 2 == 0)
 
 
-# ── Helper: render tab content ───────────────────────────────────────────
-def _render_tab(
-    active_tab,
-    is_dark,
-    is_filtering,
-    effective_users,
-    end_date,
-    force_refresh,
-    daily_work_date=None,
-):
-    """Render the active tab's table content."""
-    if active_tab in ("tab-today", "tab-yesterday"):
-        target_date = today_iso() if active_tab == "tab-today" else (
-            datetime.strptime(today_iso(), "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
-        raw = dm.get_todays_work_df(target_date, force_refresh=force_refresh and target_date != daily_work_date)
-        if is_filtering and effective_users and not raw.empty:
-            raw = raw[raw['User'].isin(effective_users)].copy()
-        if raw.empty and raw.attrs.get('error'):
-            return dbc.Alert("Daily submissions could not be verified. Please retry Refresh.", color="warning")
-        if raw.empty:
-            return html.Div("No submissions recorded for this day.")
-        columns = ['User', 'Total Tasks', 'Total Duration', 'New Videos (First Time)',
-                   'Same-day Rework', 'Old Rework', 'New Tasks', 'Same-day Rework Tasks', 'Old Rework Tasks', 'Rework %', 'RawID']
-        daily = raw[columns].copy()
-        total = {'User': 'TOTAL', 'RawID': ''}
-        for column in columns:
-            if column not in ('User', 'RawID', 'Rework %'):
-                total[column] = raw[column].sum()
-        total['Rework %'] = f"{raw['Reworks'].sum() / raw['Total Duration'].sum() * 100:.1f}%" if raw['Total Duration'].sum() else '0.0%'
-        daily = pd.concat([daily, pd.DataFrame([total])], ignore_index=True)
-        for column in ['Total Duration', 'New Videos (First Time)', 'Same-day Rework', 'Old Rework']:
-            daily[column] = daily[column].apply(format_video_seconds)
-        note = "Unique tasks by latest submission in India time. Video duration only; approvals and pending rework are excluded."
-        if raw.attrs.get('captured_at'):
-            note += f" Verified scan: {raw.attrs['captured_at']}."
-        if raw.attrs.get('is_snapshot'):
-            note = f"Cached verified submissions from {raw.attrs.get('captured_at', 'an earlier refresh')}. Refresh failed; figures may be stale."
-        return html.Div([html.P(note, className='text-secondary small'), create_table(daily, is_dark)])
+@app.callback(
+    Output("dashboard-trend-store", "data"),
+    Input("date-to", "value"), Input("refresh-btn", "n_clicks"),
+    Input("auto-refresh-interval", "n_intervals"), Input("report-location", "pathname"),
+    Input('workflow-notification-interval', 'n_intervals'),
+)
+def load_dashboard_trend(end_date, n_clicks, n_intervals, pathname, notification_intervals=0):
+    """Read saved chart evidence without running task or workflow backfills."""
+    if pathname not in (None, "/", "/dashboard") or not end_date:
+        raise dash.exceptions.PreventUpdate
+    trigger = dash.ctx.triggered_id
+    return dm.get_dashboard_trend_data(min(end_date, today_iso()),
+        force_refresh=trigger in ("refresh-btn", "auto-refresh-interval"))
 
-    elif active_tab == "tab-overview":
-        overview_df = dm.get_slice_data_overview_df(
-            "2026-09-01",
-            end_date,
-            use_raw_names=True,
-            force_refresh=force_refresh,
-        )
-        if is_filtering and effective_users and not overview_df.empty:
-            filtered_records = []
-            for _, row in overview_df.iterrows():
-                raw_user = row["Username"]
-                if raw_user == "All Slicers":
-                    filtered_records.append(row)
-                    continue
-                uid_str = (
-                    raw_user.replace("user-", "")
-                    if raw_user.startswith("user-")
-                    else ""
-                )
-                uid = int(uid_str) if uid_str.isdigit() else 0
-                canonical = dm._get_canonical_name(uid, raw_user)
-                if canonical in effective_users:
-                    filtered_records.append(row)
-            overview_df = (
-                pd.DataFrame(filtered_records)
-                if filtered_records
-                else pd.DataFrame(columns=overview_df.columns)
-            )
-        return create_table(overview_df, is_dark)
-    elif active_tab == "tab-manage-settlement":
-        return layout_settlement_management(is_dark=is_dark)
-        
-    elif active_tab == "tab-manage-mapping":
-        return layout_user_mapping(is_dark=is_dark)
 
-    else:
-        # Settlement tab
-        full_breakdown_df = dm.get_user_breakdown_df(
-            "2026-09-01", end_date, force_refresh
-        )
-        if is_filtering and effective_users:
-            full_breakdown_df = full_breakdown_df[
-                full_breakdown_df["User"].isin(effective_users)
-            ]
-        settlement_df = dm.get_settlement_df(full_breakdown_df)
-        if not settlement_df.empty:
+@app.callback(
+    Output("approval-trend-chart", "figure"), Output("approval-trend-status", "children"),
+    Input("dashboard-trend-store", "data"), Input("selected-users-store", "data"),
+    Input("theme-toggle", "n_clicks"), Input("report-location", "pathname"),
+)
+def render_dashboard_trend(data, selected_users, theme_clicks, pathname, workflow=None):
+    if pathname not in (None, "/", "/dashboard"):
+        raise dash.exceptions.PreventUpdate
+    if not data:
+        return empty_fig(), "Loading recorded work history…"
+    # The dashboard's initial all-users selection must include new accounts.
+    users = selected_users if selected_users and len(selected_users) < len(available_users) else None
+    approvals = (workflow or {}).get('approvals') or data.get('approvals')
+    if (workflow or {}).get('error') and approvals:
+        approvals = {**approvals, 'error': (workflow or {})['error']}
+    report = prepare_approval_trend(data, users, approvals)
+    is_dark = theme_clicks is None or theme_clicks % 2 == 0
+    note = (f"{report['recorded_days']} of {report['calendar_days']} days recorded · Asia/Kolkata. "
+            "Missing dates appear as gaps. " + report['approval_status'])
+    if report['range_end'] == today_iso():
+        note += " Today is provisional."
+    if report['captured_at']:
+        note += f" Latest saved capture: {report['captured_at']}."
+    if report['stale']:
+        note += " Saved evidence is shown; refresh or persistence could not be verified."
+    if workflow and not workflow.get('error'):
+        note += (f" Workflow history: {workflow.get('events', 0)} actions, "
+                 f"{workflow.get('synthetic', 0)} synthetic prerequisites. Unknown approval times are excluded from daily hours.")
+    return build_approval_trend_chart(report, is_dark), note
 
-            def format_settlement_val(val):
-                if pd.isna(val) or val is None or val == 0:
-                    return "00:00 (0.00h)"
-                val = float(val)
-                sec = int(round(val))
-                h = sec // 3600
-                m = (sec % 3600) // 60
-                hours_dec = val / 3600.0
-                return f"{h:02d}:{m:02d} ({hours_dec:.2f}h)"
 
-            user_part = settlement_df[
-                settlement_df["User"] != "TOTAL"
-            ].sort_values(by="Remaining Payable", ascending=False)
-            total_part = settlement_df[settlement_df["User"] == "TOTAL"]
-            settlement_df = pd.concat(
-                [user_part, total_part], ignore_index=True
-            )
-
-            duration_cols = [
-                "Jul 1 - Aug 7 (Paid)",
-                "Aug 8 - Aug 31 (Paid)",
-                "Total Settled (Aug 31)",
-                "Current Work (Unsettled)",
-                "Remaining Payable",
-            ]
-            for col in duration_cols:
-                if col in settlement_df.columns:
-                    settlement_df[col] = settlement_df[col].apply(
-                        format_settlement_val
-                    )
-        return create_table(settlement_df, is_dark)
 
 register_management_callbacks(app, dm)
 
+def run_local(port=8050):
+    # Werkzeug's Windows process reloader can close the serving thread's socket.
+    # Keep debug tools available and restart manually after Python edits on Windows.
+    reload_code = sys.platform != 'win32'
+    app.run(debug=True, port=port, use_reloader=reload_code,
+            dev_tools_hot_reload=reload_code)
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=8050)
+    run_local()

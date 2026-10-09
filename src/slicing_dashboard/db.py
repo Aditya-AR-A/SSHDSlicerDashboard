@@ -12,6 +12,10 @@ import zlib
 from time import perf_counter
 import pandas as pd
 from slicing_dashboard.config import get_settings
+from slicing_dashboard.processing.source_policy import SOURCE_TTL_SECONDS
+
+MONGO_OPERATION_TIMEOUT_MS = 15_000
+MONGO_CONNECTION_TIMEOUT_MS = 4_000
 
 
 class DatabaseManager:
@@ -36,7 +40,17 @@ class DatabaseManager:
         if mongo_url:
             try:
                 import pymongo
-                self.mongo_client = pymongo.MongoClient(mongo_url, serverSelectionTimeoutMS=4000)
+                # Server selection alone does not bound reads/writes on an
+                # established socket. A stalled workflow write otherwise holds
+                # the refresh lock indefinitely and prevents process shutdown.
+                self.mongo_client = pymongo.MongoClient(
+                    mongo_url,
+                    serverSelectionTimeoutMS=MONGO_CONNECTION_TIMEOUT_MS,
+                    connectTimeoutMS=MONGO_CONNECTION_TIMEOUT_MS,
+                    waitQueueTimeoutMS=MONGO_CONNECTION_TIMEOUT_MS,
+                    socketTimeoutMS=MONGO_OPERATION_TIMEOUT_MS,
+                    timeoutMS=MONGO_OPERATION_TIMEOUT_MS,
+                )
                 # Default database name 'slicing_dashboard'
                 self.mongo_db = self.mongo_client['slicing_dashboard']
             except Exception as e:
@@ -58,8 +72,12 @@ class DatabaseManager:
 
     def is_connected(self) -> bool:
         """Check if MongoDB or PostgreSQL database is available and responsive."""
-        if self._connected is not None:
-            return self._connected
+        if self._connected is True:
+            return True
+        if (self._connected is False and
+                perf_counter() - getattr(self, '_last_connection_check', -float('inf')) < SOURCE_TTL_SECONDS):
+            return False
+        self._last_connection_check = perf_counter()
 
         # Check MongoDB first
         if self.mongo_client is not None and self.mongo_db is not None:
@@ -391,15 +409,19 @@ class DatabaseManager:
             print(f"Error saving user mappings to MongoDB: {e}")
             return False
 
-    def load_user_mappings(self) -> list[dict]:
+    def load_user_mappings(self, *, strict=False) -> list[dict]:
         """Load user mappings from MongoDB."""
         if not self.is_connected() or self.mongo_db is None:
+            if strict:
+                raise ConnectionError('Mapping storage unavailable')
             return []
         try:
             coll = self.mongo_db['user_mappings']
             docs = list(coll.find())
             return docs
         except Exception as e:
+            if strict:
+                raise ConnectionError('Mapping read failed') from None
             print(f"Error loading user mappings from MongoDB: {e}")
             return []
 
@@ -421,14 +443,175 @@ class DatabaseManager:
             print(f"Error saving settlement periods to MongoDB: {e}")
             return False
 
-    def load_settlement_periods(self) -> list[dict]:
+    def load_settlement_periods(self, *, strict=False) -> list[dict]:
         """Load settlement periods from MongoDB."""
         if not self.is_connected() or self.mongo_db is None:
+            if strict:
+                raise ConnectionError('Period storage unavailable')
             return []
         try:
             coll = self.mongo_db['settlement_periods']
             docs = list(coll.find())
             return docs
         except Exception as e:
+            if strict:
+                raise ConnectionError('Period read failed') from None
             print(f"Error loading settlement periods from MongoDB: {e}")
             return []
+
+    def load_daily_work_reports(self, start_date: str, end_date: str) -> list[dict]:
+        """Read dated submission observations, never current task-state snapshots."""
+        if not self.is_connected():
+            return []
+        if self.mongo_db is not None:
+            result = {}
+            try:
+                collection = self.mongo_db['daily_work_reports']
+                query = {'_id': {'$gte': start_date, '$lte': end_date}}
+                # Small summaries stay usable if downloading the larger task
+                # evidence times out. Never rewrite a report from this fallback.
+                for record in collection.find(query, {'date': 1, 'rows': 1, 'metadata': 1}):
+                    result[record['date']] = {key: value for key, value in record.items() if key != '_id'}
+                for record in collection.find(query).batch_size(1):
+                    result[record['date']] = {key: value for key, value in record.items()
+                                              if key not in ('_id', '_revision')}
+                return list(result.values())
+            except Exception as error:
+                print(f"Could not read daily work reports from MongoDB: {error}")
+                for record in result.values():
+                    record['metadata'] = {**record.get('metadata', {}), 'is_snapshot': True,
+                                          'error': 'DailyEvidenceReadFailed'}
+                return list(result.values())
+        if self.engine is not None:
+            try:
+                from sqlalchemy import text
+                with self.engine.begin() as connection:
+                    self._ensure_daily_work_table(connection)
+                    records = connection.execute(text(
+                        'SELECT payload FROM daily_work_reports WHERE date >= :start AND date <= :end'),
+                        {'start': start_date, 'end': end_date})
+                    return [json.loads(row[0]) if isinstance(row[0], str) else row[0] for row in records]
+            except Exception as error:
+                print(f"Could not read daily work reports from PostgreSQL: {error}")
+        return []
+
+    def load_daily_chart_reports(self, start_date: str, end_date: str) -> list[dict]:
+        """Read only the fields needed to remap and aggregate saved video hours."""
+        if self.mongo_db is not None:
+            query = {'_id': {'$gte': start_date, '$lte': end_date}}
+            collection = self.mongo_db['daily_work_reports']
+            if hasattr(collection, 'with_options'):
+                from pymongo import ReadPreference
+                collection = collection.with_options(read_preference=ReadPreference.SECONDARY_PREFERRED)
+            records = list(collection.find({**query, 'chart_version': 1},
+                           {'_id': 0, 'date': 1, 'chart_rows': 1, 'metadata': 1}).batch_size(100))
+            # Reduce legacy reports too; never download their audit metadata.
+            projection = {'_id': 0, 'date': 1, 'rows': 1, 'metadata': 1,
+                          'tasks.username': 1, 'tasks.user_id': 1,
+                          'tasks.bucket': 1, 'tasks.duration_seconds': 1}
+            records.extend(collection.find({**query, 'chart_version': {'$ne': 1}}, projection).batch_size(100))
+            return records
+        # SQL/local installs retain the same semantics; chart callers never persist
+        # these reduced records back over complete task evidence.
+        return self.load_daily_work_reports(start_date, end_date)
+
+    def daily_chart_start_date(self, end_date: str):
+        """Read chart bounds from a reachable replica without a primary ping."""
+        if self.mongo_db is not None:
+            from pymongo import ReadPreference
+            collection = self.mongo_db['daily_work_reports'].with_options(
+                read_preference=ReadPreference.SECONDARY_PREFERRED)
+            record = collection.find_one({'_id': {'$lte': end_date}}, {'date': 1}, sort=[('_id', 1)])
+            return (record.get('date') or record.get('_id')) if record else None
+        return self.daily_work_start_date(end_date)
+
+    def daily_work_start_date(self, end_date: str):
+        """Earliest retained daily record, including history outside the chart range."""
+        if not self.is_connected():
+            return None
+        if self.mongo_db is not None:
+            try:
+                record = self.mongo_db['daily_work_reports'].find_one(
+                    {'_id': {'$lte': end_date}}, {'date': 1}, sort=[('_id', 1)])
+                return record.get('date', record.get('_id')) if record else None
+            except Exception as error:
+                print(f'Could not read daily history start: {error}')
+        if self.engine is not None:
+            try:
+                from sqlalchemy import text
+                with self.engine.begin() as connection:
+                    self._ensure_daily_work_table(connection)
+                    return connection.execute(text(
+                        'SELECT MIN(date) FROM daily_work_reports WHERE date <= :end'),
+                        {'end': end_date}).scalar()
+            except Exception as error:
+                print(f'Could not read daily history start: {error}')
+        return None
+
+    @staticmethod
+    def _ensure_daily_work_table(connection):
+        from sqlalchemy import text
+        connection.execute(text('CREATE TABLE IF NOT EXISTS daily_work_reports '
+                                '(date TEXT PRIMARY KEY, payload JSONB NOT NULL)'))
+
+    def save_daily_work_report(self, report: dict) -> bool:
+        """Idempotently union task/day observations with concurrent-writer protection."""
+        from slicing_dashboard.reporting.dashboard_reports import merge_daily_reports
+        from slicing_dashboard.management.periods import today_iso
+
+        if report.get('metadata', {}).get('available') is False:
+            return False
+        if not self.is_connected():
+            return False
+        report = {**report, 'metadata': {**report.get('metadata', {}),
+                  'observed_on': max(report.get('metadata', {}).get('observed_on', report['date']), today_iso())}}
+        day = report['date']
+        if self.mongo_db is not None:
+            try:
+                from pymongo.errors import DuplicateKeyError
+                collection = self.mongo_db['daily_work_reports']
+                for _ in range(5):
+                    existing = collection.find_one({'_id': day})
+                    merged = merge_daily_reports(existing, report)
+                    revision = (existing or {}).get('_revision', 0)
+                    document = {**merged, '_id': day, '_revision': revision + 1}
+                    from slicing_dashboard.reporting.chart_projections import daily_chart_rows
+                    chart_rows = daily_chart_rows(merged)
+                    if chart_rows is not None:
+                        document.update(chart_rows=chart_rows, chart_version=1)
+                    if existing is None:
+                        try:
+                            collection.insert_one(document)
+                            return True
+                        except DuplicateKeyError:
+                            continue
+                    # An old writer cannot erase evidence captured by a newer refresh.
+                    expected = revision if '_revision' in existing else {'$exists': False}
+                    result = collection.replace_one({'_id': day, '_revision': expected}, document)
+                    if result.matched_count:
+                        return True
+            except Exception as error:
+                print(f"Could not save daily work report to MongoDB: {error}")
+        if self.engine is not None:
+            try:
+                from sqlalchemy import text
+                with self.engine.begin() as connection:
+                    self._ensure_daily_work_table(connection)
+                    # Lock the date even before its first row exists, so concurrent
+                    # initial captures merge instead of replacing one another.
+                    connection.execute(text('SELECT pg_advisory_xact_lock(hashtext(:key))'),
+                                       {'key': f'daily_work_reports:{day}'})
+                    existing = connection.execute(text(
+                        'SELECT payload FROM daily_work_reports WHERE date = :date FOR UPDATE'),
+                        {'date': day}).scalar()
+                    if isinstance(existing, str):
+                        existing = json.loads(existing)
+                    merged = merge_daily_reports(existing, report)
+                    connection.execute(text('INSERT INTO daily_work_reports (date, payload) '
+                                            'VALUES (:date, CAST(:payload AS JSONB)) '
+                                            'ON CONFLICT (date) DO UPDATE SET payload = EXCLUDED.payload'),
+                                       {'date': day, 'payload': json.dumps(merged, allow_nan=False)})
+                return True
+            except Exception as error:
+                print(f"Could not save daily work report to PostgreSQL: {error}")
+        return False

@@ -3,6 +3,8 @@ Universal user legend (clickable filter) builder.
 """
 
 import plotly.graph_objects as go
+from textwrap import wrap
+from html import escape
 
 from slicing_dashboard.plots.theme import CHART_HEIGHT, USER_COLORS, theme_ctx
 
@@ -23,13 +25,13 @@ def build_legend_figure(
     t = theme_ctx(is_dark)
     fig = go.Figure()
 
-    for u in available_users:
+    for u in dict.fromkeys(available_users or []):
         is_visible = u in current_selection
         fig.add_trace(
             go.Scatter(
                 x=[None],
                 y=[None],
-                name=u,
+                name='<br>'.join(escape(part) for part in wrap(str(u), 20)),
                 mode="markers",
                 marker=dict(color=USER_COLORS.get(u, "#999"), size=10),
                 showlegend=True,
@@ -47,6 +49,7 @@ def build_legend_figure(
             xanchor="center",
             x=0.5,
             font=dict(color=t["font_color"], size=11),
+            maxheight=.95,
         ),
         height=CHART_HEIGHT,
         margin=dict(l=0, r=0, t=0, b=0),
@@ -55,5 +58,6 @@ def build_legend_figure(
         xaxis=dict(visible=False),
         yaxis=dict(visible=False),
         hovermode=False,
+        uirevision="user-filter-legend",
     )
     return fig

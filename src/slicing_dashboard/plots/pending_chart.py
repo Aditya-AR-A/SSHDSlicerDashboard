@@ -4,6 +4,7 @@ Pending reviews stacked bar chart builder.
 
 import plotly.express as px
 import plotly.graph_objects as go
+from slicing_dashboard.plots.guardrails import safe_chart, checked_frame, state_figure, add_bar_total_labels
 
 from slicing_dashboard.plots.theme import (
     CHART_HEIGHT,
@@ -12,6 +13,7 @@ from slicing_dashboard.plots.theme import (
 )
 
 
+@safe_chart
 def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
     """Build stacked bar chart of pending reviews by stage.
 
@@ -22,17 +24,14 @@ def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
     is_dark : bool
     """
     t = theme_ctx(is_dark)
+    if pending_df is not None and pending_df.attrs.get('pending_error'):
+        return state_figure('Pending review unavailable. Refresh to retry.', is_dark)
+    pending_df = checked_frame(pending_df, ['User', 'Stage', 'Duration', 'Count'], ['Duration', 'Count'])
+    if not pending_df.empty:
+        pending_df = pending_df[(pending_df['Duration'] > 0) | (pending_df['Count'] > 0)]
 
     if pending_df.empty:
-        fig = go.Figure()
-        fig.update_layout(
-            template=t["template"],
-            paper_bgcolor=t["bg_color"],
-            plot_bgcolor=t["bg_color"],
-            font=dict(family="Inter, sans-serif", color=t["font_color"]),
-            height=CHART_HEIGHT,
-        )
-        return fig
+        return state_figure('No pending reviews queued.', is_dark)
 
     df = pending_df.copy()
     df["Formatted Duration"] = df["Duration"].apply(format_seconds)
@@ -49,7 +48,7 @@ def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
         x="User",
         y=df["Duration"] / 3600,
         color="Stage",
-        title="Pending Reviews by Stage (Hours)",
+        title="Pending Reviews · Current Queue (Hours)",
         color_discrete_map={
             "Pending Leader": "#F59E0B",
             "Pending Auditor": "#8B5CF6",
@@ -95,7 +94,7 @@ def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
         xaxis=dict(automargin=True, tickfont=dict(size=12, weight="bold")),
     )
     fig.update_traces(
-        textposition="auto",
+        textposition="inside",
         textfont=dict(size=10, weight="bold"),
         constraintext="none",
         hovertemplate=(
@@ -106,4 +105,5 @@ def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
             "Slicer IDs: %{customdata[3]}<extra></extra>"
         ),
     )
-    return fig
+    fig.update_layout(meta={'captured_at': pending_df.attrs.get('captured_at')})
+    return add_bar_total_labels(fig)

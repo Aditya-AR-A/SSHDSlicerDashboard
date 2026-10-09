@@ -7,15 +7,26 @@ from slicing_dashboard.data_manager import DataManager
 class TestReworkAssigned(unittest.TestCase):
 
     def setUp(self):
-        self.dm = DataManager()
-        # Mock scraper and overview data
+        # This test exercises the overview fallback. Real startup loads an
+        # unrelated persisted batch ledger before the API mocks take effect.
+        self.dm = DataManager.__new__(DataManager)
+        self.dm._cache = {}
+        self.dm._batches_master_cache = {}
+        self.dm.exempt_ids = set()
         self.dm.scraper = MagicMock()
         self.dm.scraper.is_authenticated = True
         self.dm.scraper._users = {1: {'username': 'SSHD-UserA'}, 2: {'username': 'SSHD-UserB'}}
         self.dm.scraper._get_username.side_effect = lambda uid: f"user_{uid}"
         self.dm.user_mapping = {"user_1": "UserA", "user_2": "UserB"}
+        self.dm.fetch_annotator_efficiency = MagicMock(return_value=({}, []))
+        self.dm.fetch_all_assigned_tasks_live = MagicMock(
+            side_effect=ConnectionError("Assigned endpoint unavailable"),
+        )
+        self.dm._current_task_stats = MagicMock(return_value={})
+        self.dm.get_assignable_pool = MagicMock(return_value={'available': True, 'duration_seconds': 0,
+                                                            'task_count': 0, 'captured_at': None, 'error': None})
 
-    def test_rework_assigned_only_to_users_with_rework(self):
+    def test_source_failure_never_promotes_historical_backlog_to_current_assignments(self):
         # UserA has pure backlog 1000s, but 0 rework tasks
         # UserB has pure backlog 2000s, with 500s of rework tasks
         mock_overview = {
@@ -59,26 +70,16 @@ class TestReworkAssigned(unittest.TestCase):
             'UserB': {'count': 5, 'duration': 500.0}
         })
 
-        df = self.dm.get_detailed_pending_assigned_df('2026-09-01', '2026-09-15')
+        df = self.dm.get_detailed_pending_assigned_df('2026-09-01', '2026-09-15', include_pending=False)
 
         # Verify UserA has NO Rework Assigned
         user_a_rework = df[(df['User'] == 'UserA') & (df['Stage'] == 'Rework Assigned')]
         self.assertTrue(user_a_rework.empty)
 
-        # Verify UserA has full New Assigned
-        user_a_new = df[(df['User'] == 'UserA') & (df['Stage'] == 'New Assigned')].iloc[0]
-        self.assertEqual(user_a_new['Duration'], 1000.0)
-        self.assertEqual(user_a_new['Count'], 10)
-
-        # Verify UserB has Rework Assigned
-        user_b_rework = df[(df['User'] == 'UserB') & (df['Stage'] == 'Rework Assigned')].iloc[0]
-        self.assertEqual(user_b_rework['Duration'], 500.0)
-        self.assertEqual(user_b_rework['Count'], 5)
-
-        # Verify UserB has New Assigned (2000 - 500 = 1500)
-        user_b_new = df[(df['User'] == 'UserB') & (df['Stage'] == 'New Assigned')].iloc[0]
-        self.assertEqual(user_b_new['Duration'], 1500.0)
-        self.assertEqual(user_b_new['Count'], 15)
+        assert df[df['Stage'].isin(['New Assigned', 'Rework Assigned'])].empty
+        assert df.attrs['assignment_errors'] == ['New Assigned: ConnectionError']
+        self.dm.scraper._client.get.assert_not_called()
+        self.dm.scraper._client.post.assert_not_called()
 
 
 if __name__ == '__main__':

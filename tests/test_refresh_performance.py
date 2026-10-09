@@ -118,14 +118,15 @@ class TestRefreshPerformance(unittest.TestCase):
 
     def test_assigned_inventory_is_cached_for_display_interactions(self):
         dm = self.dm
-        dm.scraper._client.get.return_value = response({'data': [{'slicer': 'SSHD-Aditya', 'duration_seconds': 60}], 'meta': {'has_more': False}})
+        dm.scraper._client.get.return_value = response({'data': [{'id': 'task-1', 'status': 'slice_assigned', 'slicer': 'SSHD-Aditya', 'duration_seconds': 60}], 'meta': {'has_more': False}})
         first = dm.fetch_all_assigned_tasks_live(force_refresh=True)
         second = dm.fetch_all_assigned_tasks_live()
         self.assertEqual(first, second)
         self.assertEqual(second['Aditya']['raw_ids'], {'SSHD-Aditya'})
         dm.scraper._client.get.assert_called_once()
 
-    def test_today_and_yesterday_share_source_only_within_refresh(self):
+    @patch('slicing_dashboard.management.periods.today_iso', return_value='2026-10-05')
+    def test_today_and_yesterday_share_source_only_within_refresh(self, _):
         dm = self.dm
         with patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource') as source_class, patch('slicing_dashboard.config.DATA_DIR', Path(self.directory.name)):
             source = source_class.return_value
@@ -138,11 +139,15 @@ class TestRefreshPerformance(unittest.TestCase):
             source.invalidate.assert_called_once()
             with dm.refresh_scope():
                 dm.get_todays_work_df('2026-10-05', force_refresh=True)
+                yesterday = dm.get_todays_work_df('2026-10-04', force_refresh=True)
             self.assertEqual(source_class.call_count, 2)
+            self.assertEqual(source.fetch.call_count, 4)
+            self.assertTrue(yesterday.attrs['closed'])
 
-    def test_cached_ledger_and_empty_returns_never_refresh_on_display_events(self):
+    def test_recent_ledger_and_empty_returns_do_not_refresh_on_display_events(self):
         dm = self.dm
-        dm._last_batch_returns_sync = datetime(2026, 9, 1)
+        dm._last_batch_returns_sync = datetime.now()
+        dm._last_batches_sync = datetime.now()
         dm._batches_master_synced_dates = {'2026-09-01', '2026-09-02'}
         self.assertEqual(dm.sync_batch_returns(), [])
         self.assertEqual(dm.sync_batches_master('2026-09-01', '2026-09-02'), {})
@@ -150,7 +155,7 @@ class TestRefreshPerformance(unittest.TestCase):
 
     def test_successful_empty_day_is_covered_but_failed_day_is_not(self):
         dm = self.dm
-        dm._last_batch_returns_sync = datetime(2026, 9, 1)
+        dm._last_batch_returns_sync = datetime.now()
         success = response({'breakdowns': {'batches': []}})
         failure = MagicMock(status_code=503)
         dm.scraper._client.get.side_effect = [success, failure]
@@ -158,8 +163,10 @@ class TestRefreshPerformance(unittest.TestCase):
             dm.sync_batches_master('2026-09-01', '2026-09-02')
         self.assertEqual(dm._batches_master_synced_dates, {'2026-09-01'})
         self.assertEqual(dm.scraper._client.get.call_count, 2)
+        dm.scraper._client.get.side_effect = [success]
         dm.sync_batches_master('2026-09-01', '2026-09-01')
         self.assertEqual(dm.scraper._client.get.call_count, 2)
+        self.assertIsNone(dm._batch_source_error)
 
     def test_batch_mapping_is_resolved_again_without_api_reads(self):
         dm = self.dm
@@ -169,17 +176,21 @@ class TestRefreshPerformance(unittest.TestCase):
         self.assertEqual(dm._batch_canonical_name(ledger), 'New name')
         dm.scraper._client.get.assert_not_called()
 
-    def test_pending_view_reuses_overview_and_prefers_global_pool_metric(self):
+    def test_pending_view_uses_pool_inventory_instead_of_overview(self):
         dm = self.dm
         dm.fetch_annotator_efficiency = MagicMock(return_value=({}, []))
         dm.get_live_rework_by_user = MagicMock(return_value={})
         dm.fetch_all_assigned_tasks_live = MagicMock(return_value={})
+        dm._current_task_stats = MagicMock(return_value={})
         dm.fetch_dashboard_data = MagicMock()
-        raw = {'metrics': {'overview_slice_assignable_remaining_duration_seconds': 0},
+        dm.get_assignable_pool = MagicMock(return_value={'available': True, 'duration_seconds': 0,
+                                                       'task_count': 0, 'captured_at': None, 'error': None})
+        raw = {'metrics': {'overview_slice_assignable_remaining_duration_seconds': 999},
                'breakdowns': {'slice_funnel': [{'key': 'pending_assign', 'duration_seconds': 99, 'count': 2}]}}
         result = dm.get_detailed_pending_assigned_df('2020-01-01', '2026-10-05', overview_data=raw)
         pool = result[result['User'] == 'Assignable Pool'].iloc[0]
         self.assertEqual(pool['Duration'], 0)
+        self.assertEqual(pool['Count'], 0)
         dm.fetch_dashboard_data.assert_not_called()
 
 

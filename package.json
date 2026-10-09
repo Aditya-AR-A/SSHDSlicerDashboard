@@ -1,0 +1,11 @@
+{
+  "name": "dashboard-capture-dispatcher",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/refresh-dispatcher.test.mjs"
+  },
+  "dependencies": {
+    "@vercel/functions": "3.9.11"
+  }
+}

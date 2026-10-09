@@ -4,6 +4,7 @@ Individual completed-hours horizontal bar chart builder.
 
 import plotly.express as px
 import plotly.graph_objects as go
+from slicing_dashboard.plots.guardrails import safe_chart, checked_frame, pad_hour_axis, hour_total_label
 
 from slicing_dashboard.plots.theme import (
     CHART_HEIGHT,
@@ -13,6 +14,7 @@ from slicing_dashboard.plots.theme import (
 )
 
 
+@safe_chart
 def build_individual_chart(
     breakdown_df,
     start_date: str,
@@ -29,6 +31,7 @@ def build_individual_chart(
     is_dark : bool
     """
     t = theme_ctx(is_dark)
+    breakdown_df = checked_frame(breakdown_df, ['User', 'Completed Duration'], ['Completed Duration'])
 
     if breakdown_df.empty:
         fig = go.Figure()
@@ -43,7 +46,7 @@ def build_individual_chart(
 
     df = breakdown_df.copy()
     if "Completed Duration" in df.columns:
-        df = df[df["Completed Duration"] > 0]
+        df = df.groupby('User', as_index=False)['Completed Duration'].sum(min_count=1)
 
     if df.empty:
         fig = go.Figure()
@@ -62,6 +65,7 @@ def build_individual_chart(
         return fig
 
     df["Formatted Duration"] = df["Completed Duration"].apply(format_seconds)
+    df['Total Hours Label'] = (df['Completed Duration'] / 3600).apply(hour_total_label)
     df = df.sort_values(by="Completed Duration", ascending=False)
     max_hours = (df["Completed Duration"] / 3600).max()
     max_range = max_hours * 1.15 if (max_hours and max_hours > 0) else 1
@@ -75,7 +79,7 @@ def build_individual_chart(
         template=t["template"],
         color="User",
         color_discrete_map=USER_COLORS,
-        text="Formatted Duration",
+        text="Total Hours Label",
         custom_data=["Formatted Duration"],
     )
     fig.update_layout(
@@ -99,4 +103,4 @@ def build_individual_chart(
         textfont=dict(size=10, weight="bold"),
         hovertemplate="User: <b>%{x}</b><br>Completed: <b>%{customdata[0]}</b> (%{y:.2f} hrs)<extra></extra>",
     )
-    return fig
+    return pad_hour_axis(fig)

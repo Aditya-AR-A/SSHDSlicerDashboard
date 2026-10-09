@@ -30,7 +30,6 @@ def callback_namespace():
             nodes.append(node)
     namespace = {'dm': MagicMock(), 'available_users': ['Riya', 'Priya']}
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), 'exec'), namespace)
-    namespace['_render_tab'] = MagicMock(return_value='selected tab')
     return namespace
 
 
@@ -47,27 +46,26 @@ class TestDashboardPerformance(unittest.TestCase):
         empty = namespace['pd'].DataFrame()
         namespace['_dashboard_sources'] = MagicMock(return_value=({}, {}, empty, empty, empty))
         namespace['build_kpi_layout'] = MagicMock()
-        namespace['_build_work_chart'] = MagicMock()
         namespace['_build_status_banner'] = MagicMock()
         namespace['_build_status_badge'] = MagicMock()
         namespace['dm'].get_server_status.return_value = {'is_live': True, 'is_using_snapshot': False}
         with patch('dash.callback_context', MagicMock(triggered=[{'prop_id': 'theme-toggle.n_clicks'}])):
-            namespace['update_dashboard'](0, 0, '2026-10-01', '2026-10-05', None, 1, 'tab-today', None, None, ['Riya', 'Priya'])
-        self.assertIsNone(namespace['_build_work_chart'].call_args.args[4])
+            result = namespace['update_dashboard'](0, 0, '2026-10-01', '2026-10-05', None, 1, 'tab-settlement', None, ['Riya', 'Priya'])
+        namespace['dm'].get_daily_report_data.assert_not_called()
 
-    def test_scan_overlaps_refresh_and_assigned_rows_use_synced_batches(self):
+    def test_queues_overlap_refresh_and_assigned_rows_use_synced_batches(self):
         namespace = callback_namespace()
         manager = namespace['dm']
         manager._refresh_worker.side_effect = lambda function: function
-        scan_started, batches_started, kpis_started, batch_synced = Event(), Event(), Event(), Event()
+        queues_started, batches_started, kpis_started, batch_synced = Event(), Event(), Event(), Event()
 
-        def prepare(day):
-            scan_started.set()
-            self.assertTrue(batch_synced.wait(2), 'scan was not overlapped with batch sync')
+        def prepare(*args, **kwargs):
+            queues_started.set()
+            self.assertTrue(batch_synced.wait(2), 'queues were not overlapped with batch sync')
 
         def batches(*args, **kwargs):
             batches_started.set()
-            self.assertTrue(scan_started.wait(2))
+            self.assertTrue(queues_started.wait(2))
             self.assertTrue(kpis_started.wait(2), 'batch history did not overlap KPI comparisons')
             batch_synced.set()
 
@@ -84,30 +82,31 @@ class TestDashboardPerformance(unittest.TestCase):
             self.assertTrue(batch_synced.is_set(), 'assigned rows used the previous batch ledger')
             return 'detailed'
 
-        manager.prepare_daily_work.side_effect = prepare
+        manager._current_task_stats.side_effect = prepare
         manager.sync_batches_master.side_effect = batches
         manager.get_summary_kpis.side_effect = kpis
         manager.get_batch_rework_ratio_df.side_effect = ratio
         manager.get_detailed_pending_assigned_df.side_effect = detailed
         result = namespace['_dashboard_sources']('2026-10-01', '2026-10-05', True, None)
         self.assertEqual(result[-2:], ('ratio', 'detailed'))
+        manager.prepare_daily_work.assert_not_called()
 
-    def test_switching_tabs_only_sends_the_selected_content(self):
-        for tab in ('tab-yesterday', 'tab-manage-mapping', 'tab-manage-settlement', 'tab-overview'):
-            with self.subTest(tab=tab):
+    def test_date_or_route_callbacks_do_not_load_trend_or_removed_overview(self):
+        for trigger in ('date-from.value', 'date-to.value', 'report-location.pathname'):
+            with self.subTest(trigger=trigger):
                 namespace = callback_namespace()
-                context = MagicMock(triggered=[{'prop_id': 'tabs.active_tab'}])
-                with patch('dash.callback_context', context):
+                empty = namespace['pd'].DataFrame()
+                namespace['_dashboard_sources'] = MagicMock(return_value=({}, {}, empty, empty, empty))
+                namespace['build_kpi_layout'] = MagicMock()
+                namespace['_build_status_banner'] = MagicMock()
+                namespace['_build_status_badge'] = MagicMock()
+                namespace['dm'].get_server_status.return_value = {'is_live': True}
+                with patch('dash.callback_context', MagicMock(triggered=[{'prop_id': trigger}])):
                     result = namespace['update_dashboard'](
-                        0, 0, '2026-10-01', '2026-10-05', None, 0, tab, None, None, ['Riya', 'Priya'],
-                    )
-                self.assertEqual(result[7], 'selected tab')
-                self.assertTrue(all(value is dash.no_update for i, value in enumerate(result) if i != 7))
-                manager = namespace['dm']
-                manager.fetch_dashboard_data.assert_not_called()
-                manager.get_batch_rework_ratio_df.assert_not_called()
-                manager.get_detailed_pending_assigned_df.assert_not_called()
-                manager.refresh_scope.assert_called_once()
+                        0, 0, '2026-10-01', '2026-10-05', None, 0, None, None, ['Riya', 'Priya'])
+                self.assertEqual(len(result), 9)
+                namespace['dm'].get_slice_data_overview_df.assert_not_called()
+                namespace['dm'].get_daily_report_data.assert_not_called()
 
     def test_compact_templates_preserve_used_chart_defaults(self):
         for dark in (True, False):

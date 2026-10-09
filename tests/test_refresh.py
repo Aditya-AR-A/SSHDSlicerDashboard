@@ -2,6 +2,7 @@
 from unittest.mock import MagicMock
 
 import unittest
+from time import perf_counter
 
 from slicing_dashboard.data_manager import DataManager
 
@@ -44,6 +45,7 @@ def assert_explicit_refresh_recovers_after_failure(efficiency):
         dm.scraper._client.get.return_value = response
         fetch = dm.fetch_dashboard_data
     dm._cache[key] = old
+    dm._source_cache_times = {key: perf_counter()}
     assert fetch("2026-09-01", "2026-09-30") == old
     dm.scraper._client.get.assert_not_called()
     assert fetch("2026-09-01", "2026-09-30", force_refresh=True) == fresh
@@ -60,7 +62,10 @@ def assert_failed_explicit_refresh_preserves_matching_cache(efficiency):
     dm._cache[key] = cached
     dm.scraper._client.get.side_effect = ConnectionError("Still offline")
     fetch = dm.fetch_annotator_efficiency if efficiency else dm.fetch_dashboard_data
-    assert fetch("2026-09-01", "2026-09-30", force_refresh=True) == cached
+    result = fetch("2026-09-01", "2026-09-30", force_refresh=True)
+    summary = result[0] if efficiency else result
+    assert summary['_source_error'] == 'ConnectionError'
+    assert {k: v for k, v in summary.items() if k != '_source_error'} == (cached[0] if efficiency else cached)
     dm.scraper._client.get.assert_called_once()
     assert dm.is_using_snapshot
     assert dm.last_sync_error == "Still offline"

@@ -8,13 +8,17 @@ Verifies:
 4. Working hours calculation and daily tracker persistence.
 """
 
+import json
 from unittest.mock import MagicMock
-import pandas as pd
 
 from slicing_dashboard.processing.batch_work_classifier import BatchWorkClassifier
 
 
-def test_batch_segregation_and_aggregation():
+def test_batch_segregation_and_aggregation(tmp_path, monkeypatch):
+    # Exercise tracker persistence in the fixture directory, never real data.
+    (tmp_path / "data").mkdir()
+    monkeypatch.setattr("slicing_dashboard.processing.batch_work_classifier.PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr("slicing_dashboard.processing.batch_work_classifier.get_settings", MagicMock())
     mock_scraper = MagicMock()
     mock_scraper._authenticated = True
     bwc = BatchWorkClassifier(scraper=mock_scraper)
@@ -102,3 +106,10 @@ def test_batch_segregation_and_aggregation():
 
     # Total = New + Rework: 540 + 300 = 840s
     assert row["New Videos (First Time)"] + row["Reworks"] == row["Total Duration"]
+
+    tracker = json.loads((tmp_path / "data" / "daily_batches_tracker.json").read_text())
+    day = tracker["2026-09-18"]
+    assert day["SSHD-Aditya_batch_10"]["classification"] == "Rework"
+    assert set(day["SSHD-Aditya_batch_10"]["video_ids"]) == {"task_1", "task_2"}
+    assert sum(batch["total_duration"] for batch in day.values()) == 840.0
+    mock_scraper._client.get.assert_not_called()

@@ -4,6 +4,7 @@ Cumulative completed-hours line chart builder.
 
 import pandas as pd
 import plotly.graph_objects as go
+from slicing_dashboard.plots.guardrails import safe_chart, checked_frame
 
 from slicing_dashboard.plots.theme import (
     CHART_HEIGHT,
@@ -13,6 +14,7 @@ from slicing_dashboard.plots.theme import (
 )
 
 
+@safe_chart
 def build_cumulative_chart(
     cumulative_df,
     start_date: str,
@@ -31,6 +33,13 @@ def build_cumulative_chart(
     is_filtering : bool whether user filtering is active
     """
     t = theme_ctx(is_dark)
+    cumulative_df = checked_frame(cumulative_df, ['Date'],
+        [column for column in cumulative_df.columns if column != 'Date'] if cumulative_df is not None else [])
+    if not cumulative_df.empty:
+        cumulative_df['Date'] = pd.to_datetime(cumulative_df['Date'], errors='raise')
+        if cumulative_df['Date'].isna().any() or cumulative_df['Date'].duplicated().any():
+            raise ValueError('Invalid cumulative dates')
+        cumulative_df = cumulative_df.sort_values('Date')
     fig = go.Figure()
 
     if not cumulative_df.empty:
@@ -47,7 +56,8 @@ def build_cumulative_chart(
                     y=cumulative_df[col] / 3600,
                     mode="lines+markers",
                     name=col,
-                    line=dict(color=color, shape="spline"),
+                    line=dict(color=color, shape="linear"),
+                    connectgaps=False,
                     marker=dict(color=color, size=5),
                     customdata=formatted,
                     hovertemplate=(

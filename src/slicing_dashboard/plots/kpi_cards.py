@@ -2,34 +2,12 @@
 KPI card builder — compact cards for the dashboard header.
 """
 
-import random
 
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import dcc, html
 
 from slicing_dashboard.plots.theme import format_seconds
-
-
-def _sparkline_points(start_val: float, end_val: float, n: int = 7) -> list:
-    """Generate a small series of interpolated points with slight noise
-    so the sparkline looks like a real mini-trend instead of a flat line."""
-    if start_val == 0 and end_val == 0:
-        # Avoid division by zero noise — return tiny upward curve
-        return [0, 0.1, 0.15, 0.2, 0.15, 0.1, 0]
-    diff = end_val - start_val
-    scale = max(abs(start_val), abs(end_val), 1)
-    noise_amp = max(scale * 0.08, 1)  # 8% of value, minimum 1
-    pts = []
-    for i in range(n):
-        t = i / (n - 1)
-        base = start_val + diff * t
-        noise = random.uniform(-noise_amp, noise_amp) if 0 < i < n - 1 else 0
-        pts.append(max(0, base + noise))
-    # Pin exact start and end
-    pts[0] = max(0, start_val)
-    pts[-1] = max(0, end_val)
-    return pts
 
 
 def _make_kpi_card(
@@ -39,7 +17,9 @@ def _make_kpi_card(
     badge_text: str,
     badge_color: str,
     is_dark: bool,
-    sparkline_data: list,
+    sparkline_data: list | None,
+    *,
+    sparkline_shape: str = "spline",
 ) -> html.Div:
     """Build a single compact KPI card element."""
     text_col = "#e0e0e0" if is_dark else "#333333"
@@ -50,7 +30,8 @@ def _make_kpi_card(
         go.Scatter(
             y=sparkline_data,
             mode="lines",
-            line=dict(color=badge_color, width=2, shape="spline"),
+            line=dict(color=badge_color, width=2, shape=sparkline_shape),
+            connectgaps=False,
             hoverinfo="skip",
         )
     )
@@ -87,7 +68,8 @@ def _make_kpi_card(
                                 },
                             ),
                             html.Span(
-                                value_str,
+                                "—" if value_str is None else value_str,
+                                className="kpi-value",
                                 style={
                                     "fontSize": "1.1rem",
                                     "fontWeight": "700",
@@ -103,6 +85,7 @@ def _make_kpi_card(
                     # Title
                     html.Div(
                         title,
+                        className="kpi-title",
                         style={
                             "fontSize": "0.65rem",
                             "fontWeight": "700",
@@ -119,7 +102,7 @@ def _make_kpi_card(
                         figure=fig,
                         config={"displayModeBar": False},
                         style={"height": "22px"},
-                    ),
+                    ) if sparkline_data is not None else None,
                     # Badge
                     html.Div(
                         html.Span(
@@ -136,7 +119,7 @@ def _make_kpi_card(
                             },
                         ),
                         style={"marginTop": "3px"},
-                    ),
+                    ) if badge_text else None,
                 ],
                 className="p-2",
             ),
@@ -150,6 +133,26 @@ def _make_kpi_card(
             },
         ),
         className="kpi-card",
+    )
+
+
+def make_kpi_card(
+    title: str,
+    value_str: str | None,
+    icon_class: str = "bi bi-clock",
+    badge_text: str = "",
+    badge_color: str = "#38bdf8",
+    is_dark: bool = True,
+    sparkline_data: list | None = None,
+) -> html.Div:
+    """Reuse the dashboard card, showing only a supplied, real daily trend.
+
+    A missing value is shown as an em dash; a zero value remains zero. Report
+    callers may omit sparklines instead of inventing a trend from two totals.
+    """
+    return _make_kpi_card(
+        title, value_str, icon_class, badge_text, badge_color, is_dark,
+        sparkline_data, sparkline_shape="linear",
     )
 
 
@@ -177,11 +180,7 @@ def build_kpi_layout(kpis: dict, funnel_map: dict, is_dark: bool) -> list:
         funnel_map.get("rework", {}).get("duration_seconds", 0) or 0
     )
     total_assigned_dur = assigned_val + rework_val
-    pool_dur = float(
-        funnel_map.get("pending_assign", {}).get("duration_seconds", 0)
-        or kpis.get("assignable_duration", 0)
-        or 0
-    )
+    pool_dur = kpis.get('assignable_duration')
 
     total_pending_dur = float(kpis.get("total_pending_duration", 0) or 0)
     leader_dur = float(kpis.get("leader_review_duration", 0) or 0)
@@ -196,7 +195,7 @@ def build_kpi_layout(kpis: dict, funnel_map: dict, is_dark: bool) -> list:
             _fmt_badge(kpis["approved_pct"]),
             "#10B981" if kpis["approved_pct"] >= 0 else "#F43F5E",
             is_dark,
-            _sparkline_points(kpis["prev_approved_duration"], kpis["total_approved_duration"]),
+            None,
         ),
         _make_kpi_card(
             "Assigned (Now)",
@@ -205,25 +204,26 @@ def build_kpi_layout(kpis: dict, funnel_map: dict, is_dark: bool) -> list:
             f"Assigned: {format_seconds(assigned_val)} | Rework: {format_seconds(rework_val)}",
             "#10B981",
             is_dark,
-            _sparkline_points(total_assigned_dur * 0.7, total_assigned_dur),
+            None,
         ),
         _make_kpi_card(
             "Unassigned Videos",
             format_seconds(pool_dur),
             "bi bi-inbox",
-            "Pool Duration",
+            "Pool unavailable · Refresh to retry" if kpis.get('assignable_error') or pool_dur is None else
+            f"Currently assignable · {kpis.get('assignable_count', 0)} tasks",
             "#06B6D4",
             is_dark,
-            _sparkline_points(pool_dur * 1.2, pool_dur),
+            None,
         ),
         _make_kpi_card(
-            "Pending Review (Now)",
+            "Pending Review (Period)",
             format_seconds(total_pending_dur),
             "bi bi-clock",
             f"Leader: {format_seconds(leader_dur)} | Auditor: {format_seconds(auditor_dur)} | Admin: {format_seconds(admin_dur)}",
             "#F43F5E",
             is_dark,
-            _sparkline_points(total_pending_dur * 0.6, total_pending_dur),
+            None,
         ),
         _make_kpi_card(
             "Rework Submitted",
@@ -232,7 +232,7 @@ def build_kpi_layout(kpis: dict, funnel_map: dict, is_dark: bool) -> list:
             _fmt_badge(kpis["rework_pct"]),
             "#10B981" if kpis["rework_pct"] >= 0 else "#F43F5E",
             is_dark,
-            _sparkline_points(kpis["prev_rework_duration"], kpis["rework_duration"]),
+            None,
         ),
         _make_kpi_card(
             "Error Duration",
@@ -241,7 +241,7 @@ def build_kpi_layout(kpis: dict, funnel_map: dict, is_dark: bool) -> list:
             _fmt_badge(kpis["error_pct"]),
             "#F43F5E" if kpis["error_pct"] >= 0 else "#10B981",
             is_dark,
-            _sparkline_points(kpis["prev_error_duration"], kpis["total_error_duration"]),
+            None,
         ),
         _make_kpi_card(
             "Completed Tasks",
@@ -250,7 +250,7 @@ def build_kpi_layout(kpis: dict, funnel_map: dict, is_dark: bool) -> list:
             _fmt_badge(kpis["completed_pct"]),
             "#10B981" if kpis["completed_pct"] >= 0 else "#F43F5E",
             is_dark,
-            _sparkline_points(kpis["prev_completed_tasks"], kpis["completed_tasks"]),
+            None,
         ),
     ]
     return cards
