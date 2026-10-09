@@ -16,7 +16,7 @@ from slicing_dashboard.processing.daily_work import format_video_seconds
 from slicing_dashboard.reporting.user_reports import prepare_user_report
 
 
-def layout_user_report(today):
+def layout_user_report(today, users=()):
     return html.Div([
         html.Div([
             html.Div([html.H1('User Report', className='h3 mb-1'),
@@ -28,9 +28,11 @@ def layout_user_report(today):
                 html.Span('India time', className='text-secondary small')], className='report-controls'),
         ], className='report-header'),
         html.Div([html.Label('Team member', htmlFor='user-report-person', className='fw-semibold small mb-2'),
-            dcc.Dropdown(id='user-report-person', options=[], value=None, clearable=False,
+            dcc.Dropdown(id='user-report-person', options=[{'label': user, 'value': user} for user in users],
+                         value=users[0] if users else None, clearable=False,
                          searchable=True, placeholder='Select a team member')], className='user-report-selector'),
         dcc.Store(id='user-date-follows-today', data=True),
+        dcc.Store(id='user-completion-store'),
         dcc.Loading([dcc.Store(id='user-report-store'),
                      html.Div(id='user-report-content', children='Loading user report…')], type='circle',
                     overlay_style={'visibility': 'visible', 'opacity': .55},
@@ -121,6 +123,23 @@ def _batch_history_table(batches, is_dark, table_id="user-batch-history-table"):
     )
 
 
+def completion_card(report):
+    completed = report['completed_period']
+    note = 'Loading completion…' if completed.get('loading') else 'Completion data unavailable'
+    if completed['available']:
+        note = f"{completed['tasks']} completed tasks · {completed['start']} → {completed['end']}"
+        if completed.get('is_snapshot'):
+            note += ' · saved capture; refresh failed'
+    return _metric_card('Completed Video This Settlement', _duration(completed['seconds']), note,
+                        '#34d399', 'bi-check2-circle', featured=True)
+
+
+def completion_note(completed):
+    return ('Completion totals use the source API’s current completed status for the settlement date range. '
+            'They are separate from recorded submissions and do not reconstruct historical approval times. '
+            + (f"Completion capture: {completed['captured_at']}." if completed.get('captured_at') else ''))
+
+
 def build_user_report_content(data, selected_user, is_dark=True):
     if not data:
         return html.P('Loading user report…', className='text-secondary')
@@ -144,17 +163,12 @@ def build_user_report_content(data, selected_user, is_dark=True):
                      if previous_meta.get('error') or previous_meta.get('is_snapshot') else 'Reconciliation pending'
                      if previous_meta.get('reconciliation_pending') else 'Recorded submissions')
     completed = report['completed_period']
-    completion_note = 'Completion data unavailable'
-    if completed['available']:
-        completion_note = f"{completed['tasks']} completed tasks · {completed['start']} → {completed['end']}"
-        if completed.get('is_snapshot'):
-            completion_note += ' · saved capture; refresh failed'
     items = [
         ("Today's Work" if current else 'Selected-day Work', summary['total_seconds'],
          change_note + ' · new + same-day rework', '#38bdf8', 'bi-activity', True),
         ("Yesterday's Work" if current else 'Previous-day Work', previous['total_seconds'],
          previous_note, '#a78bfa', 'bi-clock-history', False),
-        ('Completed Video This Settlement', completed['seconds'], completion_note,
+        ('Completed Video This Settlement', completed['seconds'], '',
          '#34d399', 'bi-check2-circle', True),
         ('Recorded Work This Settlement', report['period']['seconds'], _scope_note(report['period']),
          '#60a5fa', 'bi-calendar-range', False),
@@ -170,6 +184,9 @@ def build_user_report_content(data, selected_user, is_dark=True):
     cards = []
     for title, value, note, color, icon, featured in items:
         card = _metric_card(title, _duration(value), note, color, icon, featured=featured)
+        if title == 'Completed Video This Settlement':
+            card = completion_card(report)
+            card.id = 'user-report-completed-card'
         card.className += ' user-metric-card'
         cards.append(card)
     coverage = sum(row['available'] for row in report['trend'])
@@ -199,9 +216,7 @@ def build_user_report_content(data, selected_user, is_dark=True):
                       className='report-comparison-chart', config={'responsive': True, 'displayModeBar': False})],
             'Use the legend to show work types. A 7-day mean appears only when recorded completed days support it.')],
             className='user-report-trend-grid'),
-        html.P(('Completion totals use the source API’s current completed status for the settlement date range. '
-                'They are separate from recorded submissions and do not reconstruct historical approval times. '
-                + (f"Completion capture: {completed['captured_at']}." if completed.get('captured_at') else '')),
+        html.P(completion_note(completed), id='user-completion-note',
                className='small text-secondary mb-0'),
         html.Div([
             report_section("Today's Work Breakdown" if current else f"Work Breakdown · {report['report_date']}",

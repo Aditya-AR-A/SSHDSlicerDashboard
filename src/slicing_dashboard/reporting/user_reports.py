@@ -1,5 +1,8 @@
 """Individual reports prepared from the same retained submissions as Daily Report."""
 from datetime import date, timedelta
+from copy import deepcopy
+import json
+from time import perf_counter
 
 from slicing_dashboard.management.periods import today_iso
 from slicing_dashboard.reporting.completed_work import completed_work_for_period
@@ -19,39 +22,90 @@ def resolve_report_user(selection, users, aliases=None):
 
 
 def get_user_report_data(manager, report_date=None, force_refresh=False):
+    """Prepare chart-sized saved history; live completion loads independently."""
     report_date = report_date or today_iso()
-    with manager.refresh_scope():
-        daily = manager.get_daily_report_data(report_date, force_refresh=force_refresh)
-        periods = manager.get_available_periods()
-        current_period = next((p for p in periods if p.get('is_current')), None)
-        completed = completed_work_for_period(
-            manager, current_period['start_date'] if current_period else None,
-            min(report_date, current_period['end_date']) if current_period else None,
-            force_refresh=force_refresh)
-        earliest = manager._daily_report_start_date(report_date) or report_date
-        # Include 30 completed days for averages in addition to today's point.
-        start = min(earliest, date_range(report_date, 31)[0])
-        if current_period and current_period['start_date'] <= report_date:
-            start = min(start, current_period['start_date'])
-        records = manager._load_daily_report_records(start, report_date)
-        canonical = manager._get_reporting_name
-        days = {day: day_for_ui(record, day, canonical) for day, record in records.items()
-                if start <= day <= report_date}
-        # Keep live errors/stale metadata from this exact refresh.
-        days.update({day['date']: day for day in daily['history']})
-        users = report_users(manager.user_mapping, getattr(manager, '_snapshot_payload', {}),
-                             list(days.values()), list(getattr(manager, 'user_mapping_full', {}).values()))
-        batches_master = getattr(manager, '_batches_master_cache', {})
-        if isinstance(batches_master, dict):
-            raw_batches = list(batches_master.values())
-        elif isinstance(batches_master, list):
-            raw_batches = batches_master
-        else:
-            raw_batches = []
-        day_batches = [b for b in raw_batches if isinstance(b, dict) and b.get('batch_date') == report_date]
-        return json_safe({**daily, 'users': users, 'days': days,
-                          'current_period': current_period, 'earliest_recorded': earliest,
-                          'batches': day_batches, 'completed_period': completed})
+    _validate_date(report_date)
+    periods = manager.get_available_periods()
+    current_period = next((p for p in periods if p.get('is_current')), None)
+    key = (report_date, today_iso(), json.dumps([manager.user_mapping,
+           getattr(manager, 'user_mapping_full', {}), periods], sort_keys=True))
+    cache = getattr(manager, '_user_report_cache', {})
+    entry = cache.get(key)
+    from slicing_dashboard.reporting.dashboard_trend import CACHE_SECONDS, bounded_read
+    if entry and not force_refresh and perf_counter() - entry[0] < CACHE_SECONDS:
+        return deepcopy(entry[1])
+    records, earliest = bounded_read(lambda: _saved_history(manager, report_date, current_period))
+    from slicing_dashboard.reporting.chart_projections import remap_daily_chart
+    canonical = manager._get_reporting_name
+    days = {}
+    for day, record in records.items():
+        if day > report_date:
+            continue
+        if 'chart_rows' in record:
+            record = {**record, 'rows': remap_daily_chart(record['chart_rows'], canonical)}
+        days[day] = day_for_ui(record, day, canonical)
+    dates = date_range(report_date)
+    history = [days.get(day, unavailable_day(day)) for day in dates]
+    users = report_users(manager.user_mapping, getattr(manager, '_snapshot_payload', {}),
+                         list(days.values()), list(getattr(manager, 'user_mapping_full', {}).values()))
+    batches_master = getattr(manager, '_batches_master_cache', {})
+    raw_batches = list(batches_master.values()) if isinstance(batches_master, dict) else batches_master
+    day_batches = [{**batch, 'canonical_user': canonical(batch.get('assignee_id'), batch['username'])
+                    if batch.get('username') else batch.get('canonical_user')}
+                   for batch in raw_batches or [] if isinstance(batch, dict) and batch.get('batch_date') == report_date]
+    payload = json_safe({'report_date': report_date, 'previous_date': dates[-2],
+                        'range_start': dates[0], 'range_end': report_date,
+                        'today': history[-1], 'yesterday': history[-2], 'history': history,
+                        'users': users, 'days': days, 'current_period': current_period,
+                        'earliest_recorded': earliest, 'batches': day_batches,
+                        'completed_period': {'loading': True}})
+    manager._user_report_cache = {key: (perf_counter(), deepcopy(payload))}
+    return payload
+
+
+def _validate_date(value):
+    if date.fromisoformat(value).isoformat() != value or value > today_iso():
+        raise ValueError('Invalid user report date')
+
+
+def _saved_history(manager, end, period):
+    from slicing_dashboard.config import DATA_DIR
+    from slicing_dashboard.reporting.dashboard_trend import work_records
+    retained = {**getattr(manager, '_dashboard_history_records', {}),
+                **getattr(manager, '_daily_report_records', {})}
+    local = {path.stem for path in (DATA_DIR / 'reports' / 'daily-work').glob('*.json')}
+    local.update(path.parent.name.removeprefix('daily-audit-') for path in
+                 (DATA_DIR / 'reports').glob('daily-audit-*/verified-submissions.json'))
+    dates = set(retained) | local
+    try:
+        earliest = manager.db.daily_chart_start_date(end)
+        if earliest:
+            dates.add(earliest)
+    except Exception:
+        pass  # The subsequent bounded read labels retained fallback evidence.
+    valid = []
+    for day in dates:
+        try:
+            if date.fromisoformat(day).isoformat() == day and day <= end:
+                valid.append(day)
+        except (ValueError, TypeError):
+            pass
+    earliest = min(valid) if valid else end
+    # Include calendar and completed-day average windows, plus all older records
+    # needed for the overall total. Local fallback reads only existing files.
+    start = min(earliest, date_range(end, 90)[0], period['start_date'] if period else end)
+    records = work_records(manager, start, end, local_dates=[day for day in valid if day in local])
+    return records, earliest
+
+
+def get_user_completion_data(manager, report_date=None, force_refresh=False):
+    """Keep the exact settlement API read off the work chart's dependency path."""
+    report_date = report_date or today_iso()
+    _validate_date(report_date)
+    period = next((p for p in manager.get_available_periods() if p.get('is_current')), None)
+    return completed_work_for_period(manager, period['start_date'] if period else None,
+        min(report_date, period['end_date']) if period else None,
+        force_refresh=force_refresh, persist=False)
 
 
 def _scope(days, user, start, end):

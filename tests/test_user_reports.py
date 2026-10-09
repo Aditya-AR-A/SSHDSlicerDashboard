@@ -141,20 +141,25 @@ def test_loading_reads_history_once_and_selection_never_refetches():
     manager.user_mapping = {'A-1': 'A', 'A-2': 'A', 'B-1': 'B'}
     manager.user_mapping_full = {}
     manager._snapshot_payload = {}
-    manager.get_daily_report_data.return_value = payload
+    manager._user_report_cache = {}
+    manager._daily_report_records = {}
+    manager._dashboard_history_records = {}
+    manager._batches_master_cache = {}
+    manager._get_reporting_name.side_effect = lambda uid, name: manager.user_mapping.get(name, name)
     manager.get_available_periods.return_value = [payload['current_period']]
-    manager._daily_report_start_date.return_value = '2026-08-01'
-    manager._load_daily_report_records.return_value = {'2026-08-01': day('2026-08-01')}
+    manager.db.daily_chart_start_date.return_value = '2026-08-01'
+    manager.db.load_daily_chart_reports.return_value = [*payload['days'].values(), day('2026-08-01')]
     with patch('slicing_dashboard.reporting.user_reports.completed_work_for_period',
                return_value={'available': False}) as completed:
         prepared = get_user_report_data(manager, '2026-10-06', True)
-    completed.assert_called_once_with(manager, '2026-09-20', '2026-10-06', force_refresh=True)
+    completed.assert_not_called()
     before = copy.deepcopy(prepared)
     for user in ['A', 'B', 'A']:
         prepare_user_report(prepared, user)
     assert prepared == before
-    manager.get_daily_report_data.assert_called_once_with('2026-10-06', force_refresh=True)
-    manager._load_daily_report_records.assert_called_once_with('2026-08-01', '2026-10-06')
+    manager.get_daily_report_data.assert_not_called()
+    manager._load_daily_report_records.assert_not_called()
+    manager.db.load_daily_chart_reports.assert_called_once_with('2026-07-09', '2026-10-06')
     assert prepare_user_report(prepared, 'A')['overall']['seconds'] == 360
     json.dumps(prepared, allow_nan=False)
 
@@ -173,12 +178,16 @@ def test_history_start_uses_disk_database_and_memory_without_inventory(tmp_path)
         assert manager._daily_report_start_date('2026-10-06') == '2026-08-10'
 
 
-def test_real_manager_user_report_captures_shared_daily_source_and_remaps_aliases(tmp_path):
+def test_real_manager_user_report_reads_saved_daily_source_and_remaps_aliases(tmp_path):
     manager = DataManager.__new__(DataManager)
     manager.scraper = MagicMock()
     manager.db = MagicMock()
     manager.db.load_daily_work_reports.return_value = []
-    manager.db.daily_work_start_date.return_value = None
+    manager.db.daily_chart_start_date.return_value = None
+    manager.db.load_daily_chart_reports.return_value = [{'date': '2026-10-06',
+        'metadata': {'available': True}, 'tasks': [
+            {'username': 'SSHD-A', 'bucket': 'Fresh', 'duration_seconds': 60},
+            {'username': 'SSHD-A2', 'bucket': 'Fresh', 'duration_seconds': 90}]}]
     manager.db.save_daily_work_report.return_value = False
     manager._cache = {}
     manager._snapshot_payload = {}
@@ -191,12 +200,12 @@ def test_real_manager_user_report_captures_shared_daily_source_and_remaps_aliase
          patch('slicing_dashboard.processing.daily_work_source.DailyWorkSource.fetch',
                return_value=source([task('a'), task('b', raw='SSHD-A2', seconds=90)])) as fetch:
         payload = manager.get_user_report_data(force_refresh=True)
-        assert [call.args[0] for call in fetch.call_args_list] == ['2026-10-06', '2026-10-05']
+        fetch.assert_not_called()
         individual = prepare_user_report(payload, 'A')
         assert individual['summary']['total_seconds'] == 150
         assert individual['period']['seconds'] == individual['overall']['seconds'] == 150
         assert prepare_user_report(payload, 'B')['summary']['total_seconds'] == 0
-        assert (tmp_path / 'reports/daily-work/2026-10-06.json').exists()
+        assert not (tmp_path / 'reports/daily-work/2026-10-06.json').exists()
         manager.scraper._client.get.assert_not_called()
 
 
@@ -269,7 +278,7 @@ def test_user_callbacks_are_active_route_only_and_selection_is_pure():
 
 def test_roster_preserves_selection_and_recovers_after_mapping_changes():
     namespace, _ = application_namespace()
-    assert namespace['update_report_people'](data(), 'B')[1] == 'B'
+    assert namespace['update_report_people'](data(), 'B')[1] is dash.no_update
     assert namespace['update_report_people'](data(), 'Removed')[1] == 'A'
     assert namespace['update_report_people']({'users': []}, 'B') == ([], None)
 

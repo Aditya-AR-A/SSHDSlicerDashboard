@@ -40,7 +40,7 @@ def report_section(title, children, description=None):
     return html.Section([html.Div(heading, className="report-section-heading"), *body], className="glass-panel report-section")
 
 
-def add_reporting_shell(existing_layout, today):
+def add_reporting_shell(existing_layout, today, users=()):
     """Keep dashboard/editor nodes mounted while switching visible pages."""
     from slicing_dashboard.pages.daily_report import layout_daily_report
     from slicing_dashboard.pages.user_report import layout_user_report
@@ -85,7 +85,7 @@ def add_reporting_shell(existing_layout, today):
                   id='workflow-notification-modal', is_open=False, size='lg', scrollable=True),
         html.Div(dashboard, id="dashboard-page"),
         html.Div(layout_daily_report(today), id="daily-report-page", style={"display": "none"}),
-        html.Div(layout_user_report(today), id="user-report-page", style={"display": "none"}),
+        html.Div(layout_user_report(today, users), id="user-report-page", style={"display": "none"}),
         html.Div(layout_workflow_history(today), id='workflow-page', style={'display': 'none'}),
         html.Div(layout_settings(), id='settings-page', style={'display': 'none'}),
         html.Div([

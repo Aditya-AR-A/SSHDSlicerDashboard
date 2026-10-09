@@ -56,7 +56,7 @@ def _fetch_items(manager, start, end):
 
 
 @serialized_source
-def completed_work_for_period(manager, start, end, force_refresh=False):
+def completed_work_for_period(manager, start, end, force_refresh=False, *, persist=True):
     """Reuse one minute of data; failed reads only fall back to this exact range."""
     empty = {'start': start, 'end': end, 'rows': [], 'available': False,
              'is_snapshot': False, 'captured_at': None}
@@ -83,7 +83,8 @@ def completed_work_for_period(manager, start, end, force_refresh=False):
             items = _fetch_items(manager, start, end)
             saved = {'start': start, 'end': end, 'items': items, 'captured_at': datetime.now(timezone.utc).isoformat()}
             cache[key] = saved
-            manager._save_snapshot()
+            if persist:
+                manager._save_snapshot()
         except Exception as failure:
             # Do not expose HTTP messages, credentials, or another period's cache.
             error = type(failure).__name__

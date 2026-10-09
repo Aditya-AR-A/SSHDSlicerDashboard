@@ -114,6 +114,20 @@ manager.get_daily_report_data.side_effect = report
 manager.get_user_report_data.side_effect = report
 manager.get_dashboard_trend_data.side_effect = report
 
+def user_report(*args, **kwargs):
+    time.sleep(state.get('user_report_delay', 0))
+    return {**report(*args, **kwargs), 'completed_period': {'loading': True}}
+
+
+def user_completion(*args, **kwargs):
+    time.sleep(state.get('user_completion_delay', 0))
+    return {'start': '2026-10-01', 'end': '2026-10-06', 'available': True,
+            'rows': [{'User': user, 'seconds': seconds(), 'tasks': 2} for user in people()]}
+
+
+manager.get_user_report_data.side_effect = user_report
+namespace['get_user_completion_data'] = user_completion
+
 # Optional inspection of a retained local capture; all API transports remain fake.
 if len(sys.argv) > 1:
     import json

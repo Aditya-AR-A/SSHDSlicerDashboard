@@ -34,7 +34,9 @@ from slicing_dashboard.management.periods import today_iso
 from slicing_dashboard.processing.daily_work import EXCLUDED
 from slicing_dashboard.pages.components import add_reporting_shell, contain_graphs
 from slicing_dashboard.pages.daily_report import build_daily_report_content
-from slicing_dashboard.pages.user_report import build_user_report_content
+from slicing_dashboard.pages.user_report import build_user_report_content, completion_card, completion_note
+from slicing_dashboard.reporting.dashboard_reports import report_users
+from slicing_dashboard.reporting.user_reports import prepare_user_report, get_user_completion_data
 from slicing_dashboard.reporting.approval_reports import prepare_approval_trend
 from slicing_dashboard.plots.approval_trend_chart import build_approval_trend_chart
 from slicing_dashboard.pages.workflow_history import notification_panel, history_table, notification_updates, notification_toasts
@@ -330,7 +332,9 @@ app.layout = html.Div(
 )
 
 # ── Client-side theme toggle ─────────────────────────────────────────────
-app.layout = add_reporting_shell(app.layout, today_iso())
+app.layout = add_reporting_shell(app.layout, today_iso(), report_users(
+    dm.user_mapping, dm._snapshot_payload,
+    mapping_records=list(getattr(dm, 'user_mapping_full', {}).values())))
 app.layout = contain_graphs(app.layout)
 
 
@@ -619,6 +623,35 @@ def load_user_report(pathname, n_clicks, n_intervals, report_date):
 
 
 @app.callback(
+    Output('user-completion-store', 'data'),
+    Input('report-location', 'pathname'), Input('refresh-btn', 'n_clicks'),
+    Input('auto-refresh-interval', 'n_intervals'), Input('user-report-date', 'value'),
+)
+def load_user_completion(pathname, n_clicks, n_intervals, report_date):
+    if pathname != '/reports/user':
+        raise dash.exceptions.PreventUpdate
+    try:
+        return get_user_completion_data(dm, report_date or today_iso(),
+            force_refresh=dash.ctx.triggered_id in ('refresh-btn', 'auto-refresh-interval'))
+    except ValueError:
+        return {'available': False, 'error': 'InvalidReportDate'}
+
+
+@app.callback(
+    Output('user-report-completed-card', 'children'), Output('user-completion-note', 'children'),
+    Input('user-completion-store', 'data'), Input('user-report-person', 'value'),
+    Input('user-report-store', 'data'), Input('report-location', 'pathname'),
+)
+def render_user_completion(completed, user, data, pathname):
+    if pathname != '/reports/user' or not data or data.get('validation_error'):
+        raise dash.exceptions.PreventUpdate
+    report = prepare_user_report({**data, 'completed_period': completed or {'loading': True}}, user)
+    if report is None:
+        raise dash.exceptions.PreventUpdate
+    return completion_card(report).children, completion_note(report['completed_period'])
+
+
+@app.callback(
     Output("user-report-person", "options"), Output("user-report-person", "value"),
     Input("user-report-store", "data"), State("user-report-person", "value"),
 )
@@ -627,7 +660,7 @@ def update_report_people(data, selected):
         return dash.no_update, dash.no_update
     users = data.get("users", [])
     return [{"label": user, "value": user} for user in users], (
-        selected if selected in users else users[0] if users else None)
+        dash.no_update if selected in users else users[0] if users else None)
 
 
 @app.callback(

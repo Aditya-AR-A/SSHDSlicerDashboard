@@ -19,7 +19,7 @@ def bounded_read(read):
         return read()
 
 
-def work_records(manager, start, end):
+def work_records(manager, start, end, local_dates=None):
     retained = {**getattr(manager, '_dashboard_history_records', {}),
                 **getattr(manager, '_daily_report_records', {})}
     failed = False
@@ -33,18 +33,24 @@ def work_records(manager, start, end):
                     for day, record in retained.items()}
     # A read-only local fallback keeps retained observations visible offline.
     from slicing_dashboard.config import DATA_DIR
-    for day in date_range(end):
+    for day in local_dates if local_dates is not None else date_range(end):
         if day in retained:
             continue
-        path = DATA_DIR / 'reports' / 'daily-work' / (day + '.json')
-        if path.exists():
+        paths = (DATA_DIR / 'reports' / 'daily-work' / (day + '.json'),
+                 DATA_DIR / 'reports' / ('daily-audit-' + day) / 'verified-submissions.json')
+        for path in paths:
+            if not path.exists():
+                continue
             try:
                 record = json.loads(path.read_text(encoding='utf-8'))
+                if record.get('metadata', {}).get('target_date') == day:
+                    record = {**record, 'date': day}
                 if record.get('date') == day:
                     if failed:
                         record = {**record, 'metadata': {**record.get('metadata', {}),
                                   'is_snapshot': True, 'error': 'DailyChartReadFailed'}}
                     retained[day] = record
+                    break
             except (OSError, ValueError):
                 pass
     manager._dashboard_history_records = retained

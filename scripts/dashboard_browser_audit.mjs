@@ -64,7 +64,7 @@ async function until(expression, timeout = 20000) {
 const visible = `el => !!(el.offsetWidth && el.offsetHeight && el.getClientRects().length)`;
 const results = [];
 try {
-    for (const mode of (['lifecycle', 'labels', 'latency'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
+    for (const mode of (['lifecycle', 'labels', 'latency', 'user-latency'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
         await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode, seconds: 3600, auditor_seconds: 0, admin_seconds: 0, delay: 0})});
         for (const width of (mode === 'normal' || mode === 'many' ? [390, 768, 1366, 1920] : [390])) {
             await call('Emulation.setDeviceMetricsOverride', {width, height: 950, deviceScaleFactor: 1, mobile: false});
@@ -127,6 +127,46 @@ try {
             mainStillLoading: await evaluate(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`)});
         await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({delay: 0, dashboard_delay: 0, workflow_delay: 0})});
+        console.log(JSON.stringify(results));
+    }
+    if (process.argv[2] === 'user-latency') {
+        const scenario = values => fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST',
+            headers: {'Content-Type': 'application/json'}, body: JSON.stringify(values)});
+        await scenario({mode: 'normal', user_report_delay: 10, user_completion_delay: 0});
+        await call('Emulation.setDeviceMetricsOverride', {width: 1366, height: 950, deviceScaleFactor: 1, mobile: false});
+        const began = Date.now();
+        await call('Page.navigate', {url: 'http://127.0.0.1:8059/reports/user'});
+        await until(`document.querySelector('#user-report-person')?.textContent.includes('Priya')`);
+        const namesMs = Date.now() - began;
+        if (namesMs >= 5000 || await evaluate(`!!document.querySelector('#user-work-trend .js-plotly-plot')?.data`))
+            throw new Error('Initial roster waited for slow report loading');
+        results.push({initialNamesMs: namesMs, reportStillLoading: true});
+        await until(`document.querySelector('#user-work-trend .js-plotly-plot')?.data?.length`);
+        await scenario({user_report_delay: .2, user_completion_delay: 10});
+        await call('Page.navigate', {url: 'about:blank'});
+        const chartBegan = Date.now();
+        await call('Page.navigate', {url: 'http://127.0.0.1:8059/reports/user'});
+        await until(`document.querySelectorAll('#user-report-content .js-plotly-plot').length === 3 && document.querySelector('#user-work-trend .js-plotly-plot')?.data?.length`);
+        const chartsMs = Date.now() - chartBegan;
+        const completionPending = await evaluate(`document.querySelector('#user-report-completed-card')?.textContent.includes('Loading completion')`);
+        if (chartsMs >= 6000 || !completionPending) throw new Error('User charts waited for completion');
+        results.push({initialChartsMs: chartsMs, completionStillLoading: completionPending});
+        const select = await evaluate(`(() => {const el = document.querySelector('#user-report-person'); const r = el.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2};})()`);
+        await call('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', clickCount: 1, ...select});
+        await call('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...select});
+        await until(`Array.from(document.querySelectorAll('.VirtualizedSelectOption, [role="option"]')).some(el => el.textContent.trim() === 'Riya')`);
+        const option = await evaluate(`(() => {const el = Array.from(document.querySelectorAll('.VirtualizedSelectOption, [role="option"]')).find(el => el.textContent.trim() === 'Riya'); const r = el.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2};})()`);
+        const switchBegan = Date.now();
+        await call('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', clickCount: 1, ...option});
+        await call('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...option});
+        await until(`document.querySelector('#user-report-content h2')?.textContent === 'Riya'`, 3000);
+        results.push({switchPersonMs: Date.now() - switchBegan});
+        await evaluate(`document.querySelector('#user-work-trend .js-plotly-plot').dataset.qaRetained = 'yes'`);
+        await until(`document.querySelector('#user-report-completed-card')?.textContent.includes('2 completed tasks')`, 15000);
+        if (!await evaluate(`document.querySelector('#user-work-trend .js-plotly-plot')?.dataset.qaRetained === 'yes'`))
+            throw new Error('Completion update remounted work charts');
+        results.push({completionUpdatedWithoutChartRemount: true});
+        await scenario({user_report_delay: 0, user_completion_delay: 0});
         console.log(JSON.stringify(results));
     }
     if (process.argv[2] === 'labels') {

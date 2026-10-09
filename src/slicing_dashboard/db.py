@@ -515,6 +515,16 @@ class DatabaseManager:
         # these reduced records back over complete task evidence.
         return self.load_daily_work_reports(start_date, end_date)
 
+    def daily_chart_start_date(self, end_date: str):
+        """Read chart bounds from a reachable replica without a primary ping."""
+        if self.mongo_db is not None:
+            from pymongo import ReadPreference
+            collection = self.mongo_db['daily_work_reports'].with_options(
+                read_preference=ReadPreference.SECONDARY_PREFERRED)
+            record = collection.find_one({'_id': {'$lte': end_date}}, {'date': 1}, sort=[('_id', 1)])
+            return (record.get('date') or record.get('_id')) if record else None
+        return self.daily_work_start_date(end_date)
+
     def daily_work_start_date(self, end_date: str):
         """Earliest retained daily record, including history outside the chart range."""
         if not self.is_connected():
