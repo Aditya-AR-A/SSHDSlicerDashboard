@@ -88,3 +88,15 @@ prevents inspecting the deployed callbacks or testing production filters.
 The local fixes have not been deployed. The account owner needs to resolve the
 hosting restriction in Vercel before production verification can continue; the
 response alone does not identify the underlying account or usage condition.
+
+The owner subsequently supplied the usage breakdown: the dashboard consumed
+11h 51m of active CPU, representing 97.9% of team CPU usage. Team totals exceeded
+both the 4 CPU-hour and 360 GB-hour memory allowances. These totals identify
+the project but do not attribute usage to individual callbacks.
+
+Notification polling and bell clicks now issue a separate pending-review
+request. Summary, completion, rework and assignment stores receive no update,
+so their capture pipelines remain idle. Date changes and full refreshes still
+update all five panels. The 40 affected callback, chart-loading and daily-report
+tests passed. This change is local and not deployed; there is no measured
+production resource saving yet, and it does not clear accumulated Vercel usage.

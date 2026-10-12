@@ -58,8 +58,9 @@ def test_saved_request_and_render_do_no_source_reads_and_have_no_live_input():
     callbacks = namespace['app'].callback_map
     request_callback = next(value for key, value in callbacks.items() if 'dashboard-panel-request.data' in key)
     with patch('dash.ctx', MagicMock(triggered_id='report-location')):
-        request, _, saved, *_ = request_callback['callback'].__wrapped__(
+        request, pending_request, _, saved, *_ = request_callback['callback'].__wrapped__(
             '2026-10-01', '2026-10-08', 0, 0, '/', 0, 0)
+    assert pending_request == request
     assert saved['captured_at'] == packet['captured_at']
     paint = next(value for key, value in callbacks.items() if 'individual-chart.figure' in key and '@' not in key)
     assert not any(item['id'].startswith('dashboard-live-') for item in paint['inputs'])
@@ -69,6 +70,47 @@ def test_saved_request_and_render_do_no_source_reads_and_have_no_live_input():
     manager.fetch_dashboard_data.assert_not_called()
     manager.get_user_breakdown_df.assert_not_called()
     manager._save_snapshot.assert_not_called()
+
+
+@pytest.mark.parametrize('trigger', ['workflow-notification-interval', 'workflow-bell'])
+def test_notification_refresh_updates_only_pending_pipeline(trigger):
+    namespace, manager = application_namespace()
+    callbacks = namespace['app'].callback_map
+    request_callback = next(value for key, value in callbacks.items() if 'dashboard-panel-request.data' in key)
+    with patch('dash.ctx', MagicMock(triggered_id=trigger)), \
+         patch('slicing_dashboard.pages.dashboard_panels.saved_panel', return_value=None) as read_saved:
+        shared, pending, *saved = request_callback['callback'].__wrapped__(
+            '2026-10-01', '2026-10-08', 0, 0, '/', 1, 1)
+    read_saved.assert_called_once_with(manager, 'pending', '2026-10-01', '2026-10-08')
+    assert shared is dash.no_update
+    assert pending['pending_force'] and not pending['force']
+    for kind, packet in zip(KINDS, saved):
+        if kind == 'pending':
+            assert packet['request_id'] == pending['id']
+        else:
+            assert packet is dash.no_update
+        capture = callbacks[f'dashboard-live-{kind}.data']
+        store = 'dashboard-pending-request' if kind == 'pending' else 'dashboard-panel-request'
+        assert capture['state'] == [{'id': store, 'property': 'data'}]
+        paint = next(value for key, value in callbacks.items()
+                     if f'dashboard-ready-{kind}.data' in key)
+        assert {'id': store, 'property': 'data'} in paint['inputs']
+    manager.get_user_breakdown_df.assert_not_called()
+    manager.get_batch_rework_ratio_df.assert_not_called()
+
+
+@pytest.mark.parametrize('trigger', ['date-from', 'date-to', 'refresh-btn', 'auto-refresh-interval'])
+def test_range_and_full_refresh_still_update_every_panel(trigger):
+    namespace, _ = application_namespace()
+    request_callback = next(value for key, value in namespace['app'].callback_map.items()
+                            if 'dashboard-panel-request.data' in key)
+    with patch('dash.ctx', MagicMock(triggered_id=trigger)), \
+         patch('slicing_dashboard.pages.dashboard_panels.saved_panel', return_value=None):
+        shared, pending, *saved = request_callback['callback'].__wrapped__(
+            '2026-10-01', '2026-10-08', 1, 1, '/', 0, 0)
+    assert pending == shared
+    assert shared['force'] == (trigger in ('refresh-btn', 'auto-refresh-interval'))
+    assert all(packet['request_id'] == shared['id'] for packet in saved)
 
 
 def test_range_capture_waits_for_first_paint_and_selection_does_not_recapture():

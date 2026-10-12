@@ -20,6 +20,7 @@ GRAPH_IDS = {'completion': 'individual-chart', 'rework': 'rework-ratio-chart',
 
 def panel_stores():
     return [dcc.Store(id='dashboard-panel-request'),
+            dcc.Store(id='dashboard-pending-request'),
             *[dcc.Store(id=f'dashboard-{phase}-{kind}')
               for kind in KINDS for phase in ('saved', 'live', 'ready', 'painted')]]
 
@@ -65,6 +66,7 @@ def render_panel(kind, request, saved, live, selected, theme, roster):
 def register_dashboard_panels(app, manager, roster):
     @app.callback(
         Output('dashboard-panel-request', 'data'),
+        Output('dashboard-pending-request', 'data'),
         *[Output(f'dashboard-saved-{kind}', 'data') for kind in KINDS],
         Input('date-from', 'value'), Input('date-to', 'value'),
         Input('refresh-btn', 'n_clicks'), Input('auto-refresh-interval', 'n_intervals'),
@@ -78,23 +80,31 @@ def register_dashboard_panels(app, manager, roster):
         request = {'id': uuid4().hex, 'start': start, 'end': end,
                    'force': trigger in ('refresh-btn', 'auto-refresh-interval'),
                    'pending_force': trigger in ('workflow-notification-interval', 'workflow-bell')}
+        # Notification checks affect the current review queue only. A new shared
+        # request ID would otherwise restart all five panel capture pipelines.
+        if request['pending_force']:
+            packet = saved_panel(manager, 'pending', start, end) or {'available': False}
+            return (dash.no_update, request,
+                    *[{**packet, 'request_id': request['id']} if kind == 'pending'
+                      else dash.no_update for kind in KINDS])
         saved = []
         for kind in KINDS:
             packet = saved_panel(manager, kind, start, end) or {'available': False}
             saved.append({**packet, 'request_id': request['id']})
-        return request, *saved
+        return request, request, *saved
 
     for kind in KINDS:
         _register_panel(app, manager, roster, kind)
 
 
 def _register_panel(app, manager, roster, kind):
+    request_store = 'dashboard-pending-request' if kind == 'pending' else 'dashboard-panel-request'
     outputs = ([Output('kpi-cards', 'children'), Output('refresh-status', 'children')]
                if kind == 'summary' else
                [Output(GRAPH_IDS[kind], 'figure'), Output(GRAPH_IDS[kind] + '-status', 'children')])
 
     @app.callback(Output(f'dashboard-live-{kind}', 'data'),
-                  Input(f'dashboard-ready-{kind}', 'data'), State('dashboard-panel-request', 'data'))
+                  Input(f'dashboard-ready-{kind}', 'data'), State(request_store, 'data'))
     def capture(ready, request):
         if not request or not matching_packet(request, ready):
             raise dash.exceptions.PreventUpdate
@@ -106,7 +116,7 @@ def _register_panel(app, manager, roster, kind):
     # before painting the saved result.
     @app.callback(*outputs, Output(f'dashboard-ready-{kind}', 'data'),
                   Output(f'dashboard-painted-{kind}', 'data'),
-                  Input('dashboard-panel-request', 'data'), Input(f'dashboard-saved-{kind}', 'data'),
+                  Input(request_store, 'data'), Input(f'dashboard-saved-{kind}', 'data'),
                   Input('selected-users-store', 'data'), Input('theme-toggle', 'n_clicks'),
                   State(f'dashboard-live-{kind}', 'data'), State('report-location', 'pathname'),
                   State(f'dashboard-ready-{kind}', 'data'))
@@ -124,7 +134,7 @@ def _register_panel(app, manager, roster, kind):
                     for output in outputs],
                   Input(f'dashboard-live-{kind}', 'data'),
                   Input(f'dashboard-painted-{kind}', 'data'),
-                  State('dashboard-panel-request', 'data'), State(f'dashboard-saved-{kind}', 'data'),
+                  State(request_store, 'data'), State(f'dashboard-saved-{kind}', 'data'),
                   State('selected-users-store', 'data'), State('theme-toggle', 'n_clicks'),
                   State('report-location', 'pathname'), prevent_initial_call=True)
     def paint_live(live, painted, request, saved, selected, theme, pathname):
