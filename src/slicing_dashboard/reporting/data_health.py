@@ -14,10 +14,10 @@ from slicing_dashboard.processing.workflow_history import WorkflowStore
 
 
 SOURCES = ('configuration', 'daily', 'overview', 'efficiency', 'assignable_pool', 'assignments',
-           'rework', 'pending_review', 'batches', 'returns', 'completion', 'workflow')
+           'rework', 'pending_review', 'batches', 'returns', 'completion', 'chart_panels', 'workflow')
 HEALTH_MAX_AGE_SECONDS = 600  # Two missed five-minute runs.
 LEASE_SECONDS = 330  # Outlives a 300-second function; the next run can retry a killed job.
-PROCESSOR_VERSION = 3
+PROCESSOR_VERSION = 4
 
 
 def utc_now():
@@ -120,13 +120,18 @@ class DataHealth:
             if len(states) != 3 or any(state.get('error') or not state.get('last_complete_at') for state in states):
                 raise ValueError('Workflow scan incomplete; next run resumes checkpoints')
 
+        def chart_panels():
+            period = next((row for row in manager.get_available_periods() if row.get('is_current')), None)
+            # Match the dashboard's selected period, including its future boundary.
+            manager.prepare_dashboard_panels(start, period['end_date'] if period else end)
+
         return {'configuration': configuration, 'daily': daily,
                 'overview': overview, 'efficiency': efficiency,
                 'assignable_pool': pool,
                 'assignments': lambda: manager._current_task_stats('slice_assigned', True),
                 'rework': lambda: manager._current_task_stats('slice_rework', True),
                 'pending_review': pending, 'batches': batches, 'returns': returns,
-                'completion': completion, 'workflow': workflow}
+                'completion': completion, 'chart_panels': chart_panels, 'workflow': workflow}
 
     def refresh(self, selected=None):
         """Retry all or selected sources; each failure retains its last good time.

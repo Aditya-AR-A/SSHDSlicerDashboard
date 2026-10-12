@@ -17,7 +17,11 @@ def chart_graph(**kwargs):
     kwargs.setdefault('responsive', True)
     kwargs['config'] = {**(kwargs.pop('config', None) or {}), 'scrollZoom': False}
     graph = dcc.Graph(**kwargs, style=style, className='chart-surface ' + classes)
-    return html.Div(html.Div(graph, className='chart-viewport'),
+    children = [html.Div(graph, className='chart-viewport')]
+    if kwargs.get('id') in ('rework-ratio-chart', 'individual-chart', 'assigned-chart', 'pending-chart'):
+        children.append(html.Div(id=kwargs['id'] + '-status', className='small text-secondary px-3 pb-2',
+                                 **{'aria-live': 'polite'}))
+    return html.Div(children,
                     className='chart-frame' + (' glass-panel' if panel else ''))
 
 

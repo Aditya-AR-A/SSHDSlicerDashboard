@@ -146,19 +146,13 @@ class DailyReportRoutingTests(unittest.TestCase):
         with self.assertRaises(dash.exceptions.PreventUpdate):
             namespace["render_daily_report"](data, 0, "/")
 
-    def test_registered_dashboard_dispatch_preserves_input_and_state_order(self):
+    def test_dashboard_summary_render_does_not_wait_for_live_captures(self):
         namespace, _ = application_namespace()
-        namespace["update_dashboard"] = MagicMock(return_value=tuple(range(9)))
         callback = next(value for key, value in namespace["app"].callback_map.items()
                         if "kpi-cards.children" in key)
-        dispatch = callback["callback"].__wrapped__
-        selected_users = ["Riya"]
-        result = dispatch(0, 1, "2026-10-01", "2026-10-06", selected_users, 0, "/reports/daily")
-        self.assertEqual(result, (0, 1, 2, 3, 4, 5, 7, 8))
-        namespace["update_dashboard"].assert_called_once_with(
-            0, 1, "2026-10-01", "2026-10-06", None, 0, None, None,
-            selected_users, "/reports/daily",
-        )
+        self.assertNotIn('dashboard-live-summary', {item['id'] for item in callback['inputs']})
+        with self.assertRaises(dash.exceptions.PreventUpdate):
+            callback['callback'].__wrapped__(None, None, ['Riya'], 0, None, '/reports/daily', None)
 
     def test_invalid_report_date_returns_a_visible_validation_state(self):
         namespace, manager = application_namespace()

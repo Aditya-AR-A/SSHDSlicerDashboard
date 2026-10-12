@@ -12,7 +12,8 @@ from tests.test_daily_report_page import application_namespace
 def test_chart_dependencies_exclude_workflow_capture_and_slow_selection_writer():
     namespace, _ = application_namespace()
     callbacks = namespace['app'].callback_map
-    for identity in ('pending-chart.figure', '..approval-trend-chart.figure...approval-trend-status.children..'):
+    pending = next(key for key in callbacks if 'pending-chart.figure' in key)
+    for identity in (pending, '..approval-trend-chart.figure...approval-trend-status.children..'):
         callback = callbacks[identity]
         assert 'workflow-sync-store' not in {item['id'] for item in callback['inputs']}
     selection = callbacks['selected-users-store.data']
@@ -28,6 +29,34 @@ def test_line_load_does_not_run_live_workflow_or_daily_scans():
     manager.get_dashboard_trend_data.assert_called_once_with('2026-10-06', force_refresh=True)
     manager.get_daily_report_data.assert_not_called()
     manager.get_workflow_data.assert_not_called()
+
+
+def test_line_filter_passes_both_dates_to_the_saved_history_reader():
+    namespace, manager = application_namespace()
+    callback = namespace['app'].callback_map['dashboard-trend-store.data']
+    assert {'id': 'date-from', 'property': 'value'} in callback['inputs']
+    with patch('dash.ctx', MagicMock(triggered_id='date-from')):
+        namespace['load_dashboard_trend']('2026-10-06', 0, 0, '/', 0, '2026-10-02')
+    manager.get_dashboard_trend_data.assert_called_once_with(
+        '2026-10-06', force_refresh=False, start_date='2026-10-02')
+
+
+def test_saved_line_range_cache_and_single_day_selection(tmp_path):
+    manager = DataManager.__new__(DataManager)
+    manager.db = MagicMock()
+    manager.user_mapping = {}
+    manager.user_mapping_full = {}
+    manager.db.load_daily_chart_reports.return_value = []
+    manager.get_approval_data = MagicMock(return_value={})
+    manager.get_efficiency_history = MagicMock(return_value=[])
+    with patch('slicing_dashboard.config.DATA_DIR', tmp_path), \
+         patch('slicing_dashboard.reporting.dashboard_trend.today_iso', return_value='2026-10-06'):
+        first = manager.get_dashboard_trend_data('2026-10-06', start_date='2026-10-01')
+        second = manager.get_dashboard_trend_data('2026-10-06', start_date='2026-10-02')
+        assert len(first['history']) == 6 and len(second['history']) == 5
+        manager.db.load_daily_chart_reports.assert_called_with('2026-10-02', '2026-10-06')
+        day = manager.get_dashboard_trend_data('2026-10-06', start_date='2026-10-06')
+        assert len(day['history']) == 1 and day['previous_date'] == '2026-10-05'
 
 
 def test_chart_projection_omits_audit_fields_and_preserves_remapping():

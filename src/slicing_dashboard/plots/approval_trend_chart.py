@@ -32,7 +32,8 @@ def build_approval_trend_chart(report, is_dark=True):
                            + '<extra></extra>'),
         ))
     revision = f"approval-trend:{report.get('range_start')}:{report.get('range_end')}"
-    _layout(figure, 'Daily work and approvals · last 30 days', is_dark, revision)
+    _layout(figure, f"Daily work and approvals · {report.get('range_start')} to {report.get('range_end')}",
+            is_dark, revision)
     figure.update_layout(margin={'b': 150}, yaxis_title='Video hours',
                          legend={'entrywidth': 210})
     if not any(row.get('total_seconds') is not None for row in rows):

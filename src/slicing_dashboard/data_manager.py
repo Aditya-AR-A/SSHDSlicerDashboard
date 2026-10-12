@@ -70,7 +70,7 @@ def _per_refresh(function):
 class DataManager:
 
     @contextmanager
-    def refresh_scope(self):
+    def refresh_scope(self, persist_snapshot=True):
         """Reuse reads and persist once per callback; independent callbacks stay isolated."""
         existing = _REFRESH_SCOPE.get()
         if existing is not None and existing['manager'] is self:
@@ -85,9 +85,10 @@ class DataManager:
         finally:
             _REFRESH_SCOPE.reset(token)
             snapshot_started = perf_counter()
-            if scope['snapshot_dirty']:
+            persisted = scope['snapshot_dirty'] and persist_snapshot
+            if persisted:
                 self._save_snapshot()
-            snapshot_seconds = perf_counter() - snapshot_started if scope['snapshot_dirty'] else 0.0
+            snapshot_seconds = perf_counter() - snapshot_started if persisted else 0.0
             if scope.get('daily_source') is not None:
                 scope['daily_source'].invalidate()
             self.last_refresh_profile = {
@@ -100,10 +101,10 @@ class DataManager:
                 'snapshot_persistence': {'attempted': False},
             }
             database_profile = getattr(self.db, 'last_snapshot_profile', None)
-            if isinstance(database_profile, dict) and scope['snapshot_dirty']:
+            if isinstance(database_profile, dict) and persisted:
                 self.last_refresh_profile['database'] = database_profile
             persistence = getattr(self, 'last_snapshot_save_result', None)
-            if isinstance(persistence, dict) and scope['snapshot_dirty']:
+            if isinstance(persistence, dict) and persisted:
                 self.last_refresh_profile['snapshot_persistence'] = persistence
             try:
                 from slicing_dashboard.config import DATA_DIR
@@ -333,7 +334,8 @@ class DataManager:
                 "batches_master_records": list(self._batches_master_cache.values()),
                 "batches_master_synced_dates": sorted(getattr(self, '_batches_master_synced_dates', set())),
             }
-            self._snapshot_payload = payload
+            from slicing_dashboard.reporting.dashboard_panels import attach_panels
+            attach_panels(self, payload)
 
             # 1. Save to disk (DATA_DIR locally, /tmp on Vercel)
             for target in [self._snapshot_path, Path("/tmp/snapshot_cache.json")]:
@@ -354,6 +356,19 @@ class DataManager:
         except Exception as e:
             self.last_snapshot_save_result['snapshot_error_class'] = type(e).__name__
             print(f"Warning: Failed to save snapshot: {e}")
+
+    def prepare_dashboard_panels(self, start_date, end_date):
+        """Prepare compact first-paint data during the scheduled capture."""
+        from slicing_dashboard.reporting.dashboard_panels import KINDS, capture_panel
+        failed = []
+        for kind in KINDS:
+            packet = capture_panel(self, kind, start_date, end_date)
+            if not packet.get('available'):
+                failed.append(kind)
+        # The surrounding scheduled refresh persists all successful panels once.
+        self._save_snapshot()
+        if failed:
+            raise ValueError('Chart captures unavailable: ' + ', '.join(failed))
 
     def check_server_heartbeat(self, timeout: float = 2.5) -> bool:
         """Probe the server using the official /api/auth/heartbeat endpoint."""
@@ -1460,10 +1475,10 @@ class DataManager:
         from slicing_dashboard.reporting.efficiency_history import EfficiencyHistory
         return EfficiencyHistory(self).capture_range(start_date, end_date, force=force_refresh)
 
-    def get_dashboard_trend_data(self, report_date=None, force_refresh=False):
+    def get_dashboard_trend_data(self, report_date=None, force_refresh=False, start_date=None):
         """Read chart-sized saved evidence without running the live inventory scan."""
         from slicing_dashboard.reporting.dashboard_trend import saved_trend
-        return saved_trend(self, report_date, force_refresh)
+        return saved_trend(self, report_date, force_refresh, start_date=start_date)
 
     def get_workflow_page(self, filters=None, page=1, page_size=25):
         from slicing_dashboard.reporting.workflow_history import history_page

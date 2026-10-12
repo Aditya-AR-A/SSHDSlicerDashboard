@@ -123,6 +123,14 @@ def test_all_plot_sources_forced_and_midnight_uses_two_dated_captures(service):
     assert {call.args for call in service.manager._current_task_stats.call_args_list} == {
         ('slice_assigned', True), ('slice_rework', True)}
     completion.assert_called_with(service.manager, '2026-10-01', '2026-10-08', force_refresh=True)
+    service.manager.prepare_dashboard_panels.assert_called_once_with('2026-10-01', '2026-10-08')
+
+
+def test_chart_cache_matches_full_selected_period_when_end_is_in_the_future(service):
+    service.manager.get_available_periods.return_value = [
+        {'start_date': '2026-10-01', 'end_date': '2026-10-30', 'is_current': True}]
+    assert service.refresh(['chart_panels'])['refresh_ok']
+    service.manager.prepare_dashboard_panels.assert_called_once_with('2026-10-01', '2026-10-30')
 
 
 @pytest.mark.parametrize('failure', ['is_snapshot', 'persistence_error', 'error'])

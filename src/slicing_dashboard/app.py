@@ -35,6 +35,7 @@ from slicing_dashboard.management.ui import layout_settlement_management, layout
 from slicing_dashboard.management.periods import today_iso
 from slicing_dashboard.processing.daily_work import EXCLUDED
 from slicing_dashboard.pages.components import add_reporting_shell, contain_graphs
+from slicing_dashboard.pages.dashboard_panels import panel_stores, register_dashboard_panels
 from slicing_dashboard.pages.daily_report import build_daily_report_content
 from slicing_dashboard.pages.user_report import build_user_report_content, completion_card, completion_note
 from slicing_dashboard.reporting.dashboard_reports import report_users
@@ -231,6 +232,7 @@ app.layout = html.Div(
 
                 # ── Stores & Intervals ───────────────────────────────
                 dcc.Store(id="selected-users-store", data=available_users),
+                *panel_stores(),
                 dcc.Store(id="current-period-range", data={"start": default_start, "end": default_end}),
                 dcc.Store(id="server-status-store", data=dm.get_server_status()),
                 dcc.Interval(
@@ -961,36 +963,6 @@ def _refresh_scope(callback):
 
 
 @app.callback(
-    [
-        Output("kpi-cards", "children"),
-        Output("rework-ratio-chart", "figure"),
-        Output("individual-chart", "figure"),
-        Output("assigned-chart", "figure"),
-        Output("refresh-status", "children"),
-        Output("theme-toggle", "children"),
-        Output("server-status-banner", "children"),
-        Output("server-status-badge", "children"),
-    ],
-    [
-        Input("refresh-btn", "n_clicks"),
-        Input("auto-refresh-interval", "n_intervals"),
-        Input("date-from", "value"),
-        Input("date-to", "value"),
-        Input("selected-users-store", "data"),
-        Input("theme-toggle", "n_clicks"),
-        Input("report-location", "pathname"),
-    ],
-    running=[(Output("refresh-btn", "disabled"), True, False),
-             (Output("auto-refresh-interval", "disabled"), True, False)],
-)
-def _dispatch_dashboard(n_clicks, n_intervals, start_date, end_date, stored_users,
-                        theme_clicks, pathname):
-    result = update_dashboard(n_clicks, n_intervals, start_date, end_date, None,
-                             theme_clicks, None, None, stored_users, pathname)
-    return result[:6] + result[7:]
-
-
-@app.callback(
     Output('selected-users-store', 'data'),
     Input('universal-legend', 'restyleData'), Input('individual-chart', 'clickData'),
     State('selected-users-store', 'data'), prevent_initial_call=True,
@@ -1022,13 +994,6 @@ def select_dashboard_users(restyle_data, click_data, stored_users):
     return selection if selection != stored_users else dash.no_update
 
 
-@app.callback(
-    Output('pending-chart', 'figure'),
-    Input('refresh-btn', 'n_clicks'), Input('report-location', 'pathname'),
-    Input('workflow-notification-interval', 'n_intervals'), Input('selected-users-store', 'data'),
-    Input('theme-toggle', 'n_clicks'),
-    Input('auto-refresh-interval', 'n_intervals'), Input('workflow-bell', 'n_clicks'),
-)
 def update_pending_review(clicks, pathname, notification_intervals, selected_users, theme_clicks,
                           intervals=0, bell_clicks=0):
     if pathname not in (None, '/', '/dashboard'):
@@ -1243,14 +1208,20 @@ def render_dashboard_legend(selected_users, theme_clicks, pathname):
     Input("date-to", "value"), Input("refresh-btn", "n_clicks"),
     Input("auto-refresh-interval", "n_intervals"), Input("report-location", "pathname"),
     Input('workflow-notification-interval', 'n_intervals'),
+    Input('date-from', 'value'),
 )
-def load_dashboard_trend(end_date, n_clicks, n_intervals, pathname, notification_intervals=0):
+def load_dashboard_trend(end_date, n_clicks, n_intervals, pathname, notification_intervals=0, start_date=None):
     """Read saved chart evidence without running task or workflow backfills."""
     if pathname not in (None, "/", "/dashboard") or not end_date:
         raise dash.exceptions.PreventUpdate
     trigger = dash.ctx.triggered_id
-    return dm.get_dashboard_trend_data(min(end_date, today_iso()),
-        force_refresh=trigger in ("refresh-btn", "auto-refresh-interval"))
+    options = {'force_refresh': trigger in ("refresh-btn", "auto-refresh-interval")}
+    if start_date:
+        options['start_date'] = start_date
+    try:
+        return dm.get_dashboard_trend_data(min(end_date, today_iso()), **options)
+    except ValueError:
+        return {'validation_error': 'Select a valid date range ending on or before today.'}
 
 
 @app.callback(
@@ -1263,6 +1234,8 @@ def render_dashboard_trend(data, selected_users, theme_clicks, pathname, workflo
         raise dash.exceptions.PreventUpdate
     if not data:
         return empty_fig(), "Loading recorded work history…"
+    if data.get('validation_error'):
+        return state_figure(data['validation_error'], (theme_clicks or 0) % 2 == 0), data['validation_error']
     # The dashboard's initial all-users selection must include new accounts.
     users = selected_users if selected_users and len(selected_users) < len(available_users) else None
     approvals = (workflow or {}).get('approvals') or data.get('approvals')
@@ -1283,6 +1256,21 @@ def render_dashboard_trend(data, selected_users, theme_clicks, pathname, workflo
                  f"{workflow.get('synthetic', 0)} synthetic prerequisites. Unknown approval times are excluded from daily hours.")
     return build_approval_trend_chart(report, is_dark), note
 
+
+
+register_dashboard_panels(app, dm, available_users)
+
+
+@app.callback(Output('theme-toggle', 'children'), Output('server-status-banner', 'children'),
+              Output('server-status-badge', 'children'),
+              Input('theme-toggle', 'n_clicks'), Input('server-status-store', 'data'))
+def render_dashboard_controls(theme_clicks, status):
+    dark = (theme_clicks or 0) % 2 == 0
+    icon = html.I(className='bi bi-sun-fill text-warning fs-5' if dark else
+                  'bi bi-moon-stars-fill text-primary fs-5',
+                  title='Switch to Light Theme' if dark else 'Switch to Dark Theme')
+    status = status or dm.get_server_status()
+    return icon, _build_status_banner(status), _build_status_badge(status)
 
 
 register_management_callbacks(app, dm)

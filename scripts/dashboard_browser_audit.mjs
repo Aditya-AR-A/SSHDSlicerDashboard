@@ -4,6 +4,9 @@ import {spawn} from 'node:child_process';
 import {mkdir, writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 
+const qaOrigin = process.env.DASHBOARD_QA_ORIGIN || 'http://127.0.0.1:8059';
+const qaFetch = (url, options) => fetch(url.replace('http://127.0.0.1:8059', qaOrigin), options);
+
 const root = resolve('data/reports/chart-qa');
 await mkdir(root, {recursive: true});
 const chrome = spawn('C:/Program Files/Google/Chrome/Application/chrome.exe', [
@@ -24,6 +27,7 @@ await new Promise((accept, reject) => { ws.onopen = accept; ws.onerror = reject;
 let sequence = 0;
 const pending = new Map();
 const errors = [];
+const callbackRequests = [];
 ws.onmessage = event => {
     const message = JSON.parse(event.data);
     if (message.id) {
@@ -34,6 +38,10 @@ ws.onmessage = event => {
     } else if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails);
     else if (message.method === 'Network.responseReceived' && message.params.response.status >= 400)
         errors.push({url: message.params.response.url, status: message.params.response.status});
+    else if (message.method === 'Network.requestWillBeSent' && message.params.request.url.endsWith('/_dash-update-component')) {
+        const body = JSON.parse(message.params.request.postData || '{}');
+        callbackRequests.push({output: body.output, at: Date.now()});
+    }
 };
 function send(method, params = {}, sessionId) {
     return new Promise((accept, reject) => {
@@ -44,7 +52,8 @@ function send(method, params = {}, sessionId) {
 }
 const {targetId} = await send('Target.createTarget', {url: 'about:blank'});
 const {sessionId} = await send('Target.attachToTarget', {targetId, flatten: true});
-const call = (method, params) => send(method, params, sessionId);
+const call = (method, params) => send(method, method === 'Page.navigate' ?
+    {...params, url: params.url.replace('http://127.0.0.1:8059', qaOrigin)} : params, sessionId);
 await call('Runtime.enable');
 await call('Page.enable');
 await call('Network.enable');
@@ -64,8 +73,8 @@ async function until(expression, timeout = 20000) {
 const visible = `el => !!(el.offsetWidth && el.offsetHeight && el.getClientRects().length)`;
 const results = [];
 try {
-    for (const mode of (['lifecycle', 'labels', 'latency', 'user-latency', 'daily-latency'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
-        await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode, seconds: 3600, auditor_seconds: 0, admin_seconds: 0, delay: 0})});
+    for (const mode of (['lifecycle', 'labels', 'latency', 'user-latency', 'daily-latency', 'panel-latency', 'range-filters'].includes(process.argv[2]) ? [] : (process.argv[2] || 'normal,many,empty,one,zero,large,failure').split(','))) {
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode, seconds: 3600, auditor_seconds: 0, admin_seconds: 0, delay: 0})});
         for (const width of (mode === 'normal' || mode === 'many' ? [390, 768, 1366, 1920] : [390])) {
             await call('Emulation.setDeviceMetricsOverride', {width, height: 950, deviceScaleFactor: 1, mobile: false});
             for (const [route, selector] of [['/', '#pending-chart'], ['/reports/daily', '#daily-work-chart'], ['/reports/user', '#user-work-trend']]) {
@@ -103,20 +112,89 @@ try {
             }
         }
     }
+    if (process.argv[2] === 'range-filters') {
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'normal', seconds: 3600, rework_delay: 0, dashboard_delay: 0, delay: 0,
+                range_sensitive: true, seed_panels: true})});
+        await call('Emulation.setDeviceMetricsOverride', {width: 1366, height: 950, deviceScaleFactor: 1, mobile: false});
+        await call('Page.navigate', {url: 'http://127.0.0.1:8059/'});
+        const hours = `document.querySelector('#individual-chart .js-plotly-plot')?._fullData?.[0]?.y?.[0]`;
+        await until(`${hours} === 6`);
+        const setDate = async (id, value) => {
+            await evaluate(`(() => {const el = document.getElementById(${JSON.stringify(id)});
+                Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(value)});
+                el.dispatchEvent(new Event('input', {bubbles: true}));
+                el.dispatchEvent(new Event('change', {bubbles: true}));})()`);
+        };
+        await setDate('date-from', '2026-10-02');
+        await until(`${hours} === 5`);
+        const lineDates = `document.querySelector('#approval-trend-chart .js-plotly-plot')?._fullData?.[0]?.x`;
+        await until(`${lineDates}?.[0] === '2026-10-02'`);
+        await setDate('date-to', '2026-10-05');
+        await until(`${hours} === 4`);
+        await until(`${lineDates}?.at(-1) === '2026-10-05'`);
+        const dropdown = await evaluate(`(() => {const r = document.querySelector('#settlement-dropdown').getBoundingClientRect();
+            return {x: r.left + r.width / 2, y: r.top + r.height / 2};})()`);
+        await call('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', clickCount: 1, ...dropdown});
+        await call('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...dropdown});
+        await until(`Array.from(document.querySelectorAll('.VirtualizedSelectOption, [role="option"]')).some(el => el.textContent.includes('September 2026'))`);
+        const option = await evaluate(`(() => {const el = Array.from(document.querySelectorAll('.VirtualizedSelectOption, [role="option"]')).find(el => el.textContent.includes('September 2026'));
+            const r = el.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2};})()`);
+        await call('Input.dispatchMouseEvent', {type: 'mousePressed', button: 'left', clickCount: 1, ...option});
+        await call('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...option});
+        await until(`document.querySelector('#date-from').value === '2026-09-01' && document.querySelector('#date-to').value === '2026-09-30' && ${hours} === 30`);
+        await until(`${lineDates}?.[0] === '2026-09-01' && ${lineDates}?.at(-1) === '2026-09-30'`);
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({dashboard_delay: 0.2})});
+        await setDate('date-to', '2026-10-08');
+        await setDate('date-from', '2026-10-03');
+        await setDate('date-from', '2026-10-04');
+        await evaluate(`document.querySelector('#theme-toggle').click()`);
+        await until(`${hours} === 5 && document.querySelector('#individual-chart .js-plotly-plot')?.layout.title.text.includes('2026-10-04') && document.querySelector('#individual-chart .js-plotly-plot')?.layout.title.text.includes('2026-10-08')`);
+        await until(`${lineDates}?.[0] === '2026-10-04' && ${lineDates}?.at(-1) === '2026-10-08'`);
+        results.push({mode: 'range-filters', fromHours: 5, toHours: 4, dropdownHours: 30,
+            lineRangeUpdated: true, rapidChangesAndTheme: true});
+    }
+    if (process.argv[2] === 'panel-latency') {
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'normal', seconds: 3600, rework_delay: 10, dashboard_delay: 0, delay: 0, seed_panels: true})});
+        const start = Date.now();
+        await call('Page.navigate', {url: 'http://127.0.0.1:8059/'});
+        await until(`document.querySelector('#rework-ratio-chart .js-plotly-plot')?.data?.length && document.querySelector('#rework-ratio-chart-status')?.textContent.includes('Checking latest data')`);
+        const savedMs = Date.now() - start;
+        if (savedMs >= 6000) throw new Error('Saved chart waited for delayed source');
+        await until(`document.querySelector('#individual-chart-status')?.textContent.startsWith('Captured ')`);
+        const completionMs = Date.now() - start;
+        if (completionMs >= 8000 || !await evaluate(`document.querySelector('#rework-ratio-chart-status')?.textContent.includes('Checking latest data')`))
+            throw new Error('Completion waited for rework');
+        await evaluate(`document.querySelector('#theme-toggle').click()`);
+        await until(`document.querySelector('#main-container').className.includes('theme-light')`);
+        if (!await evaluate(`document.querySelector('#rework-ratio-chart-status')?.textContent.includes('Checking latest data')`))
+            throw new Error('Theme lost saved capture status');
+        await until(`document.querySelector('#rework-ratio-chart-status')?.textContent.startsWith('Captured ')`);
+        const reworkMs = Date.now() - start;
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'failure', rework_delay: 0})});
+        await evaluate(`document.querySelector('#refresh-btn').click()`);
+        await until(`document.querySelector('#rework-ratio-chart-status')?.textContent.includes('Latest check failed')`);
+        if (!await evaluate(`document.querySelector('#rework-ratio-chart .js-plotly-plot')?.data?.length > 0`))
+            throw new Error('Failed check discarded saved chart');
+        results.push({mode: 'panel-latency', savedMs, completionMs, reworkMs, failureRetained: true});
+    }
     if (process.argv[2] === 'latency') {
-        await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({mode: 'normal', seconds: 3600, delay: .3, dashboard_delay: 10, workflow_delay: 10})});
         await call('Emulation.setDeviceMetricsOverride', {width: 1366, height: 950, deviceScaleFactor: 1, mobile: false});
         const began = Date.now();
         await call('Page.navigate', {url: 'http://127.0.0.1:8059/'});
         await until(`document.querySelector('#pending-chart .js-plotly-plot')?.data?.length && document.querySelector('#approval-trend-chart .js-plotly-plot')?.data?.length`);
         const loadedMs = Date.now() - began;
-        const mainLoading = await evaluate(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`);
+        const mainLoading = await evaluate(`document.querySelector('#individual-chart-status').textContent.includes('Checking latest data')`);
         if (loadedMs >= 6000 || !mainLoading) throw new Error('Independent plots waited for the ten-second main/workflow callbacks');
         results.push({initialPlotsMs: loadedMs, mainStillLoading: mainLoading});
-        await until(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') !== 'true'`);
+        await until(`document.querySelector('#individual-chart-status').textContent.startsWith('Captured ')`);
         await evaluate(`document.querySelector('#refresh-btn').click()`);
-        await until(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`);
+        await until(`document.querySelector('#individual-chart-status').textContent.includes('Checking latest data')`);
         await evaluate(`document.querySelector('#universal-legend').scrollIntoView({block: 'center', behavior: 'instant'})`);
         const pointer = await evaluate(`(() => {const r = document.querySelector('#universal-legend .legendtoggle').getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2};})()`);
         const selectionBegan = Date.now();
@@ -124,8 +202,8 @@ try {
         await call('Input.dispatchMouseEvent', {type: 'mouseReleased', button: 'left', clickCount: 1, ...pointer});
         await until(`document.querySelector('#pending-chart .js-plotly-plot')?.data?.[0]?.x?.length === 1`, 2500);
         results.push({selectionMs: Date.now() - selectionBegan,
-            mainStillLoading: await evaluate(`document.querySelector('#individual-chart').getAttribute('data-dash-is-loading') === 'true'`)});
-        await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+            mainStillLoading: await evaluate(`document.querySelector('#individual-chart-status').textContent.includes('Checking latest data')`)});
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({delay: 0, dashboard_delay: 0, workflow_delay: 0})});
         console.log(JSON.stringify(results));
     }
@@ -199,7 +277,7 @@ try {
         console.log(JSON.stringify(results));
     }
     if (process.argv[2] === 'labels') {
-        await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({mode: 'normal', seconds: 3600, auditor_seconds: 7200, admin_seconds: 1800, delay: 0})});
         for (const width of [390, 1366]) {
             await call('Emulation.setDeviceMetricsOverride', {width, height: 950, deviceScaleFactor: 1, mobile: false});
@@ -217,7 +295,7 @@ try {
                 throw new Error('Totals/headroom did not follow visible bar stages');
             results.push({width, initial, hidden, restored: await evaluate(inspect)});
         }
-        await fetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
+        await qaFetch('http://127.0.0.1:8059/qa/scenario', {method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({mode: 'normal', seconds: 3.6e13, auditor_seconds: 0, admin_seconds: 0, delay: 0})});
         await call('Page.navigate', {url: 'http://127.0.0.1:8059/'});
         const largePlot = `document.querySelector('#pending-chart .js-plotly-plot')`;
@@ -310,6 +388,11 @@ try {
         row.charts.some(chart => chart.left < -1 || chart.right > row.width + 1 || chart.titleClipped ||
                                  chart.totals?.some(label => label.clipped))));
     if (errors.length || failedLayouts.length) throw new Error(`Browser audit failed: ${errors.length} runtime/network errors; ${failedLayouts.length} invalid layouts`);
+} catch (error) {
+    const status = await evaluate(`Array.from(document.querySelectorAll('[id$="-status"]')).map(el => ({id: el.id, text: el.textContent}))`).catch(() => []);
+    const chart = await evaluate(`(() => {const p = document.querySelector('#individual-chart .js-plotly-plot'); return {from: document.querySelector('#date-from')?.value, to: document.querySelector('#date-to')?.value, data: p?.data, fullX: Array.from(p?._fullData?.[0]?.x || [])};})()`).catch(() => null);
+    await writeFile(`${root}/audit-failure.json`, JSON.stringify({message: error.message, status, chart, callbackRequests, errors}, null, 2));
+    throw error;
 } finally {
     await send('Browser.close').catch(() => {});
     ws.close();

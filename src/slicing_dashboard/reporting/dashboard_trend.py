@@ -1,6 +1,7 @@
 """Bounded saved-history reads, independent of interactive task/workflow captures."""
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from datetime import date, timedelta
 import json
 from time import perf_counter
 
@@ -57,12 +58,13 @@ def work_records(manager, start, end, local_dates=None):
     return retained
 
 
-def saved_trend(manager, report_date=None, force_refresh=False):
+def saved_trend(manager, report_date=None, force_refresh=False, start_date=None):
     end = report_date or today_iso()
-    dates = date_range(end)
+    days = (date.fromisoformat(end) - date.fromisoformat(start_date)).days + 1 if start_date else 30
+    dates = date_range(end, days)
     if end > today_iso():
         raise ValueError('The chart cannot end after today in India time.')
-    key = (end, today_iso(), json.dumps(getattr(manager, 'user_mapping_full', {}), sort_keys=True))
+    key = (dates[0], end, today_iso(), json.dumps(getattr(manager, 'user_mapping_full', {}), sort_keys=True))
     cache = getattr(manager, '_dashboard_trend_cache', {})
     entry = cache.get(key)
     if not force_refresh and entry and perf_counter() - entry[0] < CACHE_SECONDS:
@@ -71,7 +73,7 @@ def saved_trend(manager, report_date=None, force_refresh=False):
     # These reads are independent. No global daily-payload or workflow capture
     # lock is held while awaiting a remote response.
     with ThreadPoolExecutor(max_workers=3) as pool:
-        work = pool.submit(work_records, manager, start, end)
+        work = pool.submit(work_records, manager, start, end, dates)
         approvals = pool.submit(bounded_read, lambda: manager.get_approval_data(start, end))
         efficiency = pool.submit(bounded_read, lambda: manager.get_efficiency_history(start, end, capture_live=False))
         records = work.result()
@@ -79,8 +81,10 @@ def saved_trend(manager, report_date=None, force_refresh=False):
         records = {day: {**record, 'rows': remap_daily_chart(record['chart_rows'], manager._get_reporting_name)}
                    if 'chart_rows' in record else record for day, record in records.items()}
         history = [day_for_ui(records.get(day), day, manager._get_reporting_name) for day in dates]
-        payload = {'report_date': end, 'previous_date': dates[-2], 'range_start': start,
-                   'range_end': end, 'today': history[-1], 'yesterday': history[-2], 'history': history,
+        previous = (date.fromisoformat(end) - timedelta(days=1)).isoformat()
+        payload = {'report_date': end, 'previous_date': previous, 'range_start': start,
+                   'range_end': end, 'today': history[-1],
+                   'yesterday': day_for_ui(records.get(previous), previous, manager._get_reporting_name), 'history': history,
                    'users': report_users(getattr(manager, 'user_mapping', {}), history=history,
                                         mapping_records=list(getattr(manager, 'user_mapping_full', {}).values())),
                    'approvals': approvals.result(), 'efficiency_history': efficiency.result()}

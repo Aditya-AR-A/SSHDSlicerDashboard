@@ -1,5 +1,6 @@
 """Local-only dashboard QA fixture. Never reads production credentials or storage."""
 from copy import deepcopy
+from contextlib import nullcontext
 from datetime import date, timedelta
 from pathlib import Path
 import sys
@@ -71,6 +72,10 @@ manager.check_server_heartbeat.return_value = True
 
 def dashboard(*args, **kwargs):
     time.sleep(state.get('dashboard_delay', 0))
+    start = args[0] if args else kwargs.get('start_date')
+    end = args[1] if len(args) > 1 else kwargs.get('end_date')
+    span = (date.fromisoformat(end) - date.fromisoformat(start)).days + 1 if start and end else 1
+    range_seconds = seconds() * span if state.get('range_sensitive') else seconds()
     kpis = {key: 1 for key in ('total_approved_duration', 'approved_pct', 'prev_approved_duration',
         'total_pending_duration', 'leader_review_duration', 'auditor_review_duration', 'admin_review_duration',
         'rework_duration', 'rework_pct', 'prev_rework_duration', 'total_error_duration', 'error_pct',
@@ -79,8 +84,10 @@ def dashboard(*args, **kwargs):
         kpis = {key: (0 if state['mode'] == 'zero' else 1e18) for key in kpis}
     kpis.update(assignable_duration=None if state['mode'] == 'failure' else 0, assignable_count=0,
                 assignable_error='Fixture failure' if state['mode'] == 'failure' else None)
-    complete = pd.DataFrame([{'User': user, 'Completed Duration': seconds()} for user in people()])
-    ratios = pd.DataFrame([{'User': user, 'Total Batches': 2, 'No Rework': 1, '1 Rework': 1} for user in people()])
+    complete = pd.DataFrame([{'User': user, 'Completed Duration': range_seconds} for user in people()])
+    ratios = pd.DataFrame([{'User': user, 'Total Batches': span if state.get('range_sensitive') else 2,
+                            'No Rework': max(0, span - 1) if state.get('range_sensitive') else 1,
+                            '1 Rework': 1} for user in people()])
     assigned = pd.DataFrame([{'User': user, 'Stage': 'New Assigned', 'Duration': seconds(), 'Count': 1,
                              'ID': user, 'AssignedDate': '2026-10-06'} for user in people()])
     if state['mode'] == 'failure':
@@ -97,6 +104,44 @@ def dashboard(*args, **kwargs):
 
 
 namespace['_dashboard_sources'] = dashboard
+
+# Exercise the actual saved-first panel pipeline without production sources.
+from types import SimpleNamespace
+from slicing_dashboard.reporting.dashboard_panels import KINDS, capture_panel
+manager.settings = SimpleNamespace(admin_username='fixture')
+manager.scraper._base_url = 'https://fixture.invalid'
+manager.user_mapping_full = {}
+manager.exempt_ids = set()
+manager.refresh_scope.side_effect = lambda **kwargs: nullcontext()
+manager.fetch_dashboard_data.side_effect = lambda *args, **kwargs: dashboard(*args, **kwargs)[0]
+manager.get_summary_kpis.side_effect = lambda *args, **kwargs: dashboard(*args, **kwargs)[1]
+manager.get_user_breakdown_df.side_effect = lambda *args, **kwargs: dashboard(*args, **kwargs)[2]
+manager.get_detailed_pending_assigned_df.side_effect = lambda *args, **kwargs: dashboard()[4]
+
+
+def rework_panel(*args, **kwargs):
+    time.sleep(state.get('rework_delay', 0))
+    return dashboard(*args, **kwargs)[3]
+
+
+manager.get_batch_rework_ratio_df.side_effect = rework_panel
+
+
+def seed_panels():
+    for kind in KINDS:
+        capture_panel(manager, kind, '2026-10-01', '2026-10-06')
+
+
+seed_panels()
+
+# Include an older settlement so browser checks can exercise the real dropdown.
+from tests.test_daily_report_page import components
+manager.get_available_periods.return_value.append({
+    'start_date': '2026-09-01', 'end_date': '2026-09-30', 'is_current': False,
+    'value': '2026-09-01|2026-09-30', 'label': 'September 2026'})
+for component in components(app.layout):
+    if getattr(component, 'id', None) == 'settlement-dropdown':
+        component.options.append({'label': 'September 2026', 'value': '2026-09-01|2026-09-30'})
 
 
 def report(*args, **kwargs):
@@ -132,7 +177,21 @@ def live_daily(*args, **kwargs):
 manager.get_saved_daily_report_data.side_effect = saved_daily
 manager.get_daily_report_data.side_effect = live_daily
 manager.get_user_report_data.side_effect = report
-manager.get_dashboard_trend_data.side_effect = report
+def trend_report(report_date=None, force_refresh=False, start_date=None):
+    result = report()
+    if state.get('range_sensitive') and start_date and report_date:
+        start, end = date.fromisoformat(start_date), date.fromisoformat(report_date)
+        if start > end:
+            raise ValueError('Invalid range')
+        template = result['history'][-1]
+        result['history'] = [{**deepcopy(template), 'date': (start + timedelta(days=offset)).isoformat()}
+                             for offset in range((end - start).days + 1)]
+        result.update(range_start=start_date, range_end=report_date, report_date=report_date,
+                      today=result['history'][-1])
+    return result
+
+
+manager.get_dashboard_trend_data.side_effect = trend_report
 
 def user_report(*args, **kwargs):
     time.sleep(state.get('user_report_delay', 0))
@@ -192,6 +251,12 @@ if len(sys.argv) > 1:
 def scenario():
     state.update(request.get_json() or {})
     review_manager.invalidate_pending_review()
+    if state.pop('seed_panels', False):
+        delays = {key: state.get(key, 0) for key in ('rework_delay', 'dashboard_delay', 'delay')}
+        for key in delays:
+            state[key] = 0
+        seed_panels()
+        state.update(delays)
     return state
 
 
