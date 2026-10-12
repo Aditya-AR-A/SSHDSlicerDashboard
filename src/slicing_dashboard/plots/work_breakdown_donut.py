@@ -22,7 +22,7 @@ def build_work_breakdown_donut(summary, is_dark=True):
             hole=.68, sort=False, marker={'colors': ['#38bdf8', '#fbbf24']},
             textinfo='percent', textposition='inside', automargin=True,
             customdata=[format_video_seconds(value) for value in values],
-            hovertemplate='%{label}<br>%{customdata} · %{percent}<extra></extra>'))
+            hovertemplate='%{label}<br>%{customdata}<extra></extra>'))
         label = format_video_seconds(total)
     else:
         label = 'No new or same-day work' if total == 0 and summary.get('available') else 'Daily data unavailable'

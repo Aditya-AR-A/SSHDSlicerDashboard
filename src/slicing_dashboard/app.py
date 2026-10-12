@@ -29,6 +29,7 @@ from slicing_dashboard.plots import (
     create_table,
 )
 from slicing_dashboard.plots.theme import CHART_HEIGHT
+from slicing_dashboard.plots.tables import register_duration_table_callbacks
 from slicing_dashboard.plots.guardrails import state_figure
 from slicing_dashboard.management.ui import layout_settlement_management, layout_user_mapping, register_management_callbacks
 from slicing_dashboard.management.periods import today_iso
@@ -62,6 +63,7 @@ app = dash.Dash(
 
 from slicing_dashboard.reporting.data_health import register_data_health_routes
 register_data_health_routes(app.server, dm)
+register_duration_table_callbacks(app)
 
 def _available_user_names(snapshot, mappings):
     names = list(snapshot.get("available_users", [])) + list(mappings.values())

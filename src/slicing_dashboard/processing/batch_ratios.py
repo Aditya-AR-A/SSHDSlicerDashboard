@@ -43,14 +43,24 @@ def batch_ratios(batches, returns, start, end, resolve):
         user = resolve(batch)
         if not user or str(user).casefold() in {'admin', 'test', 'dep', 'exempt', 'user-none', '(unassigned)'}:
             continue
-        total = totals.setdefault(user, {'tiers': [0] * 6, 'count': 0, 'seconds': 0.})
+        total = totals.setdefault(user, {'tiers': [0] * 6, 'count': 0, 'seconds': 0.,
+                                         '5+ returns': 0, 'ids': [set() for _ in range(6)]})
         total['count'] += 1
         total['seconds'] += number(batch.get('total_duration_seconds'))
-        total['tiers'][min(5, len(recorded[identifier]))] += 1
+        return_count = len(recorded[identifier])
+        tier = min(5, return_count)
+        total['tiers'][tier] += 1
+        account = str(batch.get('username') or batch.get('assignee_id') or '').strip()
+        total['ids'][tier].add(account or 'Unavailable')
+        if return_count >= 5:
+            total['5+ returns'] += return_count
     rows = []
+    tier_names = ['No Rework', '1 Rework', '2 Reworks', '3 Reworks', '4 Reworks', '5+ Reworks']
     for user, total in sorted(totals.items()):
         hours = total['seconds'] / 3600
-        rows.append({'User': user, **dict(zip(['No Rework', '1 Rework', '2 Reworks', '3 Reworks', '4 Reworks', '5+ Reworks'], total['tiers'])),
+        rows.append({'User': user, **dict(zip(tier_names, total['tiers'])),
+                     'Tier IDs': {tier: ', '.join(sorted(ids)) for tier, ids in zip(tier_names, total['ids'])},
+                     '5+ Return Count': total['5+ returns'],
                      'Total Batches': total['count'], 'Total Duration (hrs)': hours,
                      'Avg Batch Duration (hrs)': hours / total['count']})
     return pd.DataFrame(rows)

@@ -3,12 +3,13 @@ Styled DataTable builder and tab-content rendering helpers.
 """
 
 import pandas as pd
-from dash import dash_table, html
+from dash import dash_table, html, Input, Output, State
 
 
 def create_table(
     df, is_dark: bool, *, columns=None, table_id=None, page_size=25,
     max_height="320px", tooltip_data=None, tooltip_duration=None,
+    duration_columns=(),
 ):
     """Build a theme-aware Dash DataTable from a DataFrame.
 
@@ -36,7 +37,8 @@ def create_table(
         **options,
         data=df.astype(object).where(pd.notna(df), None).to_dict("records"),
         columns=columns if columns is not None else [{"name": str(i), "id": str(i)} for i in df.columns],
-        sort_action="native",
+        sort_action="custom" if duration_columns else "native",
+        sort_mode="multi",
         page_action="native",
         page_size=page_size,
         style_header={
@@ -88,3 +90,34 @@ def create_table(
             "overflowY": "auto",
         },
     )
+
+
+def sort_duration_rows(rows, sort_by, duration_columns):
+    """Sort displayed clock strings by elapsed seconds, including 100+ hours."""
+    result = list(rows or [])
+    for order in reversed(sort_by or []):
+        column = order['column_id']
+        def key(row):
+            value = row.get(column)
+            if column in duration_columns:
+                try:
+                    parts = [int(part) for part in value.split(':')]
+                    return parts[0] * 3600 + parts[1] * 60 + (parts[2] if len(parts) > 2 else 0)
+                except (AttributeError, ValueError, IndexError):
+                    return None
+            return value
+        available = [row for row in result if key(row) is not None]
+        missing = [row for row in result if key(row) is None]
+        result = sorted(available, key=key, reverse=order['direction'] == 'desc') + missing
+    return result
+
+
+def register_duration_table_callbacks(app):
+    def register(table_id, columns):
+        @app.callback(Output(table_id, 'data'), Input(table_id, 'sort_by'), State(table_id, 'data'),
+                      prevent_initial_call=True)
+        def sort_rows(sort_by, rows):
+            return sort_duration_rows(rows, sort_by, columns)
+    for table_id in ('daily-today-table', 'daily-yesterday-table'):
+        register(table_id, ('Total Duration', 'New Videos (First Time)', 'Same-day Rework', 'Old Rework'))
+    register('user-batch-history-table', ('Total Duration',))

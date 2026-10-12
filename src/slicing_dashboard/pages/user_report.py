@@ -3,7 +3,6 @@ from dash import dcc, html
 import dash_bootstrap_components as dbc
 
 import pandas as pd
-from dash.dash_table.Format import Format, Scheme
 
 from slicing_dashboard.management.periods import today_iso
 from slicing_dashboard.pages.components import report_section, chart_graph
@@ -86,14 +85,12 @@ def _batch_history_table(batches, is_dark, table_id="user-batch-history-table"):
         status_display = STATUS_LABELS.get(raw_status, raw_status.replace("batch_", "").replace("_", " ").title())
         dur_sec = float(b.get("total_duration_seconds", 0) or 0)
         clock_dur = format_video_seconds(dur_sec)
-        dur_hrs = round(dur_sec / 3600.0, 3)
         rows.append({
             "Batch ID": b.get("batch_id", ""),
             "Account": b.get("username", ""),
             "Status": status_display,
             "Date Scope": b.get('report_scope', ''),
-            "Total Duration (h)": dur_hrs,
-            "Duration Clock": clock_dur,
+            "Total Duration": clock_dur,
             "Tasks": int(b.get("task_count", 0) or 0),
             "Completed": int(b.get("completed_count", 0) or 0),
             "Pending Review": int(b.get("pending_review_count", 0) or 0),
@@ -106,22 +103,16 @@ def _batch_history_table(batches, is_dark, table_id="user-batch-history-table"):
         {"name": "Account", "id": "Account"},
         {"name": "Status", "id": "Status"},
         {"name": "Date Scope", "id": "Date Scope"},
-        {"name": "Total Duration (h)", "id": "Total Duration (h)", "type": "numeric", "format": Format(precision=3, scheme=Scheme.fixed)},
+        {"name": "Total Duration (HH:MM:SS)", "id": "Total Duration", "type": "text"},
         {"name": "Tasks", "id": "Tasks", "type": "numeric"},
         {"name": "Completed", "id": "Completed", "type": "numeric"},
         {"name": "Pending Review", "id": "Pending Review", "type": "numeric"},
         {"name": "Rework", "id": "Rework", "type": "numeric"},
         {"name": "Returns", "id": "Returns", "type": "numeric"},
     ]
-    tooltip_data = [
-        {"Total Duration (h)": {"value": row["Duration Clock"], "type": "text"}}
-        for row in rows
-    ]
-
-    display_rows = [{k: v for k, v in row.items() if k != "Duration Clock"} for row in rows]
     return html.Div(
-        create_table(pd.DataFrame(display_rows), is_dark, table_id=table_id, columns=columns,
-                     tooltip_data=tooltip_data, max_height="350px"),
+        create_table(pd.DataFrame(rows), is_dark, table_id=table_id, columns=columns,
+                     duration_columns=('Total Duration',), max_height="350px"),
         className="report-table-scroll"
     )
 
@@ -156,7 +147,9 @@ def build_user_report_content(data, selected_user, is_dark=True):
     summary, previous, change = report['summary'], report['previous_summary'], report['change']
     change_note = 'Previous-day comparison unavailable'
     if change['difference_seconds'] is not None:
-        change_note = f"{change['difference_seconds'] / 3600:+.2f}h vs previous day"
+        difference = change['difference_seconds']
+        sign = '+' if difference >= 0 else '-'
+        change_note = f"{sign}{format_video_seconds(abs(difference))} vs previous day"
         if change['percentage'] is not None:
             change_note += f" ({change['percentage']:+.1f}%)"
         if current:

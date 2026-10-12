@@ -1,14 +1,16 @@
 """
-Rework ratio 100% stacked bar chart builder.
+Return-weighted rework ratio 100% stacked bar chart builder.
 """
 
 import pandas as pd
 import plotly.graph_objects as go
+from html import escape
 from slicing_dashboard.plots.guardrails import safe_chart, checked_frame
 
 from slicing_dashboard.plots.theme import (
     CHART_HEIGHT,
     theme_ctx,
+    format_seconds,
 )
 
 
@@ -20,11 +22,13 @@ def build_rework_ratio_chart(
     effective_users: list | None = None,
     is_filtering: bool = False,
 ) -> go.Figure:
-    """Build the 100% stacked bar chart for batch rework ratio.
+    """Build a 100% stack weighted by returns, with no rework weighted as one.
 
     Parameters
     ----------
-    ratio_df : DataFrame with 'User', 'No Rework', 'Reworked Once', 'Reworked Twice+', 'Total Batches'
+    ratio_df : DataFrame with 'User', rework tier counts and 'Total Batches'.
+        Optional '5+ Return Count' preserves exact weights above five returns;
+        older data without it uses a multiplier of five for that grouped tier.
     start_date : str used in the title
     is_dark : bool
     effective_users : list of selected users (or None for all)
@@ -32,7 +36,7 @@ def build_rework_ratio_chart(
     """
     t = theme_ctx(is_dark)
     ratio_df = checked_frame(ratio_df, ['User', 'Total Batches'],
-        ['Total Batches', 'No Rework', '1 Rework', '2 Reworks', '3 Reworks', '4 Reworks', '5+ Reworks',
+        ['Total Batches', 'No Rework', '1 Rework', '2 Reworks', '3 Reworks', '4 Reworks', '5+ Reworks', '5+ Return Count',
          'Reworked Once', 'Reworked Twice+', 'Total Duration (hrs)', 'Avg Batch Duration (hrs)'])
     fig = go.Figure()
 
@@ -42,7 +46,7 @@ def build_rework_ratio_chart(
             showarrow=False,
             font={"size": 14, "color": t["font_color"]},
         )
-        fig.update_layout(title=f"Batch Rework Ratio (From {start_date})")
+        fig.update_layout(title=f"Return-weighted Batch Reworks (From {start_date})")
     else:
         df = ratio_df.copy()
         if is_filtering and effective_users:
@@ -59,7 +63,7 @@ def build_rework_ratio_chart(
                 font={"size": 14, "color": t["font_color"]},
             )
             fig.update_layout(
-                title=f"Batch Rework Ratio (From {start_date})",
+                title=f"Return-weighted Batch Reworks (From {start_date})",
                 template=t["template"],
                 paper_bgcolor=t["bg_color"],
                 plot_bgcolor=t["bg_color"],
@@ -71,7 +75,7 @@ def build_rework_ratio_chart(
         # Sort by Total Batches descending or alphabetical
         df = df.sort_values("User", ascending=True)
 
-        # Calculate percentages
+        # Keep raw batch totals for tooltips and average durations.
         totals = df["Total Batches"].replace(0, 1)  # avoid div by zero
 
         # Define 6 tiers: (column_name, dark_color, light_color)
@@ -99,29 +103,36 @@ def build_rework_ratio_chart(
         if df['User'].duplicated().any():
             raise ValueError('Duplicate user batch totals')
 
-        for col, dark_c, light_c in tiers:
-            if col not in df.columns:
-                df[col] = 0
+        weighted = df[tier_columns].mul([1, 1, 2, 3, 4, 5], axis='columns')
+        if '5+ Return Count' in df:
+            if ((df['5+ Return Count'] < df['5+ Reworks'] * 5)
+                    | ((df['5+ Reworks'] == 0) & (df['5+ Return Count'] != 0))).any():
+                raise ValueError('Invalid return count for the 5+ rework tier')
+            weighted['5+ Reworks'] = df['5+ Return Count']
+        weighted_totals = weighted.sum(axis=1)
 
-            pct = (df[col] / totals) * 100
+        for col, dark_c, light_c in tiers:
+            pct = (weighted[col] / weighted_totals) * 100
+            batch_pct = (df[col] / totals) * 100
             bar_color = dark_c if is_dark else light_c
 
+            customdata = list(zip(df[col], df['Total Batches'], batch_pct, weighted[col]))
+            hovertemplate = f"<b>%{{x}}</b><br>{col}<br>"
             if "Total Duration (hrs)" in df.columns:
                 avg_series = df.get("Avg Batch Duration (hrs)", df["Total Duration (hrs)"] / totals)
-                customdata = list(zip(df[col], df["Total Batches"], df["Total Duration (hrs)"], avg_series))
-                hovertemplate = (
-                    f"<b>%{{x}}</b><br>"
-                    f"{col}: %{{y:.1f}}%<br>"
-                    f"(%{{customdata[0]}} / %{{customdata[1]}} batches)<br>"
-                    f"Total Duration: %{{customdata[2]:.1f}} hrs (avg %{{customdata[3]:.2f}}h/batch)<extra></extra>"
-                )
+                customdata = [(*values, duration, average) for values, duration, average in
+                              zip(customdata, df['Total Duration (hrs)'], avg_series)]
+                duration_index = len(customdata[0])
+                customdata = [(*values, format_seconds(duration * 3600))
+                              for values, duration in zip(customdata, df['Total Duration (hrs)'])]
+                hovertemplate += f"Total: %{{customdata[{duration_index}]}}"
             else:
-                customdata = list(zip(df[col], df["Total Batches"]))
-                hovertemplate = (
-                    f"<b>%{{x}}</b><br>"
-                    f"{col}: %{{y:.1f}}%<br>"
-                    f"(%{{customdata[0]}} / %{{customdata[1]}} batches)<extra></extra>"
-                )
+                hovertemplate += "Total: Unavailable"
+            ids = [escape(str(scoped.get(col) or 'Unavailable')) if isinstance(scoped, dict)
+                   else 'Unavailable' for scoped in df.get('Tier IDs', [None] * len(df))]
+            id_index = len(customdata[0])
+            customdata = [(*values, account_ids) for values, account_ids in zip(customdata, ids)]
+            hovertemplate += f'<br>IDs: %{{customdata[{id_index}]}}<extra></extra>'
 
             fig.add_trace(
                 go.Bar(
@@ -138,8 +149,8 @@ def build_rework_ratio_chart(
 
         fig.update_layout(
             barmode="stack",
-            title=f"Recorded Batch Reworks (From {start_date})",
-            yaxis_title="% of Batches",
+            title=f"Return-weighted Batch Reworks (From {start_date})",
+            yaxis_title="% of Weighted Total",
             showlegend=True,
             legend=dict(
                 orientation="h",

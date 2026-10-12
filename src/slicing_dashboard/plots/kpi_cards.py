@@ -152,7 +152,7 @@ def make_kpi_card(
     """
     return _make_kpi_card(
         title, value_str, icon_class, badge_text, badge_color, is_dark,
-        sparkline_data, sparkline_shape="linear",
+        sparkline_data,
     )
 
 

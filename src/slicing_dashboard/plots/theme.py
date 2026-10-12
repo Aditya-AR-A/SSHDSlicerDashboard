@@ -9,7 +9,7 @@ import plotly.io as pio
 import pandas as pd
 from functools import lru_cache
 from hashlib import sha256
-from math import isfinite
+from math import isfinite, ceil, floor, log10
 
 # ── Consistent user color palette ────────────────────────────────────────────
 USER_COLORS = {
@@ -69,20 +69,33 @@ def empty_fig() -> go.Figure:
     return fig
 
 
-def format_seconds(seconds):
-    """Convert a duration in seconds to HH:MM string."""
+def format_seconds(seconds, *, compact=False):
+    """Format elapsed time without wrapping hours at 24 or inventing missing data."""
     try:
         value = float(seconds)
         if not isfinite(value) or value < 0:
             return 'Unavailable'
     except (ValueError, TypeError, OverflowError):
         return 'Unavailable'
-    if 0 < value < 60:
-        return f'{value:.3g}s'
-    seconds = int(value)
+    seconds = int(floor(value + .5))
     h = seconds // 3600
     m = seconds % 3600 // 60
-    return f"{h:02d}:{m:02d}"
+    return f"{h:02d}:{m:02d}" if compact else f"{h:02d}:{m:02d}:{seconds % 60:02d}"
+
+
+def duration_ticks(lower, upper):
+    """Keep numeric hour coordinates while displaying elapsed-time axis ticks."""
+    lower, upper = max(0., float(lower)), float(upper)
+    if not isfinite(lower) or not isfinite(upper) or upper <= lower:
+        return [], []
+    span = upper - lower
+    unit = 1 / 3600 if span < 1 / 60 else 1 / 60 if span < 1 else 1
+    target = span / unit / 5
+    magnitude = 10 ** floor(log10(target))
+    step = next(scale * magnitude for scale in (1, 2, 5, 10) if scale * magnitude >= target) * unit
+    first = ceil(lower / step)
+    values = [(first + index) * step for index in range(7) if (first + index) * step <= upper]
+    return values, [format_seconds(value * 3600, compact=step * 3600 >= 60) for value in values]
 
 
 def theme_ctx(is_dark: bool) -> dict:

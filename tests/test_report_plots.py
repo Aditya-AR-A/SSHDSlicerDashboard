@@ -32,7 +32,7 @@ class ReportPlotTests(unittest.TestCase):
         self.assertEqual(riya.customdata[1][1], "Unavailable")
         self.assertEqual(riya.customdata[2][1], "00:00:00")
         self.assertIn("%{customdata[0]}", riya.hovertemplate)
-        self.assertIn("%{x|", riya.hovertemplate)
+        self.assertIn("Total: %{customdata[1]}", riya.hovertemplate)
 
     def test_user_colors_and_legend_survive_theme_and_data_refresh(self):
         rows = [{"date": "2026-10-05", "user": user, "total_seconds": 3600}
@@ -84,7 +84,7 @@ class ReportPlotTests(unittest.TestCase):
         graph = with_trend.children.children.children[2]
         self.assertEqual(list(graph.figure.data[0].y), [0, None, 3600])
         self.assertFalse(graph.figure.data[0].connectgaps)
-        self.assertEqual(graph.figure.data[0].line.shape, "linear")
+        self.assertEqual(graph.figure.data[0].line.shape, "spline")
         legacy = _make_kpi_card("Approved", "01:00", "bi bi-check", "10%", "#10B981", True, [1, 2, 3])
         self.assertEqual(legacy.children.children.children[2].figure.data[0].line.shape, "spline")
 

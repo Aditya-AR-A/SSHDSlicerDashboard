@@ -39,11 +39,11 @@ def build_error_rework_chart(active_work_df, chart_date_label, is_dark):
                 figure.add_trace(go.Scatter(name='Old Rework (excluded)', x=rows['User'], y=rows[column] / 3600,
                     mode='markers', marker={'color': color, 'size': 8, 'symbol': 'diamond'},
                     customdata=list(zip(durations, total, ids)),
-                    hovertemplate='<b>%{x}</b><br>Old rework (excluded): %{customdata[0]}<br>Total work: %{customdata[1]}<br>Accounts: %{customdata[2]}<extra></extra>'))
+                    hovertemplate='<b>%{x}</b><br>Old Rework<br>%{customdata[0]}<br>IDs: %{customdata[2]}<extra></extra>'))
                 continue
             figure.add_trace(go.Bar(name=label, x=rows["User"], y=rows[column] / 3600, text=durations,
                                    marker_color=color, customdata=list(zip(durations, total, ids)),
-                                   hovertemplate=f"<b>%{{x}}</b><br>{label}: %{{customdata[0]}}<br>Total work: %{{customdata[1]}}<br>Accounts: %{{customdata[2]}}<extra></extra>"))
+                                   hovertemplate=f"<b>%{{x}}</b><br>{label}<br>%{{customdata[0]}}<br>IDs: %{{customdata[2]}}<extra></extra>"))
         maximum = max(1, total_seconds.max() / 3600 * 1.2,
                       rows['Old Rework Duration'].max() / 3600 * 1.2 if 'Old Rework Duration' in rows else 0)
     figure.update_layout(

@@ -2,6 +2,31 @@
 (function () {
     const bound = new WeakSet();
     let tooltip;
+    function clock(hours, compact) {
+        const seconds = Math.round(hours * 3600);
+        const pad = value => String(value).padStart(2, '0');
+        const label = `${pad(Math.floor(seconds / 3600))}:${pad(Math.floor(seconds % 3600 / 60))}`;
+        return compact ? label : `${label}:${pad(seconds % 60)}`;
+    }
+    function durationTicks(lower, upper) {
+        lower = Math.max(0, lower);
+        if (!Number.isFinite(lower) || !Number.isFinite(upper) || upper <= lower) return [[], []];
+        const span = upper - lower, unit = span < 1 / 60 ? 1 / 3600 : span < 1 ? 1 / 60 : 1;
+        const target = span / unit / 5, magnitude = 10 ** Math.floor(Math.log10(target));
+        const step = [1, 2, 5, 10].find(scale => scale * magnitude >= target) * magnitude * unit;
+        const first = Math.ceil(lower / step), values = [];
+        for (let index = 0; index < 7; index++) {
+            const value = (first + index) * step;
+            if (value <= upper) values.push(value);
+        }
+        return [values, values.map(value => clock(value, step * 3600 >= 60))];
+    }
+    function setDurationTicks(update, axis, lower, upper) {
+        const [values, labels] = durationTicks(lower, upper);
+        update[`${axis}.tickmode`] = 'array';
+        update[`${axis}.tickvals`] = values;
+        update[`${axis}.ticktext`] = labels;
+    }
     function refreshHourLabels(plot) {
         const orientation = plot.layout.meta?.hour_axis_orientation;
         if (!orientation || !window.Plotly) return;
@@ -25,12 +50,12 @@
         if (!Number.isFinite(upper)) return;
         const update = {[`${horizontal ? 'x' : 'y'}axis.range`]: [0, upper],
                         [`${horizontal ? 'x' : 'y'}axis.autorange`]: false};
+        setDurationTicks(update, `${horizontal ? 'x' : 'y'}axis`, 0, upper);
         if (plot.layout.meta.bar_total_labels) {
             const annotations = (plot.layout.annotations || []).filter(item => item.name !== 'bar-hour-total');
             for (const [category, total] of totals) {
                 if (total === null) continue;
-                const label = (total >= 10000 ? total.toExponential(2).replace(/\.?0+e/, 'e') :
-                    total > 0 && total < .01 ? Number(total.toPrecision(3)).toString() : total.toFixed(2)) + 'h';
+                const label = clock(total, total === 0 || total >= 1 / 60);
                 annotations.push({name: 'bar-hour-total', text: label,
                     x: horizontal ? total : category, y: horizontal ? category : total,
                     xref: 'x', yref: 'y', showarrow: false,
@@ -76,6 +101,17 @@
             bound.add(plot);
             plot.on('plotly_afterplot', () => update(plot, graph));
             plot.on('plotly_restyle', () => refreshHourLabels(plot));
+            plot.on('plotly_relayout', event => {
+                const coordinate = plot.layout.meta?.duration_axis_orientation;
+                if (!coordinate || !window.Plotly) return;
+                const axis = `${coordinate}axis`;
+                if (!Object.keys(event).some(key => key.startsWith(`${axis}.range`) || key === `${axis}.autorange`)) return;
+                const range = plot._fullLayout?.[axis]?.range;
+                if (!range) return;
+                const update = {};
+                setDurationTicks(update, axis, range[0], range[1]);
+                window.Plotly.relayout(plot, update);
+            });
             plot.on('plotly_unhover', hideTooltip);
             plot.on('plotly_hover', event => {
                 requestAnimationFrame(() => {

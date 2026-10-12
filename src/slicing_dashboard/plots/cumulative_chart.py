@@ -56,14 +56,13 @@ def build_cumulative_chart(
                     y=cumulative_df[col] / 3600,
                     mode="lines+markers",
                     name=col,
-                    line=dict(color=color, shape="linear"),
+                    line=dict(color=color, shape="spline"),
                     connectgaps=False,
                     marker=dict(color=color, size=5),
                     customdata=formatted,
                     hovertemplate=(
-                        "<b>%{x}</b><br>"
-                        f"User: {col}<br>"
-                        "Duration: %{customdata}<extra></extra>"
+                        "<b>%{fullData.name}</b><br>"
+                        "Total: %{customdata}<extra></extra>"
                     ),
                 )
             )

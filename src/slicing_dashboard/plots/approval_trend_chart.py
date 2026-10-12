@@ -26,11 +26,10 @@ def build_approval_trend_chart(report, is_dark=True):
             customdata=[_duration_label(value) for value in values],
             mode='lines+markers', connectgaps=False,
             fill='tozeroy', fillcolor=f'rgba({rgb[0]},{rgb[1]},{rgb[2]},0.16)',
-            line={'color': color, 'width': 2}, marker={'size': 4},
-            hovertemplate=('%{x|%d %b %Y}<br>%{customdata}'
-                           + ('<br>Source-date current status · Asia/Shanghai' if field == 'completed_seconds'
-                              else '<br>Batch-duration estimate' if field != 'total_seconds' else '')
-                           + '<extra>%{fullData.name}</extra>'),
+            line={'color': color, 'width': 2, 'shape': 'spline'}, marker={'size': 4},
+            hovertemplate=(f'<b>Team</b><br>{label}<br>'
+                           + ('%{customdata}' if available else 'Duration: Unavailable')
+                           + '<extra></extra>'),
         ))
     revision = f"approval-trend:{report.get('range_start')}:{report.get('range_end')}"
     _layout(figure, 'Daily work and approvals · last 30 days', is_dark, revision)

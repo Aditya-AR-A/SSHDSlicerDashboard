@@ -101,6 +101,6 @@ def build_individual_chart(
     fig.update_traces(
         textposition="outside",
         textfont=dict(size=10, weight="bold"),
-        hovertemplate="User: <b>%{x}</b><br>Completed: <b>%{customdata[0]}</b> (%{y:.2f} hrs)<extra></extra>",
+        hovertemplate="<b>%{x}</b><br>Completed<br>%{customdata[0]}<extra></extra>",
     )
     return pad_hour_axis(fig)

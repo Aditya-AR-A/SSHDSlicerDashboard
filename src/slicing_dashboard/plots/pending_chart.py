@@ -99,10 +99,9 @@ def build_pending_chart(pending_df, is_dark: bool) -> go.Figure:
         constraintext="none",
         hovertemplate=(
             "<b>%{x}</b><br>"
-            "Stage: %{customdata[1]}<br>"
-            "Duration: <b>%{customdata[0]}</b><br>"
-            "Tasks: %{customdata[2]}<br>"
-            "Slicer IDs: %{customdata[3]}<extra></extra>"
+            "%{customdata[1]}<br>"
+            "%{customdata[0]}<br>"
+            "IDs: %{customdata[3]}<extra></extra>"
         ),
     )
     fig.update_layout(meta={'captured_at': pending_df.attrs.get('captured_at')})

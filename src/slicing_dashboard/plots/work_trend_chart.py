@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from math import isfinite
+from html import escape
 
 import plotly.graph_objects as go
 
@@ -87,10 +88,10 @@ def build_user_comparison_chart(
             y=[value / 3600 if value is not None else None for value in values],
             customdata=[[person, _duration_label(value)] for value in values],
             mode="lines+markers", connectgaps=False,
-            line={"color": user_color(person), "width": 2}, marker={"size": 4},
+            line={"color": user_color(person), "width": 2, "shape": "spline"}, marker={"size": 4},
             visible=True if person in selection else "legendonly",
-            hovertemplate=("%{x|%d %b %Y}<br><b>%{customdata[0]}</b>"
-                           "<br>Video output: %{customdata[1]} (%{y:.2f}h)<extra></extra>"),
+            hovertemplate=("<b>%{customdata[0]}</b><br>"
+                           "Total: %{customdata[1]}<extra></extra>"),
         ))
     _layout(figure, title, is_dark, revision)
     figure.update_layout(legend={"uirevision": revision + ":" + "|".join(sorted(selection))})
@@ -125,13 +126,13 @@ def build_work_composition_chart(
             marker_color=color,
             customdata=[[_duration_label(value), _duration_label(row.get("total_seconds"))]
                         for value, row in zip(values, records)],
-            hovertemplate=(f"%{{x|%d %b %Y}}<br>{label}: %{{customdata[0]}}"
-                           "<br>Total work (new + same-day): %{customdata[1]}<extra></extra>"),
+            hovertemplate=(f"<b>Team</b><br>{label}<br>"
+                           "%{customdata[0]}<extra></extra>"),
         )
         if field == 'old_rework_seconds':
             trace_args['name'] = 'Old Rework (excluded)'
             figure.add_trace(go.Scatter(**trace_args, mode='lines+markers', connectgaps=False,
-                                       line={'color': color, 'width': 2}))
+                                       line={'color': color, 'width': 2, 'shape': 'spline'}))
         else:
             figure.add_trace(go.Bar(**trace_args))
     revision = f"daily-composition:{dates[0] if dates else ''}:{dates[-1] if dates else ''}"
@@ -159,8 +160,8 @@ def build_individual_work_chart(rows, user, is_dark=True):
         figure.add_trace(go.Scatter(name=name, x=[row['date'] for row in records],
             y=[value / 3600 if value is not None else None for value in values],
             customdata=[_duration_label(value) for value in values], mode='lines+markers',
-            connectgaps=False, visible=visible, line={'color': color, 'width': 2},
-            hovertemplate='%{x|%d %b %Y}<br>%{customdata}<extra>%{fullData.name}</extra>'))
+            connectgaps=False, visible=visible, line={'color': color, 'width': 2, 'shape': 'spline'},
+            hovertemplate=f'<b>{escape(str(user))}</b><br>{name}<br>%{{customdata}}<extra></extra>'))
     revision = f"user-work:{user}:{records[-1]['date'] if records else ''}"
     _layout(figure, 'Recorded daily output · last 30 days', is_dark, revision)
     figure.update_layout(title=None, height=360, margin={'l': 48, 'r': 12, 't': 15, 'b': 110},

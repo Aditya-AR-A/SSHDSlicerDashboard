@@ -222,10 +222,10 @@ class DailyReportRenderingTests(unittest.TestCase):
                   and component.__class__.__name__ == "DataTable"]
         table = next(table for table in tables if table.id == "daily-today-table")
         total_index = next(index for index, row in enumerate(table.data) if row.get("User") == "TOTAL")
-        self.assertAlmostEqual(table.data[total_index]["Total Duration"], 0.05)
-        self.assertEqual(table.tooltip_data[total_index]["Total Duration"]["value"], "00:03:00")
+        self.assertEqual(table.data[total_index]["Total Duration"], '00:03:00')
         duration_column = next(column for column in table.columns if column["id"] == "Total Duration")
-        self.assertEqual(duration_column["type"], "numeric")
+        self.assertEqual(duration_column["type"], "text")
+        self.assertEqual(table.sort_action, 'custom')
         self.assertIn("00:03:00", payload_text(page))
 
 

@@ -204,11 +204,9 @@ def build_assigned_chart(assigned_df: pd.DataFrame, is_dark: bool) -> go.Figure:
             customdata=segment["customdata"],
             hovertemplate=(
                 "<b>%{y}</b><br>"
-                "ID: <b>%{customdata[3]}</b><br>"
-                "Stage: <b>%{customdata[1]}</b><br>"
-                "Duration: <b>%{customdata[0]}</b> (%{customdata[5]:.2f}h)<br>"
-                "Tasks: %{customdata[2]}<br>"
-                "Assigned: %{customdata[4]}<extra></extra>"
+                "%{customdata[1]}<br>"
+                "%{customdata[0]}<br>"
+                "ID: %{customdata[3]}<extra></extra>"
             ), showlegend=False,
         ))
 

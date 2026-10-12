@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 
 from slicing_dashboard.plots.theme import theme_ctx
 from slicing_dashboard.plots.guardrails import safe_chart, pad_hour_axis, hour_total_label
+from slicing_dashboard.plots.theme import duration_ticks
 from slicing_dashboard.processing.daily_work import format_video_seconds
 from slicing_dashboard.reporting.dashboard_reports import summarize_daily
 
@@ -32,7 +33,7 @@ def build_day_comparison(today, previous, users, is_dark=True):
             textposition='outside', textfont={'size': 10},
             customdata=[[day.get('date', ''), format_video_seconds(value) if value is not None else 'Unavailable']
                         for value in seconds],
-            hovertemplate='%{y}<br>%{customdata[0]}<br>Submitted video: %{customdata[1]}<extra>%{fullData.name}</extra>'))
+            hovertemplate=f'<b>%{{y}}</b><br>{label}<br>Total: %{{customdata[1]}}<extra></extra>'))
     _layout(figure, is_dark, max(360, 100 + len(ordered) * 34))
     figure.update_layout(barmode='group', bargap=.25, uirevision='daily-day-comparison')
     figure.update_xaxes(title='Submitted video hours', rangemode='tozero',
@@ -72,6 +73,8 @@ def build_activity_calendar(days, user, end_date, is_dark=True):
             labels[weekday][column] = f'{key}<br>Submitted video: {format_video_seconds(seconds)}'
     columns = [(monday + timedelta(days=week * 7)).isoformat() for week in range(weeks)]
     weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+    maximum = max(1, max((value for row in values for value in row if value is not None), default=0))
+    tickvals, ticktext = duration_ticks(0, maximum)
     figure = go.Figure()
     figure.add_trace(go.Heatmap(x=columns, y=weekdays, z=unknown, text=labels,
         colorscale=[[0, '#334155' if is_dark else '#e2e8f0'], [1, '#334155' if is_dark else '#e2e8f0']],
@@ -79,8 +82,9 @@ def build_activity_calendar(days, user, end_date, is_dark=True):
         hovertemplate='%{text}<extra>Unavailable</extra>'))
     figure.add_trace(go.Heatmap(x=columns, y=weekdays, z=values, text=labels,
         colorscale=[[0, '#172c3b' if is_dark else '#e0f2fe'], [.3, '#38bdf8'], [1, '#0284c7']],
-        zmin=0, zmax=max(1, max((value for row in values for value in row if value is not None), default=0)),
-        colorbar=dict(title='Video hours', orientation='h', thickness=8, len=.8,
+        zmin=0, zmax=maximum,
+        colorbar=dict(title='Duration (HH:MM)', tickmode='array', tickvals=tickvals, ticktext=ticktext,
+                      orientation='h', thickness=8, len=.8,
                       x=.5, xanchor='center', y=-.2, yanchor='top', tickfont={'size': 10}), xgap=4, ygap=4,
         hoverongaps=False, hovertemplate='%{text}<extra></extra>'))
     _layout(figure, is_dark, 360)

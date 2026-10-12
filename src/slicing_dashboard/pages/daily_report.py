@@ -1,7 +1,6 @@
 """Daily team reporting built from shared verified submission data."""
 from datetime import date
 from dash import dcc, html
-from dash.dash_table.Format import Format, Scheme
 import dash_bootstrap_components as dbc
 
 from slicing_dashboard.management.periods import today_iso
@@ -102,22 +101,21 @@ def _metric_card(title, value, note, color, icon, *, featured=False, share=None)
 def _day_table(day, is_dark, table_id):
     if not _available(day):
         return _day_notice(day)
-    rows = prepare_daily_table(day, numeric_durations=True)
+    rows = prepare_daily_table(day)
     if not rows:
         return html.Div([_day_notice(day), html.P("No submissions recorded for this day.", className="text-secondary")])
     import pandas as pd
-    duration_names = {"Total Duration": "Total Work (h)", "New Videos (First Time)": "New Work (h)",
-                      "Same-day Rework": "Same-day Rework (h)", "Old Rework": "Old Rework (h)"}
+    duration_names = {"Total Duration": "Total Work (HH:MM:SS)", "New Videos (First Time)": "New Work (HH:MM:SS)",
+                      "Same-day Rework": "Same-day Rework (HH:MM:SS)", "Old Rework": "Old Rework (HH:MM:SS)"}
     columns = [{"name": duration_names.get(column, 'Same-day Rework %' if column == 'Rework %' else column), "id": column,
-                **({"type": "numeric", "format": Format(precision=3, scheme=Scheme.fixed)} if column in duration_names else
+                **({"type": "text"} if column in duration_names else
                    {"type": "numeric"} if column.endswith("Tasks") else {})}
                for column in rows[0]]
-    tooltip = [{column: {"value": value, "type": "text"} for column, value in clock_row.items() if column in duration_names}
-               for clock_row in prepare_daily_table(day)]
     return html.Div([
         _day_notice(day),
         html.Div(create_table(pd.DataFrame(rows), is_dark, table_id=table_id, columns=columns,
-                              tooltip_data=tooltip, max_height="450px"), className="report-table-scroll"),
+                              duration_columns=duration_names,
+                              max_height="450px"), className="report-table-scroll"),
     ])
 
 
@@ -138,7 +136,8 @@ def build_daily_report_content(data, is_dark=True):
         change = "Previous-day comparison unavailable"
     else:
         difference = comparison_change["difference_seconds"]
-        change = f"{difference / 3600:+.2f}h vs recorded previous day"
+        sign = '+' if difference >= 0 else '-'
+        change = f"{sign}{format_video_seconds(abs(difference))} vs recorded previous day"
         if comparison_change["percentage"] is not None:
             change += f" ({comparison_change['percentage']:+.1f}%)"
         if report_date == today_iso():

@@ -9,17 +9,17 @@ from html import escape
 import pandas as pd
 import plotly.graph_objects as go
 
-from slicing_dashboard.plots.theme import CHART_HEIGHT, theme_ctx
+from slicing_dashboard.plots.theme import CHART_HEIGHT, theme_ctx, format_seconds, duration_ticks
 
 log = logging.getLogger(__name__)
 
 
 def hour_total_label(hours):
-    """Compact numeric hours; exact video durations remain in hover/table data."""
+    """Compact elapsed time for chart totals."""
     value = finite_number(hours)
     if value is None:
         return ''
-    return (f'{value:.3g}' if value >= 10000 or 0 < value < .01 else f'{value:.2f}') + 'h'
+    return format_seconds(value * 3600, compact=value == 0 or value >= 1 / 60)
 
 
 def pad_hour_axis(figure, orientation='v'):
@@ -211,6 +211,17 @@ def finish_chart(figure):
                     trace.hovertext = ['<br>'.join(escape(part) for part in wrap(value, 26)) for value in values]
                     trace.hovertemplate = template.replace('%{' + coordinate + '}', '%{hovertext}')
                     break
+    for coordinate in ('x', 'y'):
+        axis = getattr(figure.layout, coordinate + 'axis')
+        if axis.visible is False or 'hour' not in (axis.title.text or '').casefold():
+            continue
+        values = [finite_number(value) for trace in figure.data
+                  for value in (getattr(trace, coordinate, None) if getattr(trace, coordinate, None) is not None else [])]
+        maximum = max((value for value in values if value is not None), default=1.)
+        lower, upper = axis.range if axis.range else (0, max(1., maximum * 1.1))
+        tickvals, ticktext = duration_ticks(lower, upper)
+        axis.update(tickmode='array', tickvals=tickvals, ticktext=ticktext, title='Duration (HH:MM)')
+        figure.update_layout(meta={**(figure.layout.meta or {}), 'duration_axis_orientation': coordinate})
     return figure
 
 
