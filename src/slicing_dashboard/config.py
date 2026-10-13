@@ -39,6 +39,8 @@ class Settings(BaseSettings):
         'Canonical timezone for date normalization')
     request_timeout: int = Field(default=30, description=
         'HTTP request timeout in seconds')
+    efficiency_leader_id: int = Field(default=803, ge=1,
+        description='Leader scope for retained daily slicer efficiency metrics')
     max_retries: int = Field(default=3, description=
         'Maximum number of retry attempts for failed requests')
     user_mapping_path: str = Field(default='config/user_mapping.json',

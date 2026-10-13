@@ -83,6 +83,7 @@ def aggregate_daily_work(tasks, returned_accounts, reviews, target_date, canonic
         stats[user][bucket] += duration
         stats[user][bucket + " Count"] += 1
         stats[user].setdefault("accounts", set()).add(raw)
+        stats[user].setdefault("bucket_accounts", defaultdict(set))[bucket].add(raw)
         evidence.append({"task_id": task["id"], "username": raw, "user": user, "slice_batch": task.get("slice_batch"),
                          "submitted_at": submitted.isoformat(), "duration_seconds": duration, "bucket": bucket,
                          "first_observed_batch_work_date": prior_dates.get(key),
@@ -92,12 +93,14 @@ def aggregate_daily_work(tasks, returned_accounts, reviews, target_date, canonic
     for user, values in sorted(stats.items()):
         fresh, same, old = (values[k] for k in ("Fresh", "Same-day Rework", "Old Rework"))
         count = sum(values[k + " Count"] for k in ("Fresh", "Same-day Rework", "Old Rework"))
-        total = fresh + same + old
+        total = fresh + same
         rows.append({"User": user, "Total Tasks": int(count), "Total Duration": total,
                      "New Videos (First Time)": fresh, "Same-day Rework": same, "Old Rework": old,
-                     "Reworks": same + old, "New Tasks": int(values["Fresh Count"]),
+                     "Reworks": same, "New Tasks": int(values["Fresh Count"]),
                      "Same-day Rework Tasks": int(values["Same-day Rework Count"]),
                      "Old Rework Tasks": int(values["Old Rework Count"]),
-                     "Rework %": f"{(same + old) / total * 100:.1f}%" if total else "0.0%",
-                     "RawID": ",".join(sorted(values["accounts"]))})
+                     "Rework %": f"{same / total * 100:.1f}%" if total else "0.0%",
+                     "RawID": ",".join(sorted(values["accounts"])),
+                     "Bucket IDs": {bucket: ','.join(sorted(values['bucket_accounts'][bucket]))
+                                    for bucket in ('Fresh', 'Same-day Rework', 'Old Rework')}})
     return pd.DataFrame(rows), evidence

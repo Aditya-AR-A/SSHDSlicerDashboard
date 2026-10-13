@@ -6,7 +6,7 @@ Import everything through this package for convenience.
 """
 
 from slicing_dashboard.plots.theme import USER_COLORS, format_seconds, theme_ctx, empty_fig
-from slicing_dashboard.plots.kpi_cards import build_kpi_layout
+from slicing_dashboard.plots.kpi_cards import build_kpi_layout, make_kpi_card
 from slicing_dashboard.plots.cumulative_chart import build_cumulative_chart
 from slicing_dashboard.plots.individual_chart import build_individual_chart
 from slicing_dashboard.plots.pending_chart import build_pending_chart
@@ -15,12 +15,16 @@ from slicing_dashboard.plots.error_rework_chart import build_error_rework_chart
 from slicing_dashboard.plots.legend import build_legend_figure
 from slicing_dashboard.plots.tables import create_table
 from slicing_dashboard.plots.rework_ratio_chart import build_rework_ratio_chart
+from slicing_dashboard.plots.work_trend_chart import build_user_comparison_chart, build_work_composition_chart
 
 __all__ = [
     "USER_COLORS",
     "format_seconds",
     "theme_ctx",
     "build_kpi_layout",
+    "make_kpi_card",
+    "build_user_comparison_chart",
+    "build_work_composition_chart",
     "build_cumulative_chart",
     "build_rework_ratio_chart",
     "build_individual_chart",

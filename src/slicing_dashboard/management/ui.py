@@ -214,6 +214,7 @@ def register_management_callbacks(app, dm):
     def unlock_mapping(clicks, submits, password):
         if not _authorized(password):
             return no_update, _message("Incorrect admin password. Try again."), no_update
+        dm.refresh_shared_configuration(force=True)
         missing = dm.get_unassigned_users(force_refresh=True)
         data = [{"id": uid, "mapped_user": "Unassigned", "mapping_type": "New"} for uid in missing]
         data += list(dm.user_mapping_full.values())
@@ -296,6 +297,10 @@ def register_management_callbacks(app, dm):
         dm.user_mapping_full = {m["id"]: m for m in mappings}
         dm.user_mapping = {m["id"]: m["mapped_user"] for m in mappings}
         dm.exempt_ids = {m["id"] for m in mappings if m["mapping_type"] == "Exempt"}
+        dm._mappings_verified = True
+        dm._mapping_configuration_error = None
+        dm._configuration_error = None
+        dm.invalidate_reporting_caches()
         try:
             (PROJECT_ROOT / "config" / "user_mapping.json").write_text(json.dumps(dm.user_mapping, indent=2), encoding="utf-8")
         except OSError:

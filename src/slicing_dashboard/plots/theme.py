@@ -8,6 +8,8 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import pandas as pd
 from functools import lru_cache
+from hashlib import sha256
+from math import isfinite, ceil, floor, log10
 
 # ── Consistent user color palette ────────────────────────────────────────────
 USER_COLORS = {
@@ -22,7 +24,19 @@ USER_COLORS = {
     "Admin": "#B6E880",
     "Test": "#FF97FF",
     "Dep": "#FECB52",
+    "Akash": "#FECB52",
+    "Annotator": "#B6E880",
+    "Pardeep": "#FF97FF",
+    "Sheetal": "#A8B5E8",
 }
+
+
+def user_color(user: str) -> str:
+    """Keep a person's color stable when the directory or selection changes."""
+    if user in USER_COLORS:
+        return USER_COLORS[user]
+    hue = int.from_bytes(sha256(str(user).encode("utf-8")).digest()[:2], "big") % 360
+    return f"hsl({hue}, 65%, 60%)"
 
 # ── Compact chart height (px) used by all graphs ─────────────────────────────
 CHART_HEIGHT = 280
@@ -51,17 +65,37 @@ def empty_fig() -> go.Figure:
         height=CHART_HEIGHT,
         margin=dict(l=0, r=0, t=0, b=0),
     )
+    fig.add_annotation(text='Loading…', x=.5, y=.5, xref='paper', yref='paper', showarrow=False)
     return fig
 
 
-def format_seconds(seconds):
-    """Convert a duration in seconds to HH:MM string."""
-    if pd.isna(seconds) or seconds is None:
-        return "00:00"
-    seconds = int(seconds)
+def format_seconds(seconds, *, compact=False):
+    """Format elapsed time without wrapping hours at 24 or inventing missing data."""
+    try:
+        value = float(seconds)
+        if not isfinite(value) or value < 0:
+            return 'Unavailable'
+    except (ValueError, TypeError, OverflowError):
+        return 'Unavailable'
+    seconds = int(floor(value + .5))
     h = seconds // 3600
     m = seconds % 3600 // 60
-    return f"{h:02d}:{m:02d}"
+    return f"{h:02d}:{m:02d}" if compact else f"{h:02d}:{m:02d}:{seconds % 60:02d}"
+
+
+def duration_ticks(lower, upper):
+    """Keep numeric hour coordinates while displaying elapsed-time axis ticks."""
+    lower, upper = max(0., float(lower)), float(upper)
+    if not isfinite(lower) or not isfinite(upper) or upper <= lower:
+        return [], []
+    span = upper - lower
+    unit = 1 / 3600 if span < 1 / 60 else 1 / 60 if span < 1 else 1
+    target = span / unit / 5
+    magnitude = 10 ** floor(log10(target))
+    step = next(scale * magnitude for scale in (1, 2, 5, 10) if scale * magnitude >= target) * unit
+    first = ceil(lower / step)
+    values = [(first + index) * step for index in range(7) if (first + index) * step <= upper]
+    return values, [format_seconds(value * 3600, compact=step * 3600 >= 60) for value in values]
 
 
 def theme_ctx(is_dark: bool) -> dict:

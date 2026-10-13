@@ -464,5 +464,49 @@ def _find_latest_raw_file() ->(Path | None):
     return None
 
 
+@cli.command('workflow-sync')
+@click.option('--backfill', is_flag=True, help='Continue bounded scans until each available source has completed a pass.')
+@click.option('--max-rounds', type=click.IntRange(1, 50), default=5, show_default=True,
+              help='Bound the number of sync rounds; unfinished checkpoints resume on later refreshes.')
+def workflow_sync(backfill, max_rounds):
+    """Retain source evidence, infer missing stages and reconcile the shared inbox."""
+    from slicing_dashboard.data_manager import DataManager
+    try:
+        manager = DataManager()
+        for round_number in range(1, (max_rounds if backfill else 1) + 1):
+            data = manager.get_workflow_data(force_refresh=True)
+            console.print(f"Round {round_number}: {data['events']} actions, {data['synthetic']} synthetic prerequisites, "
+                          f"{data['inbox']['total']} notices ({data['inbox']['unread']} unread), {data['storage']}.")
+            states = data['checkpoints']
+            if any(state.get('error') for state in states):
+                console.print('Some sources failed. Checkpoints retained; retry the command or Refresh.')
+                break
+            if len(states) == 3 and all(state.get('last_complete_at') for state in states):
+                console.print('Each accessible source has completed a scan. Visibility/retention limits still apply.')
+                break
+        else:
+            console.print('Round limit reached. Remaining source checkpoints resume on later refreshes.')
+    except Exception as error:
+        raise click.ClickException(f'Workflow sync failed ({type(error).__name__}); configured storage was not replaced.') from None
+
+
+@cli.command('data-refresh')
+@click.option('--source', 'sources', multiple=True,
+              help='Retry only these source names; omit to refresh all sources.')
+@click.option('--health-only', is_flag=True, help='Read freshness without contacting the source API.')
+def data_refresh(sources, health_only):
+    """Capture plot sources, reconcile yesterday, and report durable health."""
+    from slicing_dashboard.data_manager import DataManager
+    from slicing_dashboard.reporting.data_health import DataHealth
+    try:
+        service = DataHealth(DataManager())
+        result = service.health() if health_only else service.refresh(sources or None)
+    except Exception as error:
+        raise click.ClickException(f'Data refresh failed ({type(error).__name__}).') from None
+    click.echo(json.dumps(result, indent=2))
+    if not result.get('refresh_ok', result['ok']) and not result.get('busy'):
+        raise click.ClickException('Some sources are failed, unavailable or overdue; see their individual status.')
+
+
 if __name__ == '__main__':
     cli()
